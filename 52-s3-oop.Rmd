@@ -1,0 +1,136 @@
+# Part XVII: Advanced R Programming {-}
+
+# S3 Object System {#s3-oop}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- S3 classes and objects
+- Generic functions and method dispatch
+- Inheritance
+- Common S3 errors
+
+**Key Errors Covered:** 15+ S3 errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+S3 is R's simplest OOP system, used throughout base R and many packages.
+
+```{r}
+# S3 objects are just lists with a class attribute
+person <- list(name = "Alice", age = 30)
+class(person) <- "person"
+
+# Method dispatch based on class
+class(mtcars)  # "data.frame"
+class(lm(mpg ~ wt, mtcars))  # "lm"
+```
+
+## Creating S3 Objects
+
+<div class="insight-box">
+💡 **Key Insight: Constructor Pattern**
+
+```{r}
+# Constructor
+new_person <- function(name, age) {
+  structure(
+    list(name = name, age = age),
+    class = "person"
+  )
+}
+
+# Validator
+validate_person <- function(x) {
+  if (!is.character(x$name)) stop("name must be character")
+  if (!is.numeric(x$age) || x$age < 0) stop("age must be positive")
+  x
+}
+
+# Helper (user-facing)
+person <- function(name, age) {
+  validate_person(new_person(name, age))
+}
+
+alice <- person("Alice", 30)
+```
+</div>
+
+## Generic Functions
+
+```{r}
+# Create generic
+greet <- function(x) {
+  UseMethod("greet")
+}
+
+# Define methods
+greet.person <- function(x) {
+  paste("Hello", x$name)
+}
+
+greet.default <- function(x) {
+  "Hello!"
+}
+
+# Test
+greet(alice)  # Calls greet.person
+greet(123)    # Calls greet.default
+```
+
+## Common Errors
+
+### Error: no applicable method
+
+```{r error=TRUE}
+# Forgot default method
+process <- function(x) UseMethod("process")
+process.person <- function(x) x$name
+
+process(123)  # Error!
+```
+
+**Solution:** Always provide default method
+
+```{r}
+process.default <- function(x) {
+  stop("No method for class ", class(x)[1], call. = FALSE)
+}
+```
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **S3 = simple OOP** - Just lists with class attribute
+2. **UseMethod()** - Enables dispatch
+3. **Generic.class** - Method naming
+4. **Always provide default** - Avoid errors
+5. **Validate inputs** - Use constructor pattern
+
+**Quick Reference:**
+
+```{r eval=FALSE}
+# Create class
+new_class <- function(...) {
+  structure(list(...), class = "myclass")
+}
+
+# Create generic
+generic <- function(x) UseMethod("generic")
+
+# Create method
+generic.myclass <- function(x) {
+  # Implementation
+}
+
+# Default
+generic.default <- function(x) {
+  stop("No method")
+}
+```
+</div>

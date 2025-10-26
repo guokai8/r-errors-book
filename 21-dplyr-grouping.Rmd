@@ -1,0 +1,1035 @@
+# Grouping & Summarizing {#dplyr-grouping}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- group_by() mechanics
+- Grouped operations
+- summarize() with groups
+- Common grouping errors
+- Multiple grouping variables
+- Ungrouping data
+
+**Key Errors Covered:** 18+ grouping errors
+
+**Difficulty:** ⭐⭐ Intermediate to ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Grouping is one of dplyr's most powerful features:
+
+```{r message=FALSE}
+library(dplyr)
+
+# Without grouping
+mtcars %>%
+  summarize(avg_mpg = mean(mpg))
+
+# With grouping
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(avg_mpg = mean(mpg))
+```
+
+But grouping has surprising behaviors. Let's master it!
+
+## group_by() Basics
+
+<div class="insight-box">
+💡 **Key Insight: group_by() Creates Invisible Groups**
+
+```{r}
+# Create grouped data
+grouped_data <- mtcars %>%
+  group_by(cyl)
+
+# Looks the same when printed
+head(grouped_data, 3)
+
+# But it's grouped!
+class(grouped_data)
+groups(grouped_data)
+
+# Check if grouped
+is_grouped_df(grouped_data)
+
+# See grouping variables
+group_vars(grouped_data)
+
+# Count groups
+n_groups(grouped_data)
+
+# Subsequent operations work within groups
+grouped_data %>%
+  summarize(avg_mpg = mean(mpg))
+```
+
+**Key insight:** Grouping doesn't change data, just how operations apply!
+</div>
+
+## Error #1: Forgetting Data is Grouped {#forgot-grouped}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-logic">🧠 LOGIC</span>
+
+### The Problem
+
+```{r}
+# Group the data
+cars_grouped <- mtcars %>%
+  group_by(cyl)
+
+# Later in code... expecting ungrouped behavior
+cars_grouped %>%
+  mutate(rank = row_number())  # Ranks within groups!
+```
+
+### What Happened
+
+`row_number()` operated within each group, not across all data.
+
+### Common Causes
+
+```{r}
+# Expecting overall statistics
+mtcars %>%
+  group_by(cyl) %>%
+  mutate(
+    overall_mean = mean(mpg)  # Actually group means!
+  ) %>%
+  select(cyl, mpg, overall_mean)
+
+# Expecting all rows
+mtcars %>%
+  group_by(cyl) %>%
+  slice(1)  # Gets first row of EACH group, not overall first
+
+# Filtering
+mtcars %>%
+  group_by(cyl) %>%
+  filter(mpg == max(mpg))  # Max within each group
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Ungroup When Done**
+
+```{r}
+# Ungroup explicitly
+result <- mtcars %>%
+  group_by(cyl) %>%
+  summarize(avg_mpg = mean(mpg)) %>%
+  ungroup()  # Remove grouping
+
+# Now operations are ungrouped
+result %>%
+  mutate(rank = row_number())  # Ranks across all rows
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check Grouping Status**
+
+```{r}
+# Always check if data is grouped
+check_grouping <- function(data) {
+  if (is_grouped_df(data)) {
+    message("Data is grouped by: ", paste(group_vars(data), collapse = ", "))
+  } else {
+    message("Data is not grouped")
+  }
+  invisible(data)
+}
+
+mtcars %>%
+  group_by(cyl) %>%
+  check_grouping() %>%
+  summarize(avg_mpg = mean(mpg)) %>%
+  check_grouping()
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use .groups Argument**
+
+```{r}
+# Control grouping in summarize
+mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(
+    avg_mpg = mean(mpg),
+    .groups = "drop"  # Ungroup completely
+  )
+
+# Keep some grouping
+mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(
+    avg_mpg = mean(mpg),
+    .groups = "drop_last"  # Keep cyl grouping
+  ) %>%
+  group_vars()
+
+# Keep all groups
+mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(
+    avg_mpg = mean(mpg),
+    .groups = "keep"
+  ) %>%
+  group_vars()
+```
+</div>
+
+## summarize() with Groups
+
+<div class="insight-box">
+💡 **Key Insight: summarize() Reduces Groups**
+
+```{r}
+# Single grouping variable
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    n = n(),
+    avg_mpg = mean(mpg),
+    sd_mpg = sd(mpg)
+  )
+
+# Multiple grouping variables
+mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(
+    n = n(),
+    avg_mpg = mean(mpg),
+    .groups = "drop"
+  )
+
+# Useful summary functions
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    count = n(),                    # Number of observations
+    n_distinct = n_distinct(gear),  # Unique values
+    mean = mean(mpg),
+    median = median(mpg),
+    sd = sd(mpg),
+    min = min(mpg),
+    max = max(mpg),
+    first = first(mpg),             # First value
+    last = last(mpg),               # Last value
+    nth = nth(mpg, 2)               # Nth value
+  )
+
+# Multiple values from same column
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    mpg_stats = list(summary(mpg))  # List column
+  )
+```
+</div>
+
+## Error #2: `must be length 1, not ...` {#summarize-length}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    top_mpg = head(mpg, 3)  # Returns multiple values!
+  )
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in summarize():
+! `top_mpg` must be size 1, not 3.
+```
+</div>
+
+### What It Means
+
+`summarize()` expects functions that return a single value per group, not vectors.
+
+### Common Causes
+
+```{r error=TRUE}
+# Functions returning multiple values
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(all_mpg = mpg)  # All values, not one
+
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(quantiles = quantile(mpg))  # Returns 5 values
+
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(range = range(mpg))  # Returns 2 values
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use Single-Value Functions**
+
+```{r}
+# Functions that return one value
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    mean_mpg = mean(mpg),
+    max_mpg = max(mpg),
+    min_mpg = min(mpg),
+    n_obs = n()
+  )
+
+# For ranges, get separately
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    min_mpg = min(mpg),
+    max_mpg = max(mpg)
+  )
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use reframe() for Multiple Rows**
+
+```{r}
+# reframe() allows multiple rows per group (dplyr >= 1.1.0)
+if (packageVersion("dplyr") >= "1.1.0") {
+  mtcars %>%
+    group_by(cyl) %>%
+    reframe(
+      top_3_mpg = head(sort(mpg, decreasing = TRUE), 3)
+    )
+}
+
+# For older dplyr, use summarize with list
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    top_3_mpg = list(head(sort(mpg, decreasing = TRUE), 3))
+  ) %>%
+  tidyr::unnest(top_3_mpg)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use slice() Instead**
+
+```{r}
+# Get top N rows per group with slice
+mtcars %>%
+  group_by(cyl) %>%
+  slice_max(mpg, n = 3) %>%
+  select(cyl, mpg)
+
+# Or with arrange and slice
+mtcars %>%
+  group_by(cyl) %>%
+  arrange(desc(mpg)) %>%
+  slice(1:3) %>%
+  select(cyl, mpg)
+```
+</div>
+
+## mutate() with Groups
+
+<div class="insight-box">
+💡 **Key Insight: mutate() Keeps All Rows**
+
+```{r}
+# mutate() operates within groups but keeps all rows
+mtcars %>%
+  group_by(cyl) %>%
+  mutate(
+    group_mean = mean(mpg),
+    deviation = mpg - group_mean
+  ) %>%
+  select(cyl, mpg, group_mean, deviation) %>%
+  arrange(cyl, mpg)
+
+# Ranking within groups
+mtcars %>%
+  group_by(cyl) %>%
+  mutate(
+    mpg_rank = rank(desc(mpg)),
+    mpg_dense_rank = dense_rank(desc(mpg)),
+    mpg_row_number = row_number(desc(mpg))
+  ) %>%
+  select(cyl, mpg, mpg_rank, mpg_dense_rank, mpg_row_number) %>%
+  arrange(cyl, desc(mpg))
+
+# Cumulative operations within groups
+mtcars %>%
+  group_by(cyl) %>%
+  arrange(mpg) %>%
+  mutate(
+    cumsum_mpg = cumsum(mpg),
+    cummax_mpg = cummax(mpg)
+  ) %>%
+  select(cyl, mpg, cumsum_mpg, cummax_mpg)
+
+# Lead and lag within groups
+mtcars %>%
+  group_by(cyl) %>%
+  arrange(mpg) %>%
+  mutate(
+    prev_mpg = lag(mpg),
+    next_mpg = lead(mpg),
+    diff_from_prev = mpg - lag(mpg)
+  ) %>%
+  select(cyl, mpg, prev_mpg, next_mpg, diff_from_prev)
+```
+</div>
+
+## filter() with Groups
+
+<div class="insight-box">
+💡 **Key Insight: filter() with Groups**
+
+```{r}
+# Filter based on group statistics
+mtcars %>%
+  group_by(cyl) %>%
+  filter(mpg > mean(mpg)) %>%
+  select(cyl, mpg) %>%
+  arrange(cyl, mpg)
+
+# Keep only groups meeting criteria
+mtcars %>%
+  group_by(cyl) %>%
+  filter(n() >= 10) %>%  # Only groups with 10+ observations
+  select(cyl) %>%
+  distinct()
+
+# Top N per group
+mtcars %>%
+  group_by(cyl) %>%
+  filter(rank(desc(mpg)) <= 2) %>%
+  select(cyl, mpg) %>%
+  arrange(cyl, desc(mpg))
+
+# Filter by group condition
+mtcars %>%
+  group_by(cyl) %>%
+  filter(mean(mpg) > 20) %>%  # Only groups with avg mpg > 20
+  select(cyl, mpg)
+```
+</div>
+
+## Multiple Grouping Variables
+
+<div class="insight-box">
+💡 **Key Insight: Multiple Groups**
+
+```{r}
+# Group by multiple variables
+mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(
+    n = n(),
+    avg_mpg = mean(mpg),
+    .groups = "drop"
+  )
+
+# Order matters for operations
+mtcars %>%
+  group_by(cyl, gear) %>%
+  mutate(
+    rank_in_cyl_gear = row_number(desc(mpg))
+  ) %>%
+  select(cyl, gear, mpg, rank_in_cyl_gear) %>%
+  arrange(cyl, gear, desc(mpg))
+
+# Count combinations
+mtcars %>%
+  count(cyl, gear)
+
+# Or with group_by + summarize
+mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(n = n(), .groups = "drop")
+```
+</div>
+
+## Error #3: Unexpected Grouping After summarize() {#unexpected-grouping}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-logic">🧠 LOGIC</span>
+
+### The Problem
+
+```{r}
+# Summarize with multiple groups
+result <- mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(avg_mpg = mean(mpg))  # Message about grouping
+
+# Still grouped!
+is_grouped_df(result)
+group_vars(result)
+
+# Next operation uses this grouping
+result %>%
+  mutate(rank = row_number())  # Within cyl groups!
+```
+
+### What Happened
+
+By default, `summarize()` drops the last grouping variable but keeps others.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use .groups = "drop"**
+
+```{r}
+# Ungroup completely
+result <- mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(
+    avg_mpg = mean(mpg),
+    .groups = "drop"
+  )
+
+is_grouped_df(result)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Explicit ungroup()**
+
+```{r}
+result <- mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(avg_mpg = mean(mpg)) %>%
+  ungroup()
+
+is_grouped_df(result)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Understand .groups Options**
+
+```{r}
+# .groups = "drop_last" (default)
+mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(avg_mpg = mean(mpg), .groups = "drop_last") %>%
+  group_vars()  # Still has cyl
+
+# .groups = "keep"
+mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(avg_mpg = mean(mpg), .groups = "keep") %>%
+  group_vars()  # Has both cyl and gear
+
+# .groups = "drop"
+mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(avg_mpg = mean(mpg), .groups = "drop") %>%
+  group_vars()  # No groups
+
+# .groups = "rowwise"
+mtcars %>%
+  group_by(cyl, gear) %>%
+  summarize(avg_mpg = mean(mpg), .groups = "rowwise") %>%
+  class()
+```
+</div>
+
+## Window Functions
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Window Functions with Groups**
+
+```{r}
+# Ranking functions
+mtcars %>%
+  group_by(cyl) %>%
+  mutate(
+    rank = rank(desc(mpg)),           # Ties get average rank
+    dense_rank = dense_rank(desc(mpg)), # Ties get same rank, no gaps
+    row_number = row_number(desc(mpg)), # Ties broken arbitrarily
+    percent_rank = percent_rank(desc(mpg)), # Percentile
+    cume_dist = cume_dist(desc(mpg))   # Cumulative distribution
+  ) %>%
+  select(cyl, mpg, rank, dense_rank, row_number, percent_rank, cume_dist) %>%
+  arrange(cyl, desc(mpg))
+
+# Lead and lag
+mtcars %>%
+  group_by(cyl) %>%
+  arrange(mpg) %>%
+  mutate(
+    prev_value = lag(mpg, 1),      # Previous value
+    next_value = lead(mpg, 1),     # Next value
+    prev_2 = lag(mpg, 2),          # 2 rows back
+    change = mpg - lag(mpg, 1)     # Change from previous
+  ) %>%
+  select(cyl, mpg, prev_value, next_value, change)
+
+# Cumulative functions
+mtcars %>%
+  group_by(cyl) %>%
+  arrange(mpg) %>%
+  mutate(
+    cumsum = cumsum(mpg),
+    cummean = cummean(mpg),
+    cummin = cummin(mpg),
+    cummax = cummax(mpg)
+  ) %>%
+  select(cyl, mpg, cumsum, cummean, cummin, cummax)
+
+# Offset functions
+mtcars %>%
+  group_by(cyl) %>%
+  arrange(mpg) %>%
+  mutate(
+    first_val = first(mpg),
+    last_val = last(mpg),
+    nth_val = nth(mpg, 3)
+  ) %>%
+  select(cyl, mpg, first_val, last_val, nth_val)
+```
+</div>
+
+## count() and add_count()
+
+<div class="insight-box">
+💡 **Key Insight: Counting Shortcuts**
+
+```{r}
+# count() is shortcut for group_by + summarize + ungroup
+mtcars %>%
+  count(cyl)
+
+# Equivalent to:
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(n = n()) %>%
+  ungroup()
+
+# Multiple variables
+mtcars %>%
+  count(cyl, gear)
+
+# With sorting
+mtcars %>%
+  count(cyl, sort = TRUE)
+
+# With weights
+mtcars %>%
+  count(cyl, wt = mpg)  # Sum of mpg instead of count
+
+# add_count() keeps all rows
+mtcars %>%
+  add_count(cyl) %>%
+  select(cyl, n, everything())
+
+# Name the count column
+mtcars %>%
+  add_count(cyl, name = "n_per_cyl") %>%
+  select(cyl, n_per_cyl, mpg)
+```
+</div>
+
+## across() for Multiple Columns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: across() for Multiple Columns**
+
+```{r}
+# Summarize multiple columns
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    across(c(mpg, hp, wt), mean),
+    .groups = "drop"
+  )
+
+# With named functions
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    across(c(mpg, hp, wt), 
+           list(mean = mean, sd = sd),
+           .names = "{.col}_{.fn}"),
+    .groups = "drop"
+  )
+
+# Using selection helpers
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    across(where(is.numeric), mean),
+    .groups = "drop"
+  )
+
+# In mutate
+mtcars %>%
+  group_by(cyl) %>%
+  mutate(
+    across(c(mpg, hp), 
+           ~ . - mean(.),
+           .names = "{.col}_centered")
+  ) %>%
+  select(cyl, mpg, mpg_centered, hp, hp_centered)
+
+# Multiple functions
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    across(c(mpg, hp), 
+           list(min = min, max = max, mean = mean)),
+    .groups = "drop"
+  )
+```
+</div>
+
+## Common Pitfalls
+
+<div class="pitfall-box">
+⚠️ **Common Grouping Pitfalls**
+
+```{r}
+# Pitfall 1: Forgetting to ungroup
+bad <- mtcars %>%
+  group_by(cyl) %>%
+  mutate(mpg_scaled = mpg / mean(mpg))
+# Still grouped!
+
+good <- mtcars %>%
+  group_by(cyl) %>%
+  mutate(mpg_scaled = mpg / mean(mpg)) %>%
+  ungroup()
+
+# Pitfall 2: Summarizing already summarized data
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(avg_mpg = mean(mpg)) %>%
+  summarize(overall_avg = mean(avg_mpg))  # Wrong! Treats groups equally
+
+# Correct: weight by group size
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    avg_mpg = mean(mpg),
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  summarize(overall_avg = sum(avg_mpg * n) / sum(n))
+
+# Pitfall 3: Group order affecting row_number
+set.seed(123)
+df <- tibble(
+  group = rep(c("A", "B"), each = 3),
+  value = sample(1:6)
+)
+
+# Different results!
+df %>% group_by(group) %>% mutate(rn = row_number())
+df %>% arrange(value) %>% group_by(group) %>% mutate(rn = row_number())
+
+# Pitfall 4: Comparing grouped vs ungrouped
+mtcars %>%
+  group_by(cyl) %>%
+  filter(mpg == max(mpg)) %>%  # Max within each cyl
+  nrow()
+
+mtcars %>%
+  filter(mpg == max(mpg)) %>%  # Overall max
+  nrow()
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **group_by() is invisible** - Data looks same but behaves differently
+2. **Always ungroup** - Use `ungroup()` or `.groups = "drop"`
+3. **summarize() reduces groups** - Drops last group by default
+4. **mutate() keeps all rows** - Operations within groups
+5. **Window functions** - Work great with groups
+6. **Check grouping status** - Use `group_vars()` or `is_grouped_df()`
+7. **across() for multiple columns** - Apply same operation to many columns
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| Unexpected grouped behavior | Forgot data is grouped | Check with `group_vars()`, use `ungroup()` |
+| must be size 1 | summarize() with vector | Use single-value function or `reframe()` |
+| Wrong statistics | Operating on groups | Ungroup or use different operation |
+
+**Grouping Operations:**
+
+```{r eval=FALSE}
+# Basic grouping
+data %>% group_by(col)
+
+# Multiple groups
+data %>% group_by(col1, col2)
+
+# Ungroup
+data %>% ungroup()
+
+# Check grouping
+group_vars(data)
+is_grouped_df(data)
+n_groups(data)
+
+# Summarize with groups
+data %>%
+  group_by(col) %>%
+  summarize(stat = mean(value), .groups = "drop")
+
+# Mutate with groups (keeps all rows)
+data %>%
+  group_by(col) %>%
+  mutate(group_mean = mean(value))
+
+# Filter with groups
+data %>%
+  group_by(col) %>%
+  filter(value > mean(value))
+
+# Count
+data %>% count(col)
+data %>% add_count(col)
+
+# across for multiple columns
+data %>%
+  group_by(col) %>%
+  summarize(across(where(is.numeric), mean))
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+data %>% group_by(col) %>% 
+  summarize(stat = mean(x), .groups = "drop")  # Explicit ungrouping
+data %>% group_by(col) %>% ... %>% ungroup()   # Ungroup at end
+Always check: group_vars(data)                  # Verify grouping
+
+# ❌ Avoid
+data %>% group_by(col) %>% summarize(...)      # No .groups argument
+Leave data grouped                               # Causes confusion later
+Assume data is/isn't grouped                     # Always check
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Group Statistics**
+
+Using `mtcars`:
+1. Group by cyl
+2. Calculate mean, median, sd of mpg per group
+3. Add count and min/max mpg
+4. Sort by mean mpg descending
+5. Ensure result is ungrouped
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Window Functions**
+
+Using `mtcars`:
+1. Group by cyl
+2. Add rank of mpg within each cyl
+3. Add difference from group mean
+4. Add percentile within group
+5. Keep only top 2 per group
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Group Detector**
+
+Write `check_grouped_operations(data)` that:
+1. Checks if data is grouped
+2. Shows what grouping variables exist
+3. Warns about potential issues
+4. Suggests when to ungroup
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Grouped Summary Report**
+
+Write `grouped_summary(data, group_vars, summary_vars)` that:
+1. Groups by specified columns
+2. Summarizes multiple statistics for each summary variable
+3. Includes count and percentage of total
+4. Returns ungrouped, sorted result
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+result <- mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    count = n(),
+    mean_mpg = mean(mpg),
+    median_mpg = median(mpg),
+    sd_mpg = sd(mpg),
+    min_mpg = min(mpg),
+    max_mpg = max(mpg),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean_mpg))
+
+result
+
+# Verify it's ungrouped
+is_grouped_df(result)
+```
+
+**Exercise 2:**
+
+```{r}
+result <- mtcars %>%
+  group_by(cyl) %>%
+  mutate(
+    mpg_rank = rank(desc(mpg)),
+    deviation_from_mean = mpg - mean(mpg),
+    percentile = percent_rank(mpg)
+  ) %>%
+  filter(mpg_rank <= 2) %>%
+  select(cyl, mpg, mpg_rank, deviation_from_mean, percentile) %>%
+  arrange(cyl, mpg_rank) %>%
+  ungroup()
+
+result
+```
+
+**Exercise 3:**
+
+```{r}
+check_grouped_operations <- function(data, warn_threshold = 3) {
+  cat("=== Grouping Analysis ===\n\n")
+  
+  # Check if grouped
+  if (!is_grouped_df(data)) {
+    cat("✓ Data is NOT grouped\n")
+    return(invisible(data))
+  }
+  
+  # Get grouping info
+  grp_vars <- group_vars(data)
+  n_grps <- n_groups(data)
+  
+  cat("⚠ Data IS grouped\n")
+  cat("Grouping variables:", paste(grp_vars, collapse = ", "), "\n")
+  cat("Number of groups:", n_grps, "\n\n")
+  
+  # Group sizes
+  grp_sizes <- data %>%
+    summarize(n = n(), .groups = "drop") %>%
+    pull(n)
+  
+  cat("Group size summary:\n")
+  cat("  Min:", min(grp_sizes), "\n")
+  cat("  Max:", max(grp_sizes), "\n")
+  cat("  Mean:", round(mean(grp_sizes), 1), "\n\n")
+  
+  # Warnings
+  if (length(grp_vars) > warn_threshold) {
+    warning("Many grouping variables (", length(grp_vars), 
+            ") may lead to many small groups")
+  }
+  
+  if (any(grp_sizes == 1)) {
+    warning("Some groups have only 1 observation")
+  }
+  
+  # Suggestions
+  cat("Suggestions:\n")
+  cat("  - Use ungroup() when done with grouped operations\n")
+  cat("  - Or use .groups = 'drop' in summarize()\n")
+  cat("  - Check grouping with group_vars() before operations\n")
+  
+  invisible(data)
+}
+
+# Test
+mtcars %>%
+  group_by(cyl) %>%
+  check_grouped_operations()
+
+mtcars %>%
+  group_by(cyl, gear, carb) %>%
+  check_grouped_operations()
+```
+
+**Exercise 4:**
+
+```{r}
+grouped_summary <- function(data, group_vars, summary_vars) {
+  # Get total count for percentages
+  total_n <- nrow(data)
+  
+  # Create summary
+  result <- data %>%
+    group_by(across(all_of(group_vars))) %>%
+    summarize(
+      count = n(),
+      pct_of_total = n() / total_n * 100,
+      across(
+        all_of(summary_vars),
+        list(
+          mean = ~mean(., na.rm = TRUE),
+          median = ~median(., na.rm = TRUE),
+          sd = ~sd(., na.rm = TRUE),
+          min = ~min(., na.rm = TRUE),
+          max = ~max(., na.rm = TRUE)
+        ),
+        .names = "{.col}_{.fn}"
+      ),
+      .groups = "drop"
+    ) %>%
+    arrange(desc(count))
+  
+  result
+}
+
+# Test
+grouped_summary(
+  mtcars,
+  group_vars = c("cyl"),
+  summary_vars = c("mpg", "hp")
+)
+
+grouped_summary(
+  mtcars,
+  group_vars = c("cyl", "gear"),
+  summary_vars = c("mpg", "hp", "wt")
+)
+
+# With iris
+grouped_summary(
+  iris,
+  group_vars = "Species",
+  summary_vars = c("Sepal.Length", "Sepal.Width", "Petal.Length")
+)
+```
+</details>

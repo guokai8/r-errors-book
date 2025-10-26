@@ -1,0 +1,426 @@
+# purrr Package {#purrr-package}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- map() family functions
+- Type-safe iteration
+- Error handling in iteration
+- Advanced patterns
+- Advantages over apply family
+
+**Key Errors Covered:** 15+ purrr errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+purrr provides modern, type-safe iteration:
+
+```{r message=FALSE}
+library(purrr)
+
+# map() instead of lapply()
+map(1:3, ~ . * 2)
+
+# Type-safe variants
+map_dbl(1:3, ~ . * 2)
+```
+
+## map() Family
+
+<div class="insight-box">
+💡 **Key Insight: Type-Safe Mapping**
+
+```{r}
+library(purrr)
+
+# map() returns list (like lapply)
+map(1:3, sqrt)
+
+# Type-specific variants
+map_dbl(1:3, sqrt)      # numeric vector
+map_chr(1:3, as.character)  # character vector
+map_int(1:3, ~ .x)      # integer vector
+map_lgl(c(TRUE, FALSE, TRUE), ~ .x)  # logical vector
+
+# Error if wrong type
+# map_dbl(1:3, as.character)  # Error!
+
+# map_df for data frames
+map_df(1:3, ~ data.frame(x = .x, y = .x^2))
+```
+</div>
+
+## Formula Syntax
+
+<div class="insight-box">
+💡 **Key Insight: Convenient Formula Syntax**
+
+```{r}
+# Three ways to write functions
+
+# 1. Regular function
+map(1:3, function(x) x * 2)
+
+# 2. Formula with ~ (one argument: .x or .)
+map(1:3, ~ .x * 2)
+map(1:3, ~ . * 2)
+
+# 3. Formula with ~ (two arguments: .x and .y)
+map2(1:3, 4:6, ~ .x + .y)
+
+# Complex expressions
+map(1:3, ~ {
+  squared <- .x^2
+  sqrt(squared)
+})
+
+# Accessing list elements
+lst <- list(
+  list(a = 1, b = 2),
+  list(a = 3, b = 4)
+)
+
+map(lst, ~ .x$a)
+# Or simpler:
+map(lst, "a")
+```
+</div>
+
+## Error #1: Type Mismatch {#purrr-type-mismatch}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+# Function returns character, but expecting numeric
+map_dbl(1:3, ~ as.character(.x))
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: Can't coerce element 1 from a character to a double
+```
+</div>
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Use Correct Type**
+
+```{r}
+# Use map_chr for character output
+map_chr(1:3, ~ as.character(.x))
+
+# Or use map() and get list
+map(1:3, ~ as.character(.x))
+
+# Convert inside function
+map_dbl(1:3, ~ as.numeric(as.character(.x)))
+```
+</div>
+
+## map2() and pmap()
+
+<div class="insight-box">
+💡 **Key Insight: Multiple Inputs**
+
+```{r}
+# map2() for two inputs
+map2_dbl(1:3, 4:6, ~ .x + .y)
+
+map2_chr(c("a", "b", "c"), 1:3, ~ paste(.x, .y))
+
+# pmap() for multiple inputs (list of inputs)
+inputs <- list(
+  x = 1:3,
+  y = 4:6,
+  z = 7:9
+)
+
+pmap_dbl(inputs, function(x, y, z) x + y + z)
+
+# With formula
+pmap_dbl(inputs, ~ ..1 + ..2 + ..3)
+
+# Named arguments
+pmap_chr(
+  list(
+    name = c("Alice", "Bob"),
+    age = c(25, 30)
+  ),
+  ~ paste(.x, "is", .y, "years old")
+)
+```
+</div>
+
+## Error Handling
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Safe Iteration**
+
+```{r}
+# Data with potential errors
+data <- list("1", "2", "not_a_number", "4")
+
+# map() will fail
+# map_dbl(data, as.numeric)  # Error!
+
+# possibly() returns default on error
+safe_numeric <- possibly(as.numeric, otherwise = NA_real_)
+map_dbl(data, safe_numeric)
+
+# safely() returns list of result and error
+safe_parse <- safely(as.numeric)
+map(data, safe_parse)
+
+# quietly() captures messages/warnings
+quiet_sqrt <- quietly(sqrt)
+map(c(4, -1, 9), quiet_sqrt)
+
+# Try each until one works
+try_functions <- list(
+  as.numeric,
+  function(x) 0
+)
+
+map(data, ~ reduce(try_functions, function(val, f) {
+  if (!is.na(val)) return(val)
+  try(f(.x), silent = TRUE)
+}, .init = NA))
+```
+</div>
+
+## Advanced Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Complex Patterns**
+
+```{r}
+# Keep/discard based on condition
+numbers <- list(1, "a", 3, "b", 5)
+
+keep(numbers, is.numeric)
+discard(numbers, is.character)
+
+# Detect if any/all meet condition
+some(numbers, is.numeric)
+every(numbers, is.numeric)
+
+# Find position
+detect(numbers, is.character)
+detect_index(numbers, is.character)
+
+# Reduce (fold)
+reduce(1:5, `+`)
+reduce(1:5, `*`)
+
+# Accumulate (show intermediate steps)
+accumulate(1:5, `+`)
+
+# Modify elements
+modify(list(1, 2, 3), ~ .x * 2)
+modify_if(list(1, "a", 3), is.numeric, ~ .x * 2)
+modify_at(list(a = 1, b = 2, c = 3), "b", ~ .x * 10)
+```
+</div>
+
+## Nested Data
+
+<div class="insight-box">
+💡 **Key Insight: Working with Nested Lists**
+
+```{r}
+# Nested list
+nested <- list(
+  person1 = list(name = "Alice", age = 25, scores = c(90, 85, 92)),
+  person2 = list(name = "Bob", age = 30, scores = c(88, 92, 87)),
+  person3 = list(name = "Charlie", age = 35, scores = c(95, 89, 91))
+)
+
+# Extract single element
+map(nested, "name")
+map(nested, "age")
+
+# Extract nested element
+map(nested, list("scores", 1))  # First score
+
+# Complex extraction
+map(nested, ~ mean(.x$scores))
+
+# Modify nested structure
+map(nested, ~ {
+  .x$avg_score <- mean(.x$scores)
+  .x
+})
+
+# Flatten nested lists
+nested_scores <- map(nested, "scores")
+flatten_dbl(nested_scores)
+```
+</div>
+
+## Comparison with Base R
+
+<div class="bestpractice-box">
+🎯 **Best Practice: purrr vs Base R**
+
+```{r}
+# Get means of each column
+df <- mtcars[, 1:3]
+
+# Base R
+lapply(df, mean)
+sapply(df, mean)
+
+# purrr (type-safe)
+map(df, mean)
+map_dbl(df, mean)
+
+# Multiple inputs
+# Base R
+mapply(function(x, y) x + y, 1:3, 4:6)
+
+# purrr (cleaner)
+map2_dbl(1:3, 4:6, ~ .x + .y)
+
+# Error handling
+# Base R
+tryCatch(as.numeric("a"), error = function(e) NA)
+
+# purrr (composable)
+possibly(as.numeric, NA)("a")
+
+# Advantages of purrr:
+# - Type safety
+# - Consistent interface
+# - Better error handling
+# - Cleaner syntax
+# - Composable functions
+```
+</div>
+
+## Real-World Examples
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Practical Uses**
+
+```{r message=FALSE}
+library(dplyr)
+
+# 1. Read multiple files
+# files <- list.files(pattern = "\\.csv$")
+# data <- map_df(files, read_csv, .id = "file")
+
+# 2. Fit multiple models
+models <- mtcars %>%
+  split(.$cyl) %>%
+  map(~ lm(mpg ~ hp, data = .))
+
+# Get R-squared from each
+map_dbl(models, ~ summary(.)$r.squared)
+
+# 3. Extract nested information
+results <- list(
+  model1 = list(coef = c(1.5, 2.3), r2 = 0.85),
+  model2 = list(coef = c(1.8, 2.1), r2 = 0.90),
+  model3 = list(coef = c(1.2, 2.5), r2 = 0.78)
+)
+
+map_dbl(results, "r2")
+map(results, "coef")
+
+# 4. Validate data
+data_list <- list(
+  df1 = data.frame(x = 1:3, y = 4:6),
+  df2 = data.frame(x = 1:3),  # Missing y
+  df3 = data.frame(x = 1:3, y = 4:6)
+)
+
+# Check all have 'y' column
+map_lgl(data_list, ~ "y" %in% names(.))
+
+# Filter to valid ones
+valid_data <- keep(data_list, ~ "y" %in% names(.))
+length(valid_data)
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Type-safe mapping** - Use map_dbl(), map_chr(), etc.
+2. **Formula syntax** - Clean with ~ .x
+3. **Error handling** - possibly(), safely(), quietly()
+4. **Multiple inputs** - map2(), pmap()
+5. **Powerful helpers** - keep(), discard(), reduce()
+6. **Nested data** - Easy extraction with list indexing
+7. **Consistent interface** - All functions work similarly
+
+**Quick Reference:**
+
+| Function | Purpose | Returns |
+|----------|---------|---------|
+| map() | Apply to each | List |
+| map_dbl() | Apply to each | Numeric vector |
+| map_chr() | Apply to each | Character vector |
+| map_int() | Apply to each | Integer vector |
+| map_lgl() | Apply to each | Logical vector |
+| map2() | Two inputs | List/vector |
+| pmap() | Multiple inputs | List/vector |
+| walk() | Side effects only | Input invisibly |
+
+**Common Patterns:**
+
+```{r eval=FALSE}
+# Basic mapping
+map(list, function)
+map_dbl(list, ~ .x * 2)
+
+# Multiple inputs
+map2(x, y, ~ .x + .y)
+pmap(list(x, y, z), function(x, y, z) x + y + z)
+
+# Error handling
+possibly(function, otherwise = NA)
+safely(function)
+
+# Filtering
+keep(list, is.numeric)
+discard(list, is.na)
+
+# Detection
+some(list, is.numeric)
+every(list, is.numeric)
+
+# Reduction
+reduce(list, `+`)
+accumulate(list, `+`)
+
+# Extraction
+map(nested_list, "element_name")
+map(nested_list, list("level1", "level2"))
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+Use type-specific map variants (map_dbl, etc.)
+Use formula syntax for clarity
+Handle errors with possibly/safely
+Use descriptive function names
+
+# ❌ Avoid
+Using map() when type matters
+Ignoring potential errors
+Complex nested anonymous functions
+```
+</div>

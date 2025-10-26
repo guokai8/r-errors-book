@@ -1,0 +1,480 @@
+# Data Manipulation Best Practices {#dplyr-best-practices}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Efficient dplyr workflows
+- Performance optimization
+- Code organization
+- Common anti-patterns
+- Debugging strategies
+
+**Key Errors Covered:** 10+ workflow errors
+
+**Difficulty:** ⭐⭐ Intermediate to ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Best practices make code faster, clearer, and more maintainable:
+
+```{r message=FALSE}
+library(dplyr)
+library(tidyr)
+
+# Good: Clear pipeline
+result <- mtcars %>%
+  filter(mpg > 20) %>%
+  select(mpg, cyl, hp) %>%
+  mutate(hp_per_cyl = hp / cyl) %>%
+  arrange(desc(hp_per_cyl))
+
+head(result, 3)
+```
+
+## Performance Optimization
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Optimize for Speed**
+
+```{r}
+# 1. Filter early
+# Bad: filter after heavy operations
+mtcars %>%
+  mutate(complex = mpg * hp / wt) %>%
+  left_join(mtcars, by = c("cyl")) %>%
+  filter(mpg > 20)
+
+# Good: filter first
+mtcars %>%
+  filter(mpg > 20) %>%
+  mutate(complex = mpg * hp / wt) %>%
+  left_join(mtcars, by = c("cyl"))
+
+# 2. Select early
+# Bad: keep all columns
+mtcars %>%
+  mutate(new = mpg * 2) %>%
+  filter(cyl == 4) %>%
+  select(mpg, cyl, new)
+
+# Good: select needed columns early
+mtcars %>%
+  select(mpg, cyl, hp, wt) %>%
+  filter(cyl == 4) %>%
+  mutate(new = mpg * 2)
+
+# 3. Use data.table for large data
+# library(dtplyr)
+# lazy_dt(large_data) %>%
+#   filter(...) %>%
+#   as_tibble()
+```
+</div>
+
+## Code Organization
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Readable Pipelines**
+
+```{r}
+# Good: One operation per line
+result <- mtcars %>%
+  filter(mpg > 20) %>%
+  mutate(
+    hp_per_ton = hp / wt,
+    efficiency = mpg / hp
+  ) %>%
+  group_by(cyl) %>%
+  summarize(
+    avg_efficiency = mean(efficiency),
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(avg_efficiency))
+
+# Good: Use intermediate variables for clarity
+filtered_cars <- mtcars %>%
+  filter(mpg > 20, cyl %in% c(4, 6))
+
+efficiency_metrics <- filtered_cars %>%
+  mutate(
+    hp_per_ton = hp / wt,
+    efficiency = mpg / hp
+  )
+
+final_summary <- efficiency_metrics %>%
+  group_by(cyl) %>%
+  summarize(
+    avg_efficiency = mean(efficiency),
+    n = n(),
+    .groups = "drop"
+  )
+
+# Bad: Everything in one long pipe
+# result <- mtcars %>% filter(mpg > 20) %>% mutate(hp_per_ton = hp / wt, efficiency = mpg / hp) %>% group_by(cyl) %>% summarize(avg_efficiency = mean(efficiency), n = n(), .groups = "drop") %>% arrange(desc(avg_efficiency))
+```
+</div>
+
+## Common Anti-Patterns
+
+<div class="pitfall-box">
+⚠️ **Avoid These Patterns**
+
+```{r}
+# Anti-pattern 1: Growing data frame in loop
+# Bad
+result <- tibble()
+for (i in 1:100) {
+  result <- bind_rows(result, tibble(x = i, y = i^2))
+}
+
+# Good
+result <- tibble(
+  x = 1:100,
+  y = x^2
+)
+
+# Anti-pattern 2: Unnecessary grouping
+# Bad
+mtcars %>%
+  group_by(cyl) %>%
+  select(mpg, cyl, hp)  # select doesn't need groups
+
+# Good
+mtcars %>%
+  select(mpg, cyl, hp) %>%
+  group_by(cyl)  # Group only when needed
+
+# Anti-pattern 3: Repeated similar code
+# Bad
+mtcars %>%
+  summarize(
+    mean_mpg = mean(mpg),
+    mean_hp = mean(hp),
+    mean_wt = mean(wt),
+    mean_disp = mean(disp)
+  )
+
+# Good
+mtcars %>%
+  summarize(across(c(mpg, hp, wt, disp), mean, .names = "mean_{.col}"))
+
+# Anti-pattern 4: Ignoring NAs
+# Bad
+data_with_na <- tibble(x = c(1, 2, NA, 4))
+data_with_na %>%
+  summarize(mean_x = mean(x))  # Returns NA!
+
+# Good
+data_with_na %>%
+  summarize(mean_x = mean(x, na.rm = TRUE))
+```
+</div>
+
+## Debugging Strategies
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Debug Effectively**
+
+```{r}
+# 1. Check intermediate steps
+mtcars %>%
+  filter(mpg > 20) %>%
+  {cat("After filter:", nrow(.), "rows\n"); .} %>%
+  select(mpg, cyl, hp) %>%
+  {cat("After select:", ncol(.), "cols\n"); .} %>%
+  head(3)
+
+# 2. Use View() in RStudio
+# mtcars %>%
+#   filter(mpg > 20) %>%
+#   View()
+
+# 3. Print summary statistics
+debug_data <- function(data, label = "") {
+  cat("\n=== Debug:", label, "===\n")
+  cat("Rows:", nrow(data), "\n")
+  cat("Cols:", ncol(data), "\n")
+  cat("Columns:", paste(names(data), collapse = ", "), "\n")
+  data
+}
+
+mtcars %>%
+  debug_data("original") %>%
+  filter(mpg > 20) %>%
+  debug_data("after filter")
+
+# 4. Check for common issues
+check_pipeline <- function(data) {
+  cat("=== Pipeline Check ===\n")
+  cat("Rows:", nrow(data), "\n")
+  cat("NA counts:\n")
+  print(colSums(is.na(data)))
+  cat("\nGrouping:", paste(group_vars(data), collapse = ", "), "\n")
+  cat("Grouped:", is_grouped_df(data), "\n")
+  data
+}
+```
+</div>
+
+## Documentation
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Document Complex Operations**
+
+```{r}
+# Good: Comments explain WHY, not WHAT
+clean_sales_data <- function(data) {
+  data %>%
+    # Remove test transactions (internal use only)
+    filter(customer_id >= 1000) %>%
+    # Standardize date format for downstream systems
+    mutate(date = as.Date(date)) %>%
+    # Calculate revenue (excluding tax per accounting rules)
+    mutate(revenue = quantity * price) %>%
+    # Remove cancelled orders (status code 99)
+    filter(status != 99)
+}
+
+# Good: Function documentation
+#' Calculate customer lifetime value
+#'
+#' @param orders Data frame with customer_id, date, amount
+#' @param window_days Number of days to consider (default: 365)
+#' @return Data frame with customer_id and lifetime_value
+calculate_ltv <- function(orders, window_days = 365) {
+  cutoff_date <- Sys.Date() - window_days
+  
+  orders %>%
+    filter(date >= cutoff_date) %>%
+    group_by(customer_id) %>%
+    summarize(
+      lifetime_value = sum(amount),
+      n_orders = n(),
+      .groups = "drop"
+    )
+}
+```
+</div>
+
+## Error Handling
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Handle Errors Gracefully**
+
+```{r}
+# Validate inputs
+safe_summarize <- function(data, col) {
+  # Check data frame
+  if (!is.data.frame(data)) {
+    stop("data must be a data frame")
+  }
+  
+  # Check column exists
+  if (!col %in% names(data)) {
+    stop("Column '", col, "' not found. ",
+         "Available: ", paste(names(data), collapse = ", "))
+  }
+  
+  # Check numeric
+  if (!is.numeric(data[[col]])) {
+    stop("Column '", col, "' must be numeric")
+  }
+  
+  # Perform operation
+  data %>%
+    summarize(
+      mean = mean(.data[[col]], na.rm = TRUE),
+      sd = sd(.data[[col]], na.rm = TRUE),
+      n = sum(!is.na(.data[[col]]))
+    )
+}
+
+# Test
+safe_summarize(mtcars, "mpg")
+```
+
+```{r error=TRUE}
+safe_summarize(mtcars, "missing_col")
+```
+</div>
+
+## Testing Pipelines
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Test Your Code**
+
+```{r}
+# Create test function
+test_clean_data <- function() {
+  # Setup test data
+  test_data <- tibble(
+    id = 1:5,
+    value = c(10, NA, 30, 40, 50),
+    group = c("A", "A", "B", "B", "C")
+  )
+  
+  # Run pipeline
+  result <- test_data %>%
+    filter(!is.na(value)) %>%
+    group_by(group) %>%
+    summarize(mean_value = mean(value), .groups = "drop")
+  
+  # Check results
+  stopifnot(nrow(result) == 3)  # 3 groups
+  stopifnot(all(!is.na(result$mean_value)))  # No NAs
+  stopifnot("group" %in% names(result))  # Has group column
+  
+  message("✓ All tests passed")
+  TRUE
+}
+
+test_clean_data()
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Filter early** - Reduce data size first
+2. **Select needed columns** - Don't carry extra data
+3. **One operation per line** - Readable pipelines
+4. **Use across()** - Avoid repetition
+5. **Handle NAs** - Always specify na.rm
+6. **Ungroup** - Clean up after group operations
+7. **Document WHY** - Not what code does
+8. **Test code** - Catch errors early
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Excellent pipeline
+result <- data %>%
+  # Filter first (reduce data)
+  filter(important_condition) %>%
+  # Select needed columns
+  select(needed_cols) %>%
+  # Transform
+  mutate(new_col = calculation) %>%
+  # Aggregate
+  group_by(category) %>%
+  summarize(
+    metric = mean(value, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"  # Always ungroup
+  ) %>%
+  # Sort
+  arrange(desc(metric))
+
+# ✅ Use functions for repeated logic
+calculate_stats <- function(data, group_var, value_var) {
+  data %>%
+    group_by({{ group_var }}) %>%
+    summarize(
+      across({{ value_var }},
+             list(mean = ~mean(., na.rm = TRUE),
+                  sd = ~sd(., na.rm = TRUE)),
+             .names = "{.col}_{.fn}"),
+      .groups = "drop"
+    )
+}
+
+# ✅ Document complex operations
+# Remove outliers using IQR method (1.5 * IQR)
+clean_data <- data %>%
+  group_by(category) %>%
+  filter(
+    value >= quantile(value, 0.25) - 1.5 * IQR(value),
+    value <= quantile(value, 0.75) + 1.5 * IQR(value)
+  ) %>%
+  ungroup()
+```
+
+**Anti-Patterns to Avoid:**
+
+```{r eval=FALSE}
+# ❌ Bad
+Growing data in loops
+Unnecessary grouping
+Repeated similar code
+Ignoring NAs
+No error checking
+Complex one-liners
+No comments on complex logic
+
+# ✅ Good
+Vectorized operations
+Group only when needed
+Use across() for repetition
+Always handle NAs
+Validate inputs
+Break into readable steps
+Document WHY not WHAT
+```
+</div>
+
+## Exercise
+
+<div class="exercise-box">
+📝 **Exercise: Refactor Pipeline**
+
+Improve this code:
+
+```{r eval=FALSE}
+result <- data %>%
+  mutate(x = a + b, y = c + d, z = e + f) %>%
+  filter(category == "A" | category == "B" | category == "C") %>%
+  group_by(category) %>%
+  summarize(mean_x = mean(x), mean_y = mean(y), mean_z = mean(z)) %>%
+  filter(mean_x > 0)
+```
+</div>
+
+## Exercise Answer
+
+<details>
+<summary>Click to see answer</summary>
+
+```{r eval=FALSE}
+# Refactored version
+result <- data %>%
+  # Filter early for better performance
+  filter(category %in% c("A", "B", "C")) %>%
+  # Use across() to avoid repetition
+  mutate(
+    across(c(a, b), .names = "sum_{.col}",
+           .fns = ~ . + .)
+  ) %>%
+  # Group for aggregation
+  group_by(category) %>%
+  # Use across() in summarize
+  summarize(
+    across(starts_with("sum_"),
+           mean,
+           na.rm = TRUE,
+           .names = "mean_{.col}"),
+    .groups = "drop"
+  ) %>%
+  # Filter on summarized values
+  filter(mean_sum_a > 0)
+```
+</details>
+
+## Completion
+
+<div class="chapter-summary">
+**Part VIII Complete!**
+
+You've mastered:
+- dplyr fundamentals (filter, select, mutate, etc.)
+- Grouping and summarizing
+- Joining data
+- Reshaping with tidyr
+- Advanced tidy evaluation
+- Best practices and optimization
+
+**Ready for:** Part IX (Graphics) or other advanced topics!
+</div>

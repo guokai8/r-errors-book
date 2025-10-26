@@ -1,0 +1,1283 @@
+# Part III: Indexing & Subsetting {-}
+
+# Subscript & Dimension Errors {#subscript-dimension}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- How R's indexing system works
+- Understanding dimensions and subscripts
+- Common indexing mistakes
+- Negative vs positive indexing
+- Logical indexing pitfalls
+- Matrix and array subsetting
+
+**Key Errors Covered:** 18+ indexing errors
+
+**Difficulty:** ⭐ Beginner to ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+R's indexing system is powerful but confusing. You'll see these errors constantly:
+
+```{r error=TRUE}
+x <- 1:5
+x[10]  # Wait, this works?
+```
+
+```{r}
+x[10]  # Returns NA, not an error!
+```
+
+But this doesn't:
+
+```{r error=TRUE}
+x[[10]]  # Now it's an error
+```
+
+Understanding R's indexing is **critical** for avoiding errors. Let's master it.
+
+## R's Indexing Methods
+
+<div class="insight-box">
+💡 **Key Insight: Five Ways to Index**
+
+```{r}
+x <- c(10, 20, 30, 40, 50)
+
+# 1. Positive integers (positions)
+x[c(1, 3, 5)]
+
+# 2. Negative integers (exclusion)
+x[-c(2, 4)]
+
+# 3. Logical vectors
+x[c(TRUE, FALSE, TRUE, FALSE, TRUE)]
+
+# 4. Names (if vector has names)
+names(x) <- c("a", "b", "c", "d", "e")
+x[c("a", "c", "e")]
+
+# 5. Empty (returns all)
+x[]
+```
+
+**Each method has different error patterns!**
+</div>
+
+## Error #1: `subscript out of bounds` {#subscript-out-bounds}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- 1:5
+x[[10]]  # Double bracket
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in x[[10]] : subscript out of bounds
+```
+</div>
+
+### What It Means
+
+You're trying to access an element beyond the vector's length using `[[]]`.
+
+### Single vs Double Bracket
+
+```{r}
+x <- 1:5
+
+# Single bracket: Returns NA, no error
+x[10]
+
+# Double bracket: Errors
+```
+
+```{r error=TRUE}
+x[[10]]
+```
+
+**Why the difference?**
+- `[` can return multiple elements or NA
+- `[[` must return exactly one element
+
+### Common Causes
+
+#### Cause 1: Off-by-One Error
+
+```{r error=TRUE}
+scores <- c(85, 90, 95)
+
+# Loop goes too far
+for (i in 1:4) {  # Only 3 elements!
+  print(scores[[i]])
+}
+```
+
+#### Cause 2: Wrong Length Assumption
+
+```{r error=TRUE}
+data <- c(10, 20, 30)
+
+# Assumed it had 5 elements
+first_five <- data[[1:5]]  # Error on 4th
+```
+
+#### Cause 3: After Filtering
+
+```{r error=TRUE}
+values <- 1:10
+large_values <- values[values > 100]  # Empty!
+
+# Try to access first element
+large_values[[1]]  # Out of bounds (length 0)
+```
+
+#### Cause 4: List Indexing
+
+```{r error=TRUE}
+my_list <- list(a = 1, b = 2, c = 3)
+
+# Trying to access 4th element
+my_list[[4]]  # Only 3 elements
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Length First**
+
+```{r}
+x <- 1:5
+index <- 10
+
+# Safe access
+if (index <= length(x)) {
+  x[[index]]
+} else {
+  message("Index ", index, " is out of bounds")
+  NA
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Single Bracket**
+
+```{r}
+x <- 1:5
+
+# Single bracket returns NA instead of error
+x[10]  # NA
+
+# Good for loops where you want to continue
+for (i in 1:10) {
+  val <- x[i]
+  if (!is.na(val)) {
+    print(val)
+  }
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Safe Indexing Function**
+
+```{r}
+safe_extract <- function(x, i, default = NA) {
+  if (i < 1 || i > length(x)) {
+    return(default)
+  }
+  return(x[[i]])
+}
+
+# Test
+x <- 1:5
+safe_extract(x, 3)   # 3
+safe_extract(x, 10)  # NA
+safe_extract(x, 10, default = 0)  # 0
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 4: Use seq_along() in Loops**
+
+```{r}
+values <- c(10, 20, 30)
+
+# Wrong: assumes length
+for (i in 1:5) {
+  # Error on 4th iteration
+}
+
+# Right: uses actual length
+for (i in seq_along(values)) {
+  print(values[[i]])  # Safe
+}
+
+# Even safer: iterate over values directly
+for (val in values) {
+  print(val)
+}
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Empty Vectors**
+
+```{r error=TRUE}
+# Filter returns empty
+x <- 1:10
+big_numbers <- x[x > 100]  # numeric(0)
+
+length(big_numbers)  # 0
+
+# This errors!
+big_numbers[[1]]
+
+# Always check
+if (length(big_numbers) > 0) {
+  big_numbers[[1]]
+} else {
+  NA
+}
+```
+</div>
+
+## Error #2: `undefined columns selected` {#undefined-columns}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5, y = 6:10)
+df[, "z"]  # Column doesn't exist
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in `[.data.frame`(df, , "z") : undefined columns selected
+```
+</div>
+
+### What It Means
+
+You're trying to select columns that don't exist in the data frame.
+
+### Common Causes
+
+#### Cause 1: Typo in Column Name
+
+```{r error=TRUE}
+df <- data.frame(age = c(25, 30, 35), name = c("A", "B", "C"))
+
+# Typo: "agee" instead of "age"
+df[, "agee"]
+```
+
+#### Cause 2: Case Sensitivity
+
+```{r error=TRUE}
+df <- data.frame(Age = c(25, 30, 35))
+
+# Wrong case
+df[, "age"]  # Error! It's "Age" not "age"
+```
+
+#### Cause 3: Column Doesn't Exist Yet
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5)
+
+# Trying to select column before creating it
+df[, c("x", "y")]  # "y" doesn't exist
+```
+
+#### Cause 4: After Subsetting
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5, y = 6:10, z = 11:15)
+
+# Select some columns
+df_subset <- df[, c("x", "y")]
+
+# Try to access z (no longer exists)
+df_subset[, "z"]
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Column Names**
+
+```{r}
+df <- data.frame(age = c(25, 30, 35), name = c("A", "B", "C"))
+
+# List all columns
+names(df)
+colnames(df)
+
+# Check if column exists
+"age" %in% names(df)  # TRUE
+"agee" %in% names(df) # FALSE
+
+# Safe selection
+col_name <- "age"
+if (col_name %in% names(df)) {
+  df[, col_name]
+} else {
+  message("Column ", col_name, " not found")
+  NULL
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use exists in dplyr**
+
+```{r}
+library(dplyr)
+
+df <- data.frame(x = 1:5, y = 6:10)
+
+# Select only existing columns
+cols_to_select <- c("x", "z", "y")
+existing_cols <- cols_to_select[cols_to_select %in% names(df)]
+
+df %>% select(all_of(existing_cols))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Safe Column Selection Function**
+
+```{r}
+safe_select_cols <- function(df, cols) {
+  # Check which columns exist
+  existing <- cols[cols %in% names(df)]
+  missing <- cols[!cols %in% names(df)]
+  
+  if (length(missing) > 0) {
+    warning("Columns not found: ", paste(missing, collapse = ", "))
+  }
+  
+  if (length(existing) == 0) {
+    return(data.frame())  # Empty data frame
+  }
+  
+  return(df[, existing, drop = FALSE])
+}
+
+# Test
+df <- data.frame(x = 1:5, y = 6:10)
+safe_select_cols(df, c("x", "z", "y"))
+```
+</div>
+
+## Error #3: `incorrect number of dimensions` {#incorrect-dimensions}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- 1:5  # Vector (1D)
+x[1, 2]   # Using 2D indexing on 1D object
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in x[1, 2] : incorrect number of dimensions
+```
+</div>
+
+### What It Means
+
+You're using the wrong number of indices for the object's dimensions.
+
+### Understanding Dimensions
+
+```{r}
+# Vector: 1 dimension
+vec <- 1:5
+length(vec)
+dim(vec)  # NULL
+
+# Matrix: 2 dimensions
+mat <- matrix(1:6, nrow = 2, ncol = 3)
+dim(mat)  # 2 3
+
+# Array: 3+ dimensions
+arr <- array(1:24, dim = c(2, 3, 4))
+dim(arr)  # 2 3 4
+
+# Data frame: 2 dimensions (special)
+df <- data.frame(x = 1:3, y = 4:6)
+dim(df)  # 3 2
+```
+
+### Common Causes
+
+#### Cause 1: Treating Vector as Matrix
+
+```{r error=TRUE}
+x <- c(10, 20, 30, 40, 50)
+
+# Vector needs 1 index
+x[3]  # Correct
+
+# Not 2 indices
+x[1, 3]  # Error!
+```
+
+#### Cause 2: Treating Matrix as Vector
+
+```{r error=TRUE}
+mat <- matrix(1:6, nrow = 2, ncol = 3)
+
+# Matrix needs 2 indices
+mat[1, 2]  # Correct
+
+# Or can use 1 index (treats as vector)
+mat[5]  # Also works! (column-major order)
+
+# But this is confusing:
+mat[1]  # First element, not first row
+```
+
+#### Cause 3: After Subsetting
+
+```{r error=TRUE}
+mat <- matrix(1:12, nrow = 3, ncol = 4)
+
+# Extract one column (becomes vector!)
+col1 <- mat[, 1]
+class(col1)  # "numeric" (not matrix)
+
+# Now 1D, can't use 2D indexing
+col1[1, 1]  # Error!
+```
+
+#### Cause 4: List vs Data Frame Confusion
+
+```{r error=TRUE}
+# List: 1D (use single bracket or [[]])
+my_list <- list(a = 1:3, b = 4:6)
+my_list[[1]]     # Correct
+my_list[1, 2]    # Error!
+
+# Data frame: 2D (use row, col)
+df <- data.frame(a = 1:3, b = 4:6)
+df[1, 2]         # Correct
+df[[1]]          # Also works (returns column)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Dimensions Before Indexing**
+
+```{r}
+x <- 1:5
+
+# Check what you have
+ndims <- length(dim(x))  # 0 for vector
+
+if (is.null(dim(x))) {
+  # Vector: use 1 index
+  x[3]
+} else if (length(dim(x)) == 2) {
+  # Matrix/data frame: use 2 indices
+  x[1, 3]
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Preserve Dimensions with drop = FALSE**
+
+```{r}
+mat <- matrix(1:12, nrow = 3, ncol = 4)
+
+# Default: drops to vector
+col1 <- mat[, 1]
+class(col1)  # "numeric"
+
+# Preserve matrix structure
+col1 <- mat[, 1, drop = FALSE]
+class(col1)  # "matrix"
+dim(col1)    # 3 1
+
+# Now can still use 2D indexing
+col1[1, 1]
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use Appropriate Functions**
+
+```{r}
+mat <- matrix(1:12, nrow = 3, ncol = 4)
+
+# For vectors: use vector operations
+vec <- 1:5
+vec[3]
+vec[c(1, 3, 5)]
+
+# For matrices: use matrix operations
+mat[1, ]      # First row
+mat[, 2]      # Second column
+mat[1:2, 3:4] # Submatrix
+
+# For data frames: mix of both
+df <- data.frame(x = 1:5, y = 6:10)
+df[, "x"]     # Column (becomes vector)
+df[, "x", drop = FALSE]  # Column (stays data frame)
+df$x          # Column (vector)
+```
+</div>
+
+## Error #4: `incorrect number of subscripts on matrix` {#incorrect-subscripts-matrix}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+mat <- matrix(1:6, nrow = 2, ncol = 3)
+mat[1, 2, 3]  # Too many indices!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in mat[1, 2, 3] : incorrect number of subscripts on matrix
+```
+</div>
+
+### What It Means
+
+Matrix needs exactly 2 indices (or 1), but you provided a different number.
+
+### Correct Matrix Indexing
+
+```{r}
+mat <- matrix(1:6, nrow = 2, ncol = 3)
+mat
+
+# Correct ways:
+mat[1, 2]      # Single element
+mat[1, ]       # Entire row
+mat[, 2]       # Entire column
+mat[1:2, 2:3]  # Submatrix
+
+# Also works (treats as vector):
+mat[5]         # 5th element (column-major)
+
+# Wrong:
+# mat[1, 2, 3]  # Too many indices
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use Correct Number of Indices**
+
+```{r}
+mat <- matrix(1:6, nrow = 2, ncol = 3)
+
+# For matrix: [row, col]
+mat[1, 2]
+
+# For array: [dim1, dim2, dim3, ...]
+arr <- array(1:24, dim = c(2, 3, 4))
+arr[1, 2, 3]
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check Object Type First**
+
+```{r}
+check_and_subset <- function(x, ...) {
+  indices <- list(...)
+  
+  if (is.matrix(x)) {
+    if (length(indices) > 2) {
+      stop("Matrix needs 1 or 2 indices, got ", length(indices))
+    }
+    return(do.call(`[`, c(list(x), indices)))
+  } else if (is.array(x)) {
+    expected <- length(dim(x))
+    if (length(indices) != expected) {
+      stop("Array needs ", expected, " indices, got ", length(indices))
+    }
+    return(do.call(`[`, c(list(x), indices)))
+  } else {
+    return(x[[indices[[1]]]])
+  }
+}
+```
+</div>
+
+## Error #5: `only 0's may be mixed with negative subscripts` {#zero-negative-mix}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-syntax">🔤 SYNTAX</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- 1:10
+x[c(-1, 5)]  # Can't mix negative and positive!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in x[c(-1, 5)] : only 0's may be mixed with negative subscripts
+```
+</div>
+
+### What It Means
+
+R won't let you mix negative indices (exclusion) with positive indices (selection).
+
+### Negative Indexing Rules
+
+```{r}
+x <- 1:10
+
+# Positive: select elements
+x[c(1, 3, 5)]
+
+# Negative: exclude elements
+x[-c(1, 3, 5)]
+
+# Zero: ignored
+x[c(0, 1, 3)]  # Same as x[c(1, 3)]
+
+# Can mix zero with negative
+x[c(0, -1, -3)]  # Same as x[-c(1, 3)]
+```
+
+```{r error=TRUE}
+# CANNOT mix positive and negative
+x[c(-1, 5)]  # Error!
+x[c(1, -5)]  # Error!
+```
+
+### Why This Rule?
+
+```{r eval=FALSE}
+# Ambiguous meaning:
+x[c(-1, 5)]
+
+# Does this mean:
+# "Select 5th, excluding 1st"?
+# "Exclude 1st, but also select 5th"?
+
+# R refuses to guess!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use Only Positive or Only Negative**
+
+```{r}
+x <- 1:10
+
+# Want elements 2-10 (exclude 1st)?
+# Use negative:
+x[-1]
+
+# Want elements except 1 and 3?
+# Use negative:
+x[-c(1, 3)]
+
+# Want only 1, 3, 5?
+# Use positive:
+x[c(1, 3, 5)]
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Convert to Logical**
+
+```{r}
+x <- 1:10
+
+# Want: "not 1, not 3, but yes 5"
+# Create logical vector
+indices <- rep(TRUE, length(x))
+indices[c(1, 3)] <- FALSE  # Exclude these
+indices[5] <- TRUE          # Include this (already TRUE)
+
+x[indices]
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use setdiff()**
+
+```{r}
+x <- 1:10
+
+# Want all except positions 1 and 3
+exclude <- c(1, 3)
+keep <- setdiff(seq_along(x), exclude)
+x[keep]
+
+# More complex: all except 1 and 3, but must include 5
+exclude <- c(1, 3)
+include <- 5
+keep <- union(setdiff(seq_along(x), exclude), include)
+keep <- sort(unique(keep))
+x[keep]
+```
+</div>
+
+## Error #6: `negative length vectors are not allowed` {#negative-length}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-dimension">📏 LENGTH</span>
+
+### The Error
+
+```{r error=TRUE}
+n <- -5
+x <- numeric(n)  # Can't have negative length!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in numeric(n) : negative length vectors are not allowed
+```
+</div>
+
+### What It Means
+
+You're trying to create a vector with negative length, which is impossible.
+
+### Common Causes
+
+#### Cause 1: Calculation Error
+
+```{r error=TRUE}
+n_start <- 5
+n_end <- 3
+
+# Calculation gives negative
+n <- n_end - n_start  # -2
+result <- numeric(n)  # Error!
+```
+
+#### Cause 2: User Input
+
+```{r error=TRUE}
+create_vector <- function(n) {
+  numeric(n)
+}
+
+create_vector(-5)  # Error!
+```
+
+#### Cause 3: Filtering Gone Wrong
+
+```{r error=TRUE}
+data <- c(10, 20, 30)
+threshold <- 50
+
+# No values meet criteria
+n_above <- sum(data > threshold)  # 0
+
+# Then you subtract
+n_below <- length(data) - n_above - 5  # Negative!
+
+result <- numeric(n_below)  # Error!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Validate Before Creating**
+
+```{r}
+create_vector_safe <- function(n, default_value = 0) {
+  if (n < 0) {
+    warning("Negative length requested: ", n, ". Using 0.")
+    n <- 0
+  }
+  
+  if (n == 0) {
+    return(numeric(0))
+  }
+  
+  return(rep(default_value, n))
+}
+
+# Test
+create_vector_safe(5)
+create_vector_safe(-5)
+create_vector_safe(0)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use max() for Safety**
+
+```{r}
+n_start <- 5
+n_end <- 3
+
+# Ensure non-negative
+n <- max(0, n_end - n_start)
+result <- numeric(n)  # Safe
+result
+```
+</div>
+
+## Logical Indexing
+
+<div class="insight-box">
+💡 **Key Insight: Logical Indexing**
+
+```{r}
+x <- c(10, 20, 30, 40, 50)
+
+# Logical vector
+x > 25
+
+# Use for indexing
+x[x > 25]
+
+# Multiple conditions
+x[x > 25 & x < 45]
+
+# With which()
+which(x > 25)
+x[which(x > 25)]
+```
+
+**Important:** Logical indexing with NA creates NA in result!
+
+```{r}
+x <- c(10, NA, 30, 40)
+x > 25  # Has NA
+
+# Result includes NA
+x[x > 25]
+
+# Remove NA from condition
+x[which(x > 25)]  # which() drops NA
+```
+</div>
+
+## Error #7: `[ ] with missing values only allowed for atomic vectors` {#bracket-missing-values}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+my_list <- list(a = 1, b = 2, c = 3)
+indices <- c(1, NA, 3)
+my_list[indices]
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in my_list[indices] : 
+  [ ] with missing values only allowed for atomic vectors
+```
+</div>
+
+### What It Means
+
+You can use NA in indices for vectors, but not for lists or data frames without special handling.
+
+### Atomic vs Non-Atomic
+
+```{r}
+# Atomic vector: NA indexing works
+vec <- c(10, 20, 30)
+vec[c(1, NA, 3)]  # Returns with NA
+
+# List: NA indexing fails
+my_list <- list(a = 1, b = 2, c = 3)
+```
+
+```{r error=TRUE}
+my_list[c(1, NA, 3)]  # Error!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Remove NAs from Indices**
+
+```{r}
+my_list <- list(a = 1, b = 2, c = 3)
+indices <- c(1, NA, 3)
+
+# Remove NAs
+clean_indices <- indices[!is.na(indices)]
+my_list[clean_indices]
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Logical Indexing**
+
+```{r}
+my_list <- list(a = 1, b = 2, c = 3)
+indices <- c(1, NA, 3)
+
+# Convert to logical
+logical_indices <- seq_along(my_list) %in% indices
+my_list[logical_indices]
+```
+</div>
+
+## Matrix Indexing Special Cases
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Matrix Indexing Mastery**
+
+```{r}
+mat <- matrix(1:12, nrow = 3, ncol = 4)
+mat
+
+# Single index: column-major order
+mat[5]  # Row 2, Column 2
+
+# Row, column
+mat[2, 2]
+
+# Entire row
+mat[2, ]
+
+# Entire column
+mat[, 2]
+
+# Multiple rows/columns
+mat[1:2, 2:3]
+
+# Logical indexing (rows)
+mat[mat[, 1] > 1, ]
+
+# Negative indexing
+mat[-1, ]     # All but first row
+mat[, -c(1, 4)]  # All but first and last column
+
+# Preserve matrix structure
+mat[, 2]              # Becomes vector
+mat[, 2, drop = FALSE]  # Stays matrix
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **[ ] vs [[]]**: Single bracket is lenient (returns NA), double bracket is strict (errors)
+2. **Check bounds**: Always validate indices before using [[]]
+3. **Dimensions matter**: Vectors (1D), matrices (2D), arrays (3D+)
+4. **Negative indexing**: Can't mix with positive (except 0)
+5. **Logical indexing**: Watch for NA in conditions
+6. **drop = FALSE**: Preserves matrix structure
+7. **seq_along()**: Safer than 1:length() for loops
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| subscript out of bounds | Index > length with [[]] | Check length first |
+| undefined columns | Column name doesn't exist | Check with `%in% names()` |
+| incorrect number of dimensions | Wrong # of indices | Match object dimensions |
+| incorrect number of subscripts | Too many/few indices | Matrix needs 2, array needs n |
+| only 0's may be mixed with negative | Positive + negative indices | Use one or the other |
+| negative length vectors | Tried length < 0 | Validate with `max(0, n)` |
+| [ ] with missing values | NA index on list | Remove NAs or use logical |
+
+**Safe Indexing Checklist:**
+
+```{r eval=FALSE}
+# Before indexing:
+length(x)              # Check size
+dim(x)                 # Check dimensions
+names(x)               # Check names (if using)
+seq_along(x)           # Safe iteration
+index %in% seq_along(x)  # Validate index
+
+# For conditional indexing:
+which(condition)       # Drops NA automatically
+x[!is.na(x) & x > 0]  # Handle NA explicitly
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Predict the Outcome**
+
+What happens? Error, NA, or value?
+
+```{r eval=FALSE}
+# A
+x <- 1:5
+x[10]
+
+# B
+x[[10]]
+
+# C
+mat <- matrix(1:6, nrow = 2)
+mat[3, 1]
+
+# D
+x[c(-1, 5)]
+
+# E
+my_list <- list(a = 1, b = 2)
+my_list[c(1, NA)]
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Fix the Code**
+
+Debug these indexing problems:
+
+```{r eval=FALSE}
+# Problem 1
+scores <- c(85, 90, 95)
+top_score <- scores[[4]]
+
+# Problem 2
+df <- data.frame(x = 1:5, y = 6:10)
+result <- df[, "z"]
+
+# Problem 3
+vec <- 1:10
+subset <- vec[c(-1, -2, 5, 6)]
+
+# Problem 4
+mat <- matrix(1:6, nrow = 2)
+col2 <- mat[, 2]
+element <- col2[1, 1]
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Safe Indexing Function**
+
+Write `safe_index(x, i)` that:
+1. Works with vectors, lists, matrices
+2. Never errors on out-of-bounds
+3. Returns NA for invalid indices
+4. Handles both [ ] and [[ ]] style
+5. Reports what went wrong
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Matrix Subsetting**
+
+Given a matrix, write functions to:
+1. Get elements on the diagonal
+2. Get upper triangle (above diagonal)
+3. Get lower triangle (below diagonal)
+4. Get border elements (edges only)
+5. Handle any matrix size
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+# A - Returns NA (single bracket is lenient)
+x <- 1:5
+x[10]
+
+# B - Errors (double bracket is strict)
+tryCatch(x[[10]], error = function(e) "ERROR")
+
+# C - Errors (only 2 rows)
+mat <- matrix(1:6, nrow = 2)
+tryCatch(mat[3, 1], error = function(e) "ERROR")
+
+# D - Errors (can't mix positive and negative)
+tryCatch(x[c(-1, 5)], error = function(e) "ERROR")
+
+# E - Errors (lists don't allow NA indices)
+my_list <- list(a = 1, b = 2)
+tryCatch(my_list[c(1, NA)], error = function(e) "ERROR")
+```
+
+**Exercise 2:**
+
+```{r}
+# Problem 1 - Out of bounds
+scores <- c(85, 90, 95)
+# Fix: Check length
+if (4 <= length(scores)) {
+  top_score <- scores[[4]]
+} else {
+  top_score <- NA
+}
+
+# Problem 2 - Column doesn't exist
+df <- data.frame(x = 1:5, y = 6:10)
+# Fix: Check column exists
+if ("z" %in% names(df)) {
+  result <- df[, "z"]
+} else {
+  result <- NULL
+}
+
+# Problem 3 - Mixing positive and negative
+vec <- 1:10
+# Fix: Use only negative
+subset <- vec[-c(1, 2)]
+# Or only positive
+subset <- vec[c(5, 6)]
+
+# Problem 4 - Vector can't use 2D indexing
+mat <- matrix(1:6, nrow = 2)
+col2 <- mat[, 2, drop = FALSE]  # Keep as matrix
+element <- col2[1, 1]
+# Or:
+col2 <- mat[, 2]  # Vector
+element <- col2[1]  # 1D indexing
+```
+
+**Exercise 3:**
+
+```{r}
+safe_index <- function(x, i, double_bracket = FALSE) {
+  # Handle different object types
+  if (is.null(x)) {
+    message("Object is NULL")
+    return(NULL)
+  }
+  
+  # Get valid range
+  max_index <- if (is.list(x)) {
+    length(x)
+  } else if (!is.null(dim(x))) {
+    length(x)  # For matrices, treat as vector
+  } else {
+    length(x)
+  }
+  
+  # Check index validity
+  if (any(is.na(i))) {
+    message("Index contains NA")
+    i <- i[!is.na(i)]
+  }
+  
+  if (length(i) == 0) {
+    message("No valid indices")
+    return(if (double_bracket) NA else x[integer(0)])
+  }
+  
+  if (any(i < 1 | i > max_index)) {
+    invalid <- i[i < 1 | i > max_index]
+    message("Invalid indices: ", paste(invalid, collapse = ", "))
+    i <- i[i >= 1 & i <= max_index]
+  }
+  
+  if (length(i) == 0) {
+    return(NA)
+  }
+  
+  # Extract
+  if (double_bracket) {
+    if (length(i) > 1) {
+      message("Double bracket with multiple indices, using first")
+      i <- i[1]
+    }
+    return(x[[i]])
+  } else {
+    return(x[i])
+  }
+}
+
+# Test
+x <- 1:5
+safe_index(x, 3)
+safe_index(x, 10)
+safe_index(x, c(1, 10, 3))
+```
+
+**Exercise 4:**
+
+```{r}
+# Get diagonal elements
+get_diagonal <- function(mat) {
+  if (!is.matrix(mat)) stop("Input must be a matrix")
+  n <- min(nrow(mat), ncol(mat))
+  mat[cbind(1:n, 1:n)]
+}
+
+# Get upper triangle
+get_upper_tri <- function(mat, include_diag = FALSE) {
+  if (!is.matrix(mat)) stop("Input must be a matrix")
+  mat[upper.tri(mat, diag = include_diag)]
+}
+
+# Get lower triangle
+get_lower_tri <- function(mat, include_diag = FALSE) {
+  if (!is.matrix(mat)) stop("Input must be a matrix")
+  mat[lower.tri(mat, diag = include_diag)]
+}
+
+# Get border elements
+get_border <- function(mat) {
+  if (!is.matrix(mat)) stop("Input must be a matrix")
+  nr <- nrow(mat)
+  nc <- ncol(mat)
+  
+  if (nr == 1 || nc == 1) {
+    return(as.vector(mat))
+  }
+  
+  c(
+    mat[1, ],                    # Top row
+    mat[nr, ],                   # Bottom row
+    mat[2:(nr-1), 1],           # Left column (excluding corners)
+    mat[2:(nr-1), nc]           # Right column (excluding corners)
+  )
+}
+
+# Test
+mat <- matrix(1:20, nrow = 4, ncol = 5)
+mat
+get_diagonal(mat)
+get_upper_tri(mat)
+get_lower_tri(mat)
+get_border(mat)
+```
+</details>

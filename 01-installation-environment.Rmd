@@ -1,0 +1,889 @@
+# Part I: Foundation & Environment {-}
+
+# Installation & Environment Setup {#installation-environment}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Package installation errors and how to fix them
+- Understanding repository and connection issues
+- Compilation errors on different operating systems
+- Version compatibility problems
+
+**Key Errors Covered:** 15+ installation-related errors
+
+**Difficulty:** ⭐ Beginner to ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+Before you can make interesting errors in R, you need to install R and packages. Unfortunately, this is where many learners encounter their first frustrations. Installation errors are particularly annoying because they prevent you from even starting.
+
+The good news: most installation errors follow predictable patterns and have standard solutions.
+
+## Error #1: Package Installation Failed {#pkg-install-failed}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-package">📦 PACKAGE</span>
+
+### The Error
+
+```{r eval=FALSE}
+install.packages("ggplot2")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Warning in install.packages :
+  installation of package 'ggplot2' had non-zero exit status
+```
+</div>
+
+### What It Means
+
+The installation process failed at some point. This is a generic error that can have many causes.
+
+### Common Causes and Solutions
+
+#### Cause 1: No Internet Connection
+
+**Symptom:** Cannot reach CRAN mirror
+
+<div class="solution-box">
+✅ **SOLUTION**
+
+1. Check your internet connection
+2. Try a different CRAN mirror:
+```{r eval=FALSE}
+# See available mirrors
+getCRANmirrors()
+
+# Set a specific mirror
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+# Then try again
+install.packages("ggplot2")
+```
+</div>
+
+#### Cause 2: Firewall or Proxy
+
+**Symptom:** Connection times out
+
+<div class="solution-box">
+✅ **SOLUTION**
+
+```{r eval=FALSE}
+# Configure proxy (if behind corporate firewall)
+Sys.setenv(http_proxy = "http://proxy.company.com:8080")
+Sys.setenv(https_proxy = "https://proxy.company.com:8080")
+
+# Or download package manually and install from file
+install.packages("path/to/package.tar.gz", repos = NULL, type = "source")
+```
+</div>
+
+#### Cause 3: Insufficient Permissions
+
+**Symptom:** Permission denied errors on Windows/Mac/Linux
+
+<div class="solution-box">
+✅ **SOLUTION**
+
+**On Windows:**
+- Run RStudio as Administrator
+- Or install to user library:
+
+```{r eval=FALSE}
+# Check library paths
+.libPaths()
+
+# Install to user library (first in list)
+install.packages("ggplot2", lib = .libPaths()[1])
+```
+
+**On Mac/Linux:**
+```{bash eval=FALSE}
+# If needed, create user library directory
+mkdir -p ~/R/library
+```
+
+```{r eval=FALSE}
+# Then set it in R
+.libPaths(c("~/R/library", .libPaths()))
+install.packages("ggplot2")
+```
+</div>
+
+#### Cause 4: Disk Space
+
+**Symptom:** No space left on device
+
+<div class="solution-box">
+✅ **SOLUTION**
+
+1. Check disk space
+2. Clean up old packages:
+```{r eval=FALSE}
+# See what's installed
+installed.packages()[, c("Package", "Version")]
+
+# Remove old packages
+remove.packages("old_package_name")
+
+# Clean up temporary files
+unlink(tempdir(), recursive = TRUE)
+```
+</div>
+
+## Error #2: Unable to Access Index for Repository {#repo-access}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-package">📦 PACKAGE</span>
+
+### The Error
+
+```{r eval=FALSE}
+install.packages("dplyr")
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Warning: unable to access index for repository https://cran.rstudio.com/src/contrib
+  cannot open URL 'https://cran.rstudio.com/src/contrib/PACKAGES'
+```
+</div>
+
+### What It Means
+
+R cannot reach the CRAN repository to download package information.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Check CRAN status:**
+- Visit https://cran.r-project.org/ in browser
+- If down, try different mirror
+
+**2. Change repository:**
+```{r eval=FALSE}
+# Use RStudio's mirror
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+# Or choose interactively
+chooseCRANmirror()
+```
+
+**3. Force HTTP instead of HTTPS:**
+```{r eval=FALSE}
+# If SSL issues
+options(repos = c(CRAN = "http://cran.r-project.org"))
+```
+
+**4. Check .Rprofile:**
+```{r eval=FALSE}
+# See if repos are hardcoded
+file.edit("~/.Rprofile")
+# Remove or update any repos settings
+```
+</div>
+
+## Error #3: Package Not Available for R Version {#version-mismatch}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-package">📦 PACKAGE</span>
+
+### The Error
+
+```{r eval=FALSE}
+install.packages("newpackage")
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Warning message:
+package 'newpackage' is not available for R version 4.0.0
+```
+</div>
+
+### What It Means
+
+The package either:
+1. Requires a newer R version
+2. Is not on CRAN (wrong name or removed)
+3. Has been archived
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Check R version:**
+```{r}
+R.version.string
+```
+
+**2. Update R if needed:**
+- Download from https://cran.r-project.org/
+- Or use `installr` package (Windows):
+```{r eval=FALSE}
+install.packages("installr")
+installr::updateR()
+```
+
+**3. Check package name:**
+```{r eval=FALSE}
+# Search for package
+available.packages()[grep("package_name", 
+                          available.packages()[, "Package"]), ]
+```
+
+**4. Install from archive:**
+```{r eval=FALSE}
+# If package was archived
+packageurl <- "https://cran.r-project.org/src/contrib/Archive/package/package_1.0.tar.gz"
+install.packages(packageurl, repos = NULL, type = "source")
+```
+
+**5. Install from GitHub:**
+```{r eval=FALSE}
+# Many packages in development
+install.packages("devtools")
+devtools::install_github("author/package")
+```
+</div>
+
+<div class="insight-box">
+💡 **Key Insight: Package Lifecycle**
+
+Packages can be:
+- **On CRAN**: Current and maintained
+- **Archived**: Old version still available but removed from current CRAN
+- **On GitHub only**: Development version or not submitted to CRAN
+- **Superseded**: Replaced by another package (e.g., `reshape` → `reshape2` → `tidyr`)
+</div>
+
+## Error #4: Dependencies Not Available {#dependencies}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-package">📦 PACKAGE</span>
+
+### The Error
+
+```{r eval=FALSE}
+install.packages("complexpackage")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+ERROR: dependencies 'pkgA', 'pkgB' are not available for package 'complexpackage'
+```
+</div>
+
+### What It Means
+
+The package needs other packages (dependencies) that aren't available or can't be installed.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Install dependencies first:**
+```{r eval=FALSE}
+# R usually does this automatically, but sometimes fails
+install.packages("pkgA")
+install.packages("pkgB")
+install.packages("complexpackage")
+```
+
+**2. Force dependency installation:**
+```{r eval=FALSE}
+install.packages("complexpackage", dependencies = TRUE)
+```
+
+**3. Check for Bioconductor packages:**
+```{r eval=FALSE}
+# Some dependencies are on Bioconductor, not CRAN
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("dependencyPackage")
+```
+
+**4. Manual dependency resolution:**
+```{r eval=FALSE}
+# See what's needed
+tools::package_dependencies("complexpackage", recursive = TRUE)
+
+# Install each one
+sapply(deps, install.packages)
+```
+</div>
+
+## Error #5: Lazy Loading Failed {#lazy-load}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-package">📦 PACKAGE</span>
+
+### The Error
+
+```{r eval=FALSE}
+library(ggplot2)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: package or namespace load failed for 'ggplot2':
+ .onLoad failed in loadNamespace() for 'ggplot2', details:
+  call: NULL
+  error: lazy-load database 'path/to/ggplot2/R/ggplot2.rdb' is corrupt
+```
+</div>
+
+### What It Means
+
+The package installation is corrupted or incomplete.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Reinstall the package:**
+```{r eval=FALSE}
+remove.packages("ggplot2")
+install.packages("ggplot2")
+```
+
+**2. Restart R session:**
+```{r eval=FALSE}
+# In RStudio: Session > Restart R
+.rs.restartR()
+
+# Or from command line
+q()  # Then restart R
+```
+
+**3. Check for partial installation:**
+```{r eval=FALSE}
+# See package status
+library(ggplot2)
+packageVersion("ggplot2")
+
+# Compare to CRAN version
+available.packages()["ggplot2", "Version"]
+```
+
+**4. Install from source:**
+```{r eval=FALSE}
+install.packages("ggplot2", type = "source")
+```
+
+**5. Clear package cache:**
+```{r eval=FALSE}
+# Sometimes helps
+unlink(.libPaths()[1], recursive = TRUE)
+dir.create(.libPaths()[1])
+install.packages("ggplot2")
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Interrupted Installation**
+
+If you interrupt package installation (Ctrl+C or ESC):
+1. The package may be partially installed
+2. Loading it will fail with lazy-load errors
+3. Always reinstall after interruption
+
+**Prevention:**
+- Let installations complete
+- If it's taking too long, check your internet connection first
+</div>
+
+## Error #6: Package Built Under R Version {#version-built}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-package">📦 PACKAGE</span>
+
+### The Warning
+
+```{r eval=FALSE}
+library(dplyr)
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Warning message:
+package 'dplyr' was built under R version 4.2.3
+```
+</div>
+
+### What It Means
+
+You're using R 4.2.0, but the package was compiled for R 4.2.3. Usually this is fine, but can cause issues.
+
+### Should You Worry?
+
+**Usually NO** - Minor version differences (4.2.0 vs 4.2.3) rarely cause problems.
+
+**Maybe YES** - If you experience:
+- Strange errors from that package
+- Crashes
+- Unexpected behavior
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Ignore it (usually fine):**
+Most of the time, this warning is harmless.
+
+**2. Update R:**
+```{r eval=FALSE}
+# Check your version
+R.version
+
+# Update if significantly behind
+# Windows: use installr
+# Mac: download from CRAN
+# Linux: use system package manager
+```
+
+**3. Reinstall package from source:**
+```{r eval=FALSE}
+install.packages("dplyr", type = "source")
+```
+
+**4. Suppress warning:**
+```{r eval=FALSE}
+# Only if you're sure it's fine
+suppressWarnings(library(dplyr))
+
+# Or globally
+options(warn = -1)  # Not recommended!
+```
+</div>
+
+## Error #7: Rtools Required But Not Installed {#rtools}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-package">📦 PACKAGE</span>
+
+**Platform:** Windows only
+
+### The Warning
+
+```{r eval=FALSE}
+install.packages("package_with_cpp", type = "source")
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+WARNING: Rtools is required to build R packages but is not currently installed.
+Please download and install Rtools from https://cran.r-project.org/bin/windows/Rtools/
+```
+</div>
+
+### What It Means
+
+You're trying to install a package that needs compilation (C/C++/Fortran code), but Windows doesn't have the necessary compilers.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Install binary instead:**
+```{r eval=FALSE}
+# Use pre-compiled version
+install.packages("package_name")  # default uses binary
+```
+
+**2. Install Rtools:**
+1. Download from https://cran.r-project.org/bin/windows/Rtools/
+2. Run installer (default options usually work)
+3. Restart R/RStudio
+4. Verify installation:
+
+```{r eval=FALSE}
+Sys.which("make")
+# Should show path like: C:\\rtools43\\usr\\bin\\make.exe
+```
+
+**3. Configure PATH:**
+Sometimes Rtools doesn't add itself to PATH:
+
+```{r eval=FALSE}
+# Add to .Renviron
+writeLines('PATH="${RTOOLS43_HOME}\\usr\\bin;${PATH}"', 
+           con = "~/.Renviron")
+
+# Restart R
+.rs.restartR()
+```
+</div>
+
+<div class="insight-box">
+💡 **Key Insight: Source vs Binary Packages**
+
+**Binary packages:**
+- Pre-compiled for your OS
+- Fast to install
+- Can't modify source code
+
+**Source packages:**
+- Raw R + C/C++ code
+- Requires compilation tools
+- Necessary for package development
+- Sometimes more up-to-date
+
+**On Windows:** Use binaries unless you need source
+**On Mac/Linux:** Source compilation more common
+</div>
+
+## Error #8: Library Not Found for -lX {#library-not-found}
+
+<span class="difficulty-advanced">⭐⭐⭐ ADVANCED</span> <span class="category-badge cat-package">📦 PACKAGE</span>
+
+**Platform:** Mac/Linux
+
+### The Error
+
+```{r eval=FALSE}
+install.packages("XML")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+ld: library not found for -lxml2
+clang: error: linker command failed with exit code 1
+```
+</div>
+
+### What It Means
+
+The package requires external libraries (system dependencies) that aren't installed.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**Mac (using Homebrew):**
+```{bash eval=FALSE}
+# Install Homebrew if needed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install required library
+brew install libxml2
+
+# Then in R
+install.packages("XML")
+```
+
+**Ubuntu/Debian:**
+```{bash eval=FALSE}
+sudo apt-get update
+sudo apt-get install libxml2-dev
+```
+
+**Fedora/RedHat:**
+```{bash eval=FALSE}
+sudo yum install libxml2-devel
+```
+
+**Common Dependencies:**
+```{bash eval=FALSE}
+# For common R packages
+# Ubuntu/Debian:
+sudo apt-get install \
+  libcurl4-openssl-dev \
+  libssl-dev \
+  libxml2-dev \
+  libgit2-dev \
+  libharfbuzz-dev \
+  libfribidi-dev
+
+# Mac:
+brew install libgit2 openssl libxml2
+```
+</div>
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Document System Requirements**
+
+If you're sharing code that requires specific packages:
+
+```{r eval=FALSE}
+# Create a requirements file
+cat("# System requirements (Ubuntu/Debian):
+# sudo apt-get install libcurl4-openssl-dev libssl-dev
+
+# R packages:
+required_packages <- c('dplyr', 'ggplot2', 'readr')
+install.packages(required_packages)
+", file = "requirements.txt")
+```
+</div>
+
+## Error #9: Replacing Previous Import {#replacing-import}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-package">📦 PACKAGE</span>
+
+### The Warning
+
+```{r eval=FALSE}
+library(dplyr)
+library(plyr)
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Attaching package: 'plyr'
+
+The following objects are masked from 'package:dplyr':
+
+    arrange, count, desc, failwith, id, mutate, rename, summarise, summarize
+```
+</div>
+
+### What It Means
+
+Both packages have functions with the same names. The later-loaded package's functions will be used by default.
+
+### Should You Worry?
+
+**YES** - This can cause confusing behavior if you expect dplyr's `mutate()` but get plyr's version.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Load packages in correct order:**
+```{r eval=FALSE}
+library(plyr)   # Load first
+library(dplyr)  # Load second (masks plyr)
+
+# Now dplyr functions take precedence
+```
+
+**2. Use package::function notation:**
+```{r eval=FALSE}
+dplyr::mutate(data, new_col = x + 1)  # Explicit
+plyr::mutate(data, new_col = x + 1)   # Explicit
+```
+
+**3. Avoid loading conflicting packages:**
+```{r eval=FALSE}
+# Don't load plyr if you're using dplyr
+# dplyr supersedes most plyr functionality
+library(dplyr)
+```
+
+**4. Check for conflicts:**
+```{r eval=FALSE}
+# See all conflicts
+conflicts()
+
+# With details
+library(conflicted)
+conflict_scout()
+```
+</div>
+
+## Debugging Installation Issues
+
+### General Troubleshooting Steps
+
+<div class="bestpractice-box">
+🎯 **Systematic Approach**
+
+1. **Restart R**
+```{r eval=FALSE}
+.rs.restartR()  # RStudio
+# Or: Session > Restart R
+```
+
+2. **Update R**
+```{r}
+R.version.string
+# Compare to https://cran.r-project.org/
+```
+
+3. **Update packages**
+```{r eval=FALSE}
+update.packages(ask = FALSE)
+```
+
+4. **Check installation details**
+```{r eval=FALSE}
+# Verbose output
+install.packages("package", verbose = TRUE)
+
+# Keep source for inspection
+install.packages("package", INSTALL_opts = "--no-clean-on-error")
+```
+
+5. **Check session info**
+```{r}
+sessionInfo()
+# Shows R version, platform, loaded packages
+```
+
+6. **Test in clean session**
+```{r eval=FALSE}
+# Start R with no saved data
+R --vanilla
+```
+</div>
+
+### Getting Help
+
+<div class="insight-box">
+💡 **When Asking for Help, Provide:**
+
+1. **Error message** (complete, not summary)
+2. **R version:** `R.version.string`
+3. **Platform:** `Sys.info()["sysname"]`
+4. **What you tried:** Your code
+5. **Session info:** `sessionInfo()`
+
+**Good question format:**
+```
+I'm trying to install package X on Windows 11 with R 4.3.0.
+
+Error message:
+[paste complete error]
+
+I tried:
+- Updating R
+- Different CRAN mirror
+- Installing dependencies
+
+sessionInfo() output:
+[paste]
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Most installation errors are environmental**, not code-related
+2. **Binary vs source** matters on Windows
+3. **System dependencies** are common on Mac/Linux
+4. **Package conflicts** happen - use `package::function()`
+5. **Reinstalling** solves many issues
+6. **Update regularly** but cautiously
+
+**Quick Reference:**
+
+| Error | First Try |
+|-------|-----------|
+| Installation failed | Restart R, try again |
+| Repository access | Change CRAN mirror |
+| Version mismatch | Update R |
+| Dependencies missing | Install with `dependencies = TRUE` |
+| Lazy-load corruption | Reinstall package |
+| Rtools (Windows) | Install Rtools |
+| Library not found (Mac/Linux) | Install system library |
+| Package conflicts | Load order or use `::` |
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Diagnosis Practice**
+
+What's wrong with each scenario?
+
+```{r eval=FALSE}
+# Scenario 1
+install.packages("dplyr")
+# Warning: unable to access index for repository
+
+# Scenario 2
+library(ggplot2)
+# Error: package 'ggplot2' was built before R 4.0.0
+
+# Scenario 3  
+install.packages("devtools")
+# ERROR: dependency 'usethis' is not available
+```
+
+**Answers at end of chapter**
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Prevention**
+
+Set up your R environment for smooth package installation:
+
+1. Configure a reliable CRAN mirror
+2. Set up a user library path
+3. Install essential build tools for your OS
+4. Create a package installation script
+
+Try writing this setup code.
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+*Scenario 1:* Cannot reach CRAN repository
+- Solution: Check internet, try different mirror
+
+*Scenario 2:* R version too old
+- Solution: Update R to 4.0.0 or higher
+
+*Scenario 3:* Missing dependency
+- Solution: `install.packages("devtools", dependencies = TRUE)`
+
+**Exercise 2:**
+
+```{r eval=FALSE}
+# Setup script
+setup_r_environment <- function() {
+  # 1. Set CRAN mirror
+  options(repos = c(CRAN = "https://cloud.r-project.org"))
+  
+  # 2. Set user library
+  user_lib <- "~/R/library"
+  if (!dir.exists(user_lib)) dir.create(user_lib, recursive = TRUE)
+  .libPaths(c(user_lib, .libPaths()))
+  
+  # 3. Install essential packages
+  essentials <- c("devtools", "tidyverse", "rmarkdown")
+  new_packages <- essentials[!(essentials %in% installed.packages()[,"Package"])]
+  if(length(new_packages)) install.packages(new_packages)
+  
+  # 4. Save to .Rprofile for future sessions
+  cat('options(repos = c(CRAN = "https://cloud.r-project.org"))\n', 
+      file = "~/.Rprofile", append = TRUE)
+  
+  message("R environment configured!")
+}
+```
+</details>

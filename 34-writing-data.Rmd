@@ -1,0 +1,530 @@
+# Writing Data {#writing-data}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Writing CSV and text files
+- Excel export
+- Common export errors
+- File permissions
+- Data serialization
+- Format preservation
+
+**Key Errors Covered:** 18+ export errors
+
+**Difficulty:** ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+Writing data is just as important as reading:
+
+```{r message=FALSE}
+library(readr)
+library(dplyr)
+
+# Writing CSV
+# write_csv(data, "output.csv")
+```
+
+## Writing CSV Files
+
+<div class="insight-box">
+💡 **Key Insight: Base R vs readr**
+
+```{r}
+# Create sample data
+data <- mtcars[1:5, 1:5]
+
+# Base R
+write.csv(data, "base_output.csv")
+# - Adds row names by default
+# - Quotes strings
+# - Slower
+
+# readr
+write_csv(data, "readr_output.csv")
+# - No row names
+# - Only quotes when needed
+# - Faster
+# - Better handling of special values
+
+# Compare
+cat("Base R file:\n")
+cat(paste(head(readLines("base_output.csv"), 3), collapse = "\n"))
+
+cat("\n\nreadr file:\n")
+cat(paste(head(readLines("readr_output.csv"), 3), collapse = "\n"))
+```
+</div>
+
+## Error #1: `cannot open the connection` {#cannot-open-connection-write}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-path">📁 PATH</span>
+
+### The Error
+
+```{r error=TRUE}
+# Try to write to non-existent directory
+write_csv(mtcars, "nonexistent_dir/file.csv")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: Cannot open file for writing:
+'nonexistent_dir/file.csv'
+```
+</div>
+
+### What It Means
+
+Directory doesn't exist or no write permission.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Create Directory First**
+
+```{r}
+# Check if directory exists
+output_dir <- "output"
+
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, recursive = TRUE)
+  cat("Created directory:", output_dir, "\n")
+}
+
+# Now write
+write_csv(mtcars, file.path(output_dir, "data.csv"))
+cat("File written successfully\n")
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Safe Write Function**
+
+```{r}
+safe_write_csv <- function(data, path, ...) {
+  # Get directory
+  dir_path <- dirname(path)
+  
+  # Create if doesn't exist
+  if (!dir.exists(dir_path)) {
+    dir.create(dir_path, recursive = TRUE)
+    message("Created directory: ", dir_path)
+  }
+  
+  # Check write permission
+  if (!file.access(dir_path, mode = 2) == 0) {
+    stop("No write permission for directory: ", dir_path)
+  }
+  
+  # Write file
+  write_csv(data, path, ...)
+  
+  # Verify
+  if (file.exists(path)) {
+    message("Successfully wrote ", nrow(data), " rows to ", path)
+  } else {
+    stop("File was not created")
+  }
+  
+  invisible(path)
+}
+
+# Test
+safe_write_csv(mtcars, "test_output/cars.csv")
+```
+</div>
+
+## Writing Options
+
+<div class="insight-box">
+💡 **Key Insight: Write Options**
+
+```{r}
+# Control output format
+write_csv(mtcars, "formatted.csv",
+          na = "MISSING",           # How to write NAs
+          quote = "all")            # Quote all fields
+
+# Append to existing file
+write_csv(mtcars[1:5, ], "append_test.csv")
+write_csv(mtcars[6:10, ], "append_test.csv", append = TRUE)
+
+cat("Lines in file:", length(readLines("append_test.csv")), "\n")
+
+# Write with semicolon delimiter (European)
+write_csv2(mtcars, "european.csv")
+
+# Custom delimiter
+write_delim(mtcars, "pipe_delim.txt", delim = "|")
+
+# Tab-separated
+write_tsv(mtcars, "tab_separated.txt")
+```
+</div>
+
+## Writing Excel Files
+
+<div class="insight-box">
+💡 **Key Insight: writexl Package**
+
+```{r message=FALSE}
+library(writexl)
+
+# Single sheet
+write_xlsx(mtcars, "cars.xlsx")
+
+# Multiple sheets
+write_xlsx(
+  list(
+    Cars = mtcars,
+    Iris = iris,
+    Summary = data.frame(
+      Dataset = c("mtcars", "iris"),
+      Rows = c(nrow(mtcars), nrow(iris))
+    )
+  ),
+  "multi_sheet.xlsx"
+)
+
+# Verify
+library(readxl)
+excel_sheets("multi_sheet.xlsx")
+```
+</div>
+
+## Error #2: File Permission Denied {#permission-denied}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-system">💻 SYSTEM</span>
+
+### The Problem
+
+```{r eval=FALSE}
+# File is open in Excel or locked
+write_csv(data, "open_file.csv")
+# Error: Permission denied
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check File Access**
+
+```{r}
+check_file_writable <- function(path) {
+  # Check if file exists and is writable
+  if (file.exists(path)) {
+    if (file.access(path, mode = 2) == 0) {
+      cat("File is writable\n")
+      return(TRUE)
+    } else {
+      warning("File exists but is not writable (may be open)")
+      return(FALSE)
+    }
+  } else {
+    # Check if directory is writable
+    dir_path <- dirname(path)
+    if (file.access(dir_path, mode = 2) == 0) {
+      cat("Directory is writable\n")
+      return(TRUE)
+    } else {
+      warning("No write permission for directory")
+      return(FALSE)
+    }
+  }
+}
+
+# Test
+check_file_writable("test.csv")
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Temporary File**
+
+```{r}
+# Write to temp file first
+temp_file <- tempfile(fileext = ".csv")
+write_csv(mtcars, temp_file)
+
+# Then copy/move to destination
+final_path <- "output/final.csv"
+if (!dir.exists("output")) dir.create("output")
+
+file.copy(temp_file, final_path, overwrite = TRUE)
+cat("File written via temporary location\n")
+```
+</div>
+
+## Preserving Data Types
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Preserve Types**
+
+```{r message=FALSE}
+library(lubridate)
+
+# Create data with various types
+complex_data <- tibble(
+  id = 1:3,
+  name = c("Alice", "Bob", "Charlie"),
+  value = c(1.5, 2.3, 3.7),
+  date = ymd("2024-01-01") + days(0:2),
+  logical = c(TRUE, FALSE, TRUE),
+  factor_col = factor(c("A", "B", "C"))
+)
+
+# CSV loses some type info
+write_csv(complex_data, "types_csv.csv")
+from_csv <- read_csv("types_csv.csv", show_col_types = FALSE)
+str(from_csv)
+
+# RDS preserves everything
+saveRDS(complex_data, "types_rds.rds")
+from_rds <- readRDS("types_rds.rds")
+str(from_rds)
+
+# Excel preserves some types
+write_xlsx(complex_data, "types_excel.xlsx")
+from_excel <- read_excel("types_excel.xlsx")
+str(from_excel)
+```
+</div>
+
+## Large Data Export
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Writing Large Files**
+
+```{r eval=FALSE}
+# For very large data
+library(data.table)
+fwrite(large_data, "large_file.csv")
+
+# Write in chunks
+write_csv_chunked <- function(data, path, chunk_size = 10000) {
+  n_chunks <- ceiling(nrow(data) / chunk_size)
+  
+  for (i in 1:n_chunks) {
+    start <- (i - 1) * chunk_size + 1
+    end <- min(i * chunk_size, nrow(data))
+    
+    chunk <- data[start:end, ]
+    
+    write_csv(chunk, path, 
+              append = i > 1,  # Append after first chunk
+              col_names = i == 1)  # Only write headers first time
+    
+    cat("Wrote chunk", i, "of", n_chunks, "\n")
+  }
+}
+
+# Compressed output
+library(readr)
+write_csv(data, gzfile("data.csv.gz"))
+```
+</div>
+
+## R-Specific Formats
+
+<div class="insight-box">
+💡 **Key Insight: R Binary Formats**
+
+```{r}
+# RDS - single object
+saveRDS(mtcars, "mtcars.rds")
+cars_rds <- readRDS("mtcars.rds")
+
+# RData/rda - multiple objects
+x <- 1:10
+y <- "text"
+save(x, y, mtcars, file = "data.RData")
+rm(x, y, mtcars)
+load("data.RData")  # Restores objects with original names
+
+# Feather - fast, interoperable
+library(arrow)
+write_feather(mtcars, "mtcars.feather")
+cars_feather <- read_feather("mtcars.feather")
+
+# Parquet - compressed, columnar
+write_parquet(mtcars, "mtcars.parquet")
+cars_parquet <- read_parquet("mtcars.parquet")
+```
+</div>
+
+## Error #3: Overwriting Files {#overwriting-files}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-safety">⚠️ SAFETY</span>
+
+### The Problem
+
+```{r}
+# Accidentally overwrite important file
+# write_csv(new_data, "important_results.csv")
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Safe Write with Backup**
+
+```{r}
+safe_write_with_backup <- function(data, path, backup = TRUE, ...) {
+  # If file exists and backup requested
+  if (file.exists(path) && backup) {
+    # Create backup
+    backup_path <- paste0(path, ".backup.", 
+                          format(Sys.time(), "%Y%m%d_%H%M%S"))
+    file.copy(path, backup_path)
+    message("Created backup: ", basename(backup_path))
+  }
+  
+  # Write new file
+  write_csv(data, path, ...)
+  message("Wrote file: ", path)
+  
+  invisible(path)
+}
+
+# Create test file
+write_csv(mtcars[1:5, ], "important.csv")
+
+# Safely overwrite
+safe_write_with_backup(mtcars[1:10, ], "important.csv")
+
+# Check backups
+list.files(pattern = "important")
+```
+</div>
+
+## Format Comparison
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Choose Right Format**
+
+```{r}
+# Compare formats
+compare_formats <- function(data) {
+  formats <- list(
+    CSV = function() write_csv(data, "test.csv"),
+    RDS = function() saveRDS(data, "test.rds"),
+    Excel = function() write_xlsx(data, "test.xlsx"),
+    Feather = function() write_feather(data, "test.feather"),
+    Parquet = function() write_parquet(data, "test.parquet")
+  )
+  
+  results <- data.frame(
+    Format = names(formats),
+    Size_KB = numeric(length(formats)),
+    Time_ms = numeric(length(formats))
+  )
+  
+  for (i in seq_along(formats)) {
+    # Time it
+    time <- system.time(formats[[i]]())["elapsed"] * 1000
+    
+    # Get size
+    files <- list.files(pattern = "^test\\.")
+    size <- sum(file.info(files)$size) / 1024
+    
+    results$Size_KB[i] <- round(size, 2)
+    results$Time_ms[i] <- round(time, 2)
+    
+    # Cleanup
+    unlink(files)
+  }
+  
+  results
+}
+
+# Test with mtcars
+compare_formats(mtcars)
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Create directories first** - Check with dir.exists()
+2. **Use readr functions** - write_csv(), not write.csv()
+3. **Check permissions** - Verify file access
+4. **Preserve types** - Use RDS for R objects
+5. **Backup important files** - Before overwriting
+6. **Choose right format** - CSV for sharing, RDS for R
+7. **Handle large files** - Use data.table or chunks
+
+**Quick Reference:**
+
+| Format | Function | Best For |
+|--------|----------|----------|
+| CSV | write_csv() | Sharing, Excel |
+| RDS | saveRDS() | R objects, types |
+| Excel | write_xlsx() | Multiple sheets |
+| Feather | write_feather() | Fast, interoperable |
+| Parquet | write_parquet() | Big data, compressed |
+
+**Writing Functions:**
+
+```{r eval=FALSE}
+# CSV
+write_csv(data, "file.csv")
+write_csv2(data, "european.csv")  # Semicolon
+write_tsv(data, "file.txt")       # Tab
+write_delim(data, "file.txt", "|")
+
+# Excel
+library(writexl)
+write_xlsx(data, "file.xlsx")
+write_xlsx(list(Sheet1 = data1, Sheet2 = data2), "file.xlsx")
+
+# R formats
+saveRDS(data, "file.rds")
+save(obj1, obj2, file = "file.RData")
+
+# Modern formats
+library(arrow)
+write_feather(data, "file.feather")
+write_parquet(data, "file.parquet")
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+Create directories before writing
+Check file permissions
+Use write_csv() not write.csv()
+Backup before overwriting
+Choose appropriate format
+Compress large files
+Test write with small sample first
+
+# ❌ Avoid
+Writing to non-existent directories
+Overwriting without backup
+Using write.csv() for new code
+Writing very large files without chunks
+Ignoring permission errors
+```
+</div>
+
+## Cleanup
+
+```{r echo=FALSE}
+# Clean up example files
+unlink(c("base_output.csv", "readr_output.csv", "output", "test_output",
+         "formatted.csv", "append_test.csv", "european.csv", 
+         "pipe_delim.txt", "tab_separated.txt", "cars.xlsx",
+         "multi_sheet.xlsx", "test.csv", "types_csv.csv", "types_rds.rds",
+         "types_excel.xlsx", "mtcars.rds", "data.RData", "mtcars.feather",
+         "mtcars.parquet", "important.csv"), recursive = TRUE)
+list.files(pattern = "important\\.csv\\.backup")
+unlink(list.files(pattern = "important\\.csv\\.backup"))
+```

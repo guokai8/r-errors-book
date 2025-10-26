@@ -1,0 +1,533 @@
+# Database Connections {#database-connections}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Connecting to databases
+- SQL queries from R
+- Common database errors
+- Connection management
+- Best practices
+
+**Key Errors Covered:** 15+ database errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+R connects to databases via DBI and database-specific packages:
+
+```{r message=FALSE, eval=FALSE}
+library(DBI)
+
+# Generic connection pattern
+con <- dbConnect(
+  RSQLite::SQLite(),
+  dbname = "database.db"
+)
+```
+
+## Database Basics
+
+<div class="insight-box">
+💡 **Key Insight: DBI Package**
+
+```{r message=FALSE}
+library(DBI)
+library(RSQLite)
+
+# Create in-memory SQLite database
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+
+# Write data to database
+dbWriteTable(con, "mtcars", mtcars)
+dbWriteTable(con, "iris", iris)
+
+# List tables
+dbListTables(con)
+
+# Get table info
+dbListFields(con, "mtcars")
+
+# Read entire table
+data <- dbReadTable(con, "mtcars")
+head(data, 3)
+
+# Always disconnect when done
+dbDisconnect(con)
+```
+</div>
+
+## SQL Queries
+
+<div class="insight-box">
+💡 **Key Insight: Running Queries**
+
+```{r}
+# Reconnect
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+dbWriteTable(con, "mtcars", mtcars)
+
+# Simple query
+result <- dbGetQuery(con, "SELECT * FROM mtcars WHERE cyl = 4")
+head(result, 3)
+
+# Query with parameters (safe from SQL injection)
+result <- dbGetQuery(
+  con,
+  "SELECT * FROM mtcars WHERE cyl = ? AND mpg > ?",
+  params = list(4, 25)
+)
+head(result)
+
+# Count rows
+count <- dbGetQuery(con, "SELECT COUNT(*) as n FROM mtcars")
+count$n
+
+# Aggregation
+summary <- dbGetQuery(con, 
+  "SELECT cyl, AVG(mpg) as avg_mpg, COUNT(*) as count
+   FROM mtcars 
+   GROUP BY cyl")
+summary
+
+dbDisconnect(con)
+```
+</div>
+
+## Error #1: `could not connect to server` {#connection-failed}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-connection">🔌 CONNECTION</span>
+
+### The Error
+
+```{r error=TRUE}
+# Try to connect to non-existent server
+con <- dbConnect(
+  RPostgreSQL::PostgreSQL(),
+  host = "nonexistent.server.com",
+  dbname = "mydb"
+)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: could not connect to server
+```
+</div>
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Safe Connection Function**
+
+```{r}
+safe_db_connect <- function(drv, ..., timeout = 5) {
+  # Try to connect with timeout
+  tryCatch({
+    con <- dbConnect(drv, ...)
+    
+    # Test connection
+    if (dbIsValid(con)) {
+      message("Successfully connected to database")
+      return(con)
+    } else {
+      stop("Connection established but not valid")
+    }
+    
+  }, error = function(e) {
+    stop("Failed to connect: ", e$message, 
+         "\nCheck host, port, credentials, and network")
+  })
+}
+
+# Use it
+con <- safe_db_connect(
+  RSQLite::SQLite(),
+  dbname = ":memory:"
+)
+
+dbIsValid(con)
+dbDisconnect(con)
+```
+</div>
+
+## Error #2: `table ... does not exist` {#table-not-exist}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-sql">📊 SQL</span>
+
+### The Error
+
+```{r error=TRUE}
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+
+# Try to query non-existent table
+dbGetQuery(con, "SELECT * FROM nonexistent_table")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: no such table: nonexistent_table
+```
+</div>
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Check Table Exists**
+
+```{r}
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+dbWriteTable(con, "mtcars", mtcars)
+
+# Check if table exists
+table_exists <- function(con, table_name) {
+  table_name %in% dbListTables(con)
+}
+
+# Safe query
+safe_query <- function(con, sql, table_name = NULL) {
+  # Extract table name from SQL if not provided
+  if (is.null(table_name)) {
+    # Simple extraction (works for basic queries)
+    table_match <- regmatches(sql, regexpr("FROM\\s+(\\w+)", sql, ignore.case = TRUE))
+    if (length(table_match) > 0) {
+      table_name <- sub("FROM\\s+", "", table_match, ignore.case = TRUE)
+    }
+  }
+  
+  # Check table exists
+  if (!is.null(table_name) && !table_exists(con, table_name)) {
+    stop("Table '", table_name, "' does not exist. Available tables: ",
+         paste(dbListTables(con), collapse = ", "))
+  }
+  
+  # Run query
+  dbGetQuery(con, sql)
+}
+
+# Test
+head(safe_query(con, "SELECT * FROM mtcars"), 3)
+
+dbDisconnect(con)
+```
+</div>
+
+## dplyr with Databases
+
+<div class="insight-box">
+💡 **Key Insight: Using dplyr with Databases**
+
+```{r message=FALSE}
+library(dplyr)
+library(dbplyr)
+
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+dbWriteTable(con, "mtcars", mtcars)
+
+# Create dplyr table reference
+cars_tbl <- tbl(con, "mtcars")
+
+# Use dplyr verbs (lazy evaluation)
+result <- cars_tbl %>%
+  filter(cyl == 4) %>%
+  select(mpg, hp, wt) %>%
+  arrange(desc(mpg))
+
+# See the SQL that will be generated
+result %>% show_query()
+
+# Execute and collect results
+data <- result %>% collect()
+head(data)
+
+# Or compute and store in database
+cars_tbl %>%
+  filter(mpg > 20) %>%
+  compute("efficient_cars")
+
+dbListTables(con)
+
+dbDisconnect(con)
+```
+</div>
+
+## Connection Management
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Manage Connections**
+
+```{r}
+# Pattern 1: Explicit disconnect
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+# ... do work ...
+dbDisconnect(con)
+
+# Pattern 2: Use on.exit (safer)
+query_with_cleanup <- function() {
+  con <- dbConnect(RSQLite::SQLite(), ":memory:")
+  on.exit(dbDisconnect(con))  # Always disconnect
+  
+  dbWriteTable(con, "test", mtcars)
+  return(dbGetQuery(con, "SELECT COUNT(*) FROM test"))
+}
+
+result <- query_with_cleanup()
+result
+
+# Pattern 3: Connection pooling (for web apps)
+# library(pool)
+# pool <- dbPool(RSQLite::SQLite(), dbname = ":memory:")
+# con <- poolCheckout(pool)
+# # ... use connection ...
+# poolReturn(con)
+# poolClose(pool)
+```
+</div>
+
+## Writing to Databases
+
+<div class="insight-box">
+💡 **Key Insight: Writing Data**
+
+```{r}
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+
+# Write entire data frame
+dbWriteTable(con, "iris", iris)
+
+# Append to existing table
+dbWriteTable(con, "iris", iris[1:10, ], append = TRUE)
+
+# Overwrite existing table
+dbWriteTable(con, "iris", iris, overwrite = TRUE)
+
+# Check row count
+dbGetQuery(con, "SELECT COUNT(*) as count FROM iris")
+
+# Insert single row
+dbExecute(con,
+  "INSERT INTO iris (Sepal.Length, Sepal.Width, Petal.Length, Petal.Width, Species)
+   VALUES (?, ?, ?, ?, ?)",
+  params = list(5.1, 3.5, 1.4, 0.2, "setosa")
+)
+
+dbDisconnect(con)
+```
+</div>
+
+## Prepared Statements
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Use Parameters**
+
+```{r}
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+dbWriteTable(con, "mtcars", mtcars)
+
+# ❌ BAD: SQL injection vulnerable
+user_input <- "4 OR 1=1"  # Malicious input
+# query <- paste0("SELECT * FROM mtcars WHERE cyl = ", user_input)
+# DON'T DO THIS!
+
+# ✅ GOOD: Parameterized query
+safe_query_by_cyl <- function(con, cyl_value) {
+  dbGetQuery(
+    con,
+    "SELECT * FROM mtcars WHERE cyl = ?",
+    params = list(cyl_value)
+  )
+}
+
+result <- safe_query_by_cyl(con, 4)
+nrow(result)
+
+dbDisconnect(con)
+```
+</div>
+
+## Error #3: `columns ... have mismatching types` {#db-type-mismatch}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Problem
+
+```{r error=TRUE}
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+
+# Create table with specific types
+dbExecute(con, "CREATE TABLE test (id INTEGER, value REAL)")
+
+# Try to insert wrong type
+data <- data.frame(id = 1:3, value = c("a", "b", "c"))
+dbWriteTable(con, "test", data, append = TRUE)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Match Types**
+
+```{r}
+# Check table schema
+dbGetQuery(con, "PRAGMA table_info(test)")
+
+# Convert data to match
+data_correct <- data.frame(
+  id = as.integer(1:3),
+  value = as.numeric(c(1.5, 2.3, 3.7))
+)
+
+dbWriteTable(con, "test", data_correct, append = TRUE)
+
+# Verify
+dbReadTable(con, "test")
+
+dbDisconnect(con)
+```
+</div>
+
+## Transactions
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Use Transactions**
+
+```{r}
+con <- dbConnect(RSQLite::SQLite(), ":memory:")
+dbWriteTable(con, "accounts", data.frame(id = 1:3, balance = c(100, 200, 150)))
+
+# Transaction ensures all-or-nothing
+safe_transfer <- function(con, from_id, to_id, amount) {
+  # Start transaction
+  dbBegin(con)
+  
+  tryCatch({
+    # Deduct from sender
+    dbExecute(con,
+      "UPDATE accounts SET balance = balance - ? WHERE id = ?",
+      params = list(amount, from_id))
+    
+    # Add to receiver
+    dbExecute(con,
+      "UPDATE accounts SET balance = balance + ? WHERE id = ?",
+      params = list(amount, to_id))
+    
+    # Commit if both succeed
+    dbCommit(con)
+    message("Transfer successful")
+    
+  }, error = function(e) {
+    # Rollback on error
+    dbRollback(con)
+    stop("Transfer failed: ", e$message)
+  })
+}
+
+# Before
+dbReadTable(con, "accounts")
+
+# Transfer
+safe_transfer(con, from_id = 1, to_id = 2, amount = 50)
+
+# After
+dbReadTable(con, "accounts")
+
+dbDisconnect(con)
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Use DBI package** - Standard interface for all databases
+2. **Always disconnect** - Use on.exit() for safety
+3. **Parameterize queries** - Prevent SQL injection
+4. **Check table exists** - Before querying
+5. **Use dplyr** - For familiar syntax
+6. **Manage connections** - Pool for web apps
+7. **Use transactions** - For multiple operations
+
+**Quick Reference:**
+
+| Function | Purpose |
+|----------|---------|
+| dbConnect() | Connect to database |
+| dbDisconnect() | Close connection |
+| dbListTables() | List tables |
+| dbReadTable() | Read entire table |
+| dbWriteTable() | Write data frame |
+| dbGetQuery() | Run SELECT query |
+| dbExecute() | Run INSERT/UPDATE/DELETE |
+| dbBegin/Commit/Rollback() | Transactions |
+
+**Database Operations:**
+
+```{r eval=FALSE}
+# Connect
+library(DBI)
+con <- dbConnect(RSQLite::SQLite(), "database.db")
+
+# List and inspect
+dbListTables(con)
+dbListFields(con, "table_name")
+
+# Read data
+data <- dbReadTable(con, "table_name")
+data <- dbGetQuery(con, "SELECT * FROM table WHERE col = ?", 
+                   params = list(value))
+
+# Write data
+dbWriteTable(con, "table_name", data_frame)
+dbExecute(con, "INSERT INTO table VALUES (?, ?)",
+          params = list(val1, val2))
+
+# dplyr interface
+library(dplyr)
+tbl(con, "table_name") %>%
+  filter(col > 10) %>%
+  collect()
+
+# Always disconnect
+dbDisconnect(con)
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+Use parameterized queries
+Always disconnect (use on.exit)
+Check dbIsValid() before queries
+Use dplyr for complex operations
+Use transactions for multiple operations
+Handle connection errors gracefully
+
+# ❌ Avoid
+Building SQL with paste() (SQL injection!)
+Leaving connections open
+Assuming table exists
+Not handling connection errors
+```
+</div>
+
+## Completion
+
+<div class="chapter-summary">
+**Part XI Complete!**
+
+You've mastered:
+- Reading data from various formats
+- Writing data efficiently
+- Database connections and queries
+- SQL integration with R
+- Best practices for data I/O
+
+**Ready for:** Part XII (Dates and Times) or other topics!
+</div>

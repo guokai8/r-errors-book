@@ -1,0 +1,1100 @@
+# NA, NULL, NaN, Inf {#na-null-nan-inf}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- The four "missing" value types in R
+- Critical differences between NA, NULL, NaN, and Inf
+- Common errors with missing data
+- How to handle missing values properly
+- Testing and detecting special values
+
+**Key Errors Covered:** 15+ missing data errors
+
+**Difficulty:** ⭐ Beginner to ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+R has **four special "non-values"** that trip up everyone:
+
+```{r}
+NA    # Not Available
+NULL  # Nothing
+NaN   # Not a Number
+Inf   # Infinity
+```
+
+They look similar but behave very differently, and confusing them causes endless errors.
+
+<div class="insight-box">
+💡 **Key Insight: The Four Special Values**
+
+```{r}
+# NA - Missing data (most common)
+ages <- c(25, 30, NA, 35)  # One age is missing
+
+# NULL - Absence of value (empty)
+result <- NULL  # No result yet
+
+# NaN - Invalid math result
+0 / 0  # Undefined
+
+# Inf - Infinite value
+1 / 0  # Positive infinity
+-1 / 0 # Negative infinity
+```
+
+**Think of it this way:**
+- **NA**: "I don't know what this is"
+- **NULL**: "There's nothing here"
+- **NaN**: "This calculation doesn't make sense"
+- **Inf**: "This is beyond measurement"
+</div>
+
+## NA: Not Available
+
+### What is NA?
+
+```{r}
+# NA is a placeholder for missing data
+x <- c(1, 2, NA, 4, 5)
+x
+
+# It has a type!
+typeof(NA)              # logical
+typeof(NA_real_)        # double
+typeof(NA_integer_)     # integer
+typeof(NA_character_)   # character
+```
+
+## Error #1: `missing values where TRUE/FALSE needed` {#na-logical}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- NA
+if (x > 5) {
+  print("Large")
+}
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in if (x > 5) { : missing value where TRUE/FALSE needed
+```
+</div>
+
+### What It Means
+
+`if()` needs TRUE or FALSE, but got NA. R won't guess which branch to take.
+
+### Common Causes
+
+#### Cause 1: Comparison with NA
+
+```{r}
+x <- c(1, 2, NA, 4, 5)
+
+# Comparisons with NA give NA
+x > 3
+
+# Using in if()
+```
+
+```{r error=TRUE}
+if (x[3] > 3) {  # x[3] is NA
+  print("yes")
+}
+```
+
+#### Cause 2: Missing Data in Condition
+
+```{r error=TRUE}
+df <- data.frame(
+  age = c(25, NA, 35),
+  name = c("Alice", "Bob", "Charlie")
+)
+
+# This creates NA in condition
+if (df$age[2] > 30) {
+  print("Senior")
+}
+```
+
+#### Cause 3: Function Returns NA
+
+```{r error=TRUE}
+get_value <- function() {
+  return(NA)
+}
+
+if (get_value() == 10) {
+  print("Ten!")
+}
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Test for NA First**
+
+```{r}
+x <- NA
+
+# Check for NA before using
+if (!is.na(x) && x > 5) {
+  print("Large")
+} else {
+  print("Not large or is NA")
+}
+
+# Or handle NA explicitly
+if (is.na(x)) {
+  print("Missing value")
+} else if (x > 5) {
+  print("Large")
+} else {
+  print("Small")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use isTRUE()**
+
+```{r}
+x <- NA
+
+# isTRUE() converts NA to FALSE
+if (isTRUE(x > 5)) {
+  print("Large")
+}
+
+# Equivalent to:
+if (!is.na(x) && x > 5) {
+  print("Large")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use %in% for Comparisons**
+
+```{r}
+x <- NA
+
+# == with NA gives NA
+x == 5  # NA
+
+# %in% handles NA better
+x %in% c(5)  # FALSE
+
+# But still need to check:
+5 %in% c(NA, 5)  # TRUE
+NA %in% c(NA, 5) # TRUE
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: && vs &**
+
+```{r}
+x <- c(NA, 2, 3)
+
+# Single & returns vector with NA
+x > 1 & x < 5
+
+# Double && errors on vector
+```
+
+```{r error=TRUE}
+if (x > 1 && x < 5) {  # Error!
+  print("yes")
+}
+```
+
+**For if():** Use `&&` but check for NA first
+
+**For vectorized ops:** Use `&` and handle NAs appropriately
+</div>
+
+## Error #2: `missing values and NaN's not allowed` {#na-not-allowed}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-math">🧮 MATH</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- c(1, 2, NA, 4, 5)
+var(x)  # Without na.rm
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in var(x) : missing values and NaN's not allowed if 'na.rm' is FALSE
+```
+</div>
+
+### What It Means
+
+Some functions refuse to work with NA unless you explicitly tell them how to handle it.
+
+### Common Functions With This Error
+
+```{r error=TRUE}
+x <- c(1, 2, NA, 4, 5)
+
+# These error without na.rm:
+var(x)
+sd(x)
+cov(x, x)
+cor(x, x)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use na.rm = TRUE**
+
+```{r}
+x <- c(1, 2, NA, 4, 5)
+
+# Remove NAs for calculation
+var(x, na.rm = TRUE)
+sd(x, na.rm = TRUE)
+mean(x, na.rm = TRUE)
+sum(x, na.rm = TRUE)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Remove NAs First**
+
+```{r}
+x <- c(1, 2, NA, 4, 5)
+
+# Complete cases only
+x_complete <- x[!is.na(x)]
+var(x_complete)
+
+# Or use na.omit()
+x_complete <- na.omit(x)
+var(x_complete)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Replace NAs**
+
+```{r}
+x <- c(1, 2, NA, 4, 5)
+
+# Replace with mean
+x_filled <- x
+x_filled[is.na(x_filled)] <- mean(x, na.rm = TRUE)
+var(x_filled)
+
+# Replace with median (more robust)
+x_filled <- x
+x_filled[is.na(x_filled)] <- median(x, na.rm = TRUE)
+var(x_filled)
+```
+</div>
+
+## Error #3: `'x' contains missing values` {#x-contains-na}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-math">🧮 MATH</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- c(1, 2, NA, 4)
+y <- c(2, 3, 4, 5)
+t.test(x, y)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in t.test.default(x, y) : 'x' contains missing values
+```
+</div>
+
+### What It Means
+
+Statistical tests often require complete data and won't work with NAs.
+
+### Common Functions
+
+```{r error=TRUE}
+x <- c(1, 2, NA, 4, 5)
+y <- c(2, 3, 4, 5, 6)
+
+# These need complete data:
+t.test(x, y)
+wilcox.test(x, y)
+chisq.test(x, y)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Remove NAs from both vectors:**
+```{r}
+x <- c(1, 2, NA, 4, 5)
+y <- c(2, 3, 4, 5, 6)
+
+# Find complete cases
+complete <- complete.cases(x, y)
+x_clean <- x[complete]
+y_clean <- y[complete]
+
+t.test(x_clean, y_clean)
+```
+
+**2. Use na.action:**
+```{r}
+# For functions that support it
+df <- data.frame(x = c(1, 2, NA, 4), y = c(2, 3, 4, 5))
+t.test(x ~ 1, data = df, na.action = na.omit)
+```
+
+**3. Impute missing values (advanced):**
+```{r eval=FALSE}
+library(mice)
+imputed <- mice(data, m = 5, method = "pmm")
+```
+</div>
+
+## NULL: The Absence of Value
+
+### What is NULL?
+
+```{r}
+# NULL means "nothing"
+x <- NULL
+x
+
+# Length zero
+length(NULL)
+
+# NULL disappears in vectors
+c(1, 2, NULL, 4)
+
+# Different from NA
+c(1, 2, NA, 4)
+```
+
+## Error #4: `argument is of length zero` {#length-zero}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-dimension">📏 LENGTH</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- NULL
+if (x > 5) {
+  print("yes")
+}
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in if (x > 5) { : argument is of length zero
+```
+</div>
+
+### What It Means
+
+You're trying to use NULL in a context that needs at least one value.
+
+### Common Causes
+
+#### Cause 1: Uninitialized Variable
+
+```{r error=TRUE}
+# Forgot to assign
+result <- NULL
+
+# Try to use
+if (result == 100) {
+  print("success")
+}
+```
+
+#### Cause 2: Empty Subset
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5, y = 6:10)
+
+# Filter returns nothing
+subset_val <- df$x[df$x > 10]  # numeric(0)
+subset_val <- NULL  # Or explicitly NULL
+
+# Try to use
+if (subset_val > 0) {
+  print("positive")
+}
+```
+
+#### Cause 3: Function Returns NULL
+
+```{r error=TRUE}
+get_value <- function(x) {
+  if (x > 10) {
+    return(x * 2)
+  }
+  # Implicitly returns NULL when x <= 10
+}
+
+result <- get_value(5)  # NULL
+
+if (result > 0) {
+  print("positive")
+}
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check for NULL**
+
+```{r}
+x <- NULL
+
+# Check before using
+if (!is.null(x) && x > 5) {
+  print("Large")
+} else {
+  print("NULL or not large")
+}
+
+# Or use default
+if (is.null(x)) {
+  x <- 0  # Default value
+}
+
+if (x > 5) {
+  print("Large")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check Length**
+
+```{r}
+x <- NULL
+
+# Check length instead
+if (length(x) > 0 && x > 5) {
+  print("Large")
+}
+
+# Works for both NULL and empty vectors
+y <- numeric(0)
+if (length(y) > 0 && y[1] > 5) {
+  print("Large")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use Default Values**
+
+```{r}
+get_value_safe <- function(x) {
+  if (x > 10) {
+    return(x * 2)
+  } else {
+    return(0)  # Default instead of NULL
+  }
+}
+
+result <- get_value_safe(5)
+if (result > 0) {
+  print("positive")
+}
+```
+</div>
+
+## NaN: Not a Number
+
+### What is NaN?
+
+```{r}
+# Result of invalid math
+0 / 0
+Inf - Inf
+Inf / Inf
+
+# NaN is a special type of NA
+is.na(NaN)   # TRUE
+is.nan(NA)   # FALSE
+```
+
+## Error #5: `NaNs produced` {#nans-produced}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-math">🧮 MATH</span>
+
+### The Warning
+
+```{r}
+sqrt(-1)
+log(-1)
+0/0
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Warning message:
+In sqrt(-1) : NaNs produced
+```
+</div>
+
+### What It Means
+
+You performed a mathematically invalid operation. Result is NaN.
+
+### Common Causes
+
+#### Cause 1: Negative Square Root
+
+```{r}
+# Real square root of negative number doesn't exist
+sqrt(-1)
+sqrt(c(1, 4, -9, 16))
+```
+
+#### Cause 2: Log of Negative/Zero
+
+```{r}
+# Log of negative or zero
+log(0)   # -Inf
+log(-1)  # NaN
+
+# Log of vector with negatives
+values <- c(1, 10, -5, 100)
+log(values)
+```
+
+#### Cause 3: Invalid Division
+
+```{r}
+# 0/0 is undefined
+0 / 0
+
+# Inf operations
+Inf - Inf
+Inf / Inf
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Input Before Operation**
+
+```{r}
+safe_sqrt <- function(x) {
+  if (any(x < 0, na.rm = TRUE)) {
+    warning("Negative values found, returning NA for those")
+  }
+  result <- sqrt(x)
+  return(result)
+}
+
+safe_sqrt(c(1, 4, -9, 16))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Handle NaN After Operation**
+
+```{r}
+x <- c(1, -4, 9, -16)
+result <- sqrt(x)
+
+# Replace NaN with NA (more standard)
+result[is.nan(result)] <- NA
+result
+
+# Or with a specific value
+result <- sqrt(x)
+result[is.nan(result)] <- 0
+result
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use Complex Numbers for Sqrt**
+
+```{r}
+# For genuinely needing complex results
+x <- -1
+sqrt(as.complex(x))  # 0+1i
+
+# Vector
+x <- c(1, -4, 9, -16)
+sqrt(as.complex(x))
+```
+</div>
+
+## Inf: Infinity
+
+### What is Inf?
+
+```{r}
+# Division by zero (non-zero)
+1 / 0   # Inf
+-1 / 0  # -Inf
+
+# Very large calculations
+exp(1000)  # Inf
+
+# Inf in comparisons
+Inf > 1e100  # TRUE
+-Inf < -1e100  # TRUE
+```
+
+## Error #6: `infinite or missing values in 'x'` {#inf-in-x}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-math">🧮 MATH</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- c(1, 2, Inf, 4)
+y <- c(2, 3, 4, 5)
+cor(x, y)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in cor(x, y) : infinite or missing values in 'x'
+```
+</div>
+
+### What It Means
+
+Some functions can't handle infinite values and need finite numbers.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Check for and remove Inf:**
+```{r}
+x <- c(1, 2, Inf, 4, -Inf, 5)
+
+# Find finite values
+is.finite(x)
+
+# Keep only finite
+x_finite <- x[is.finite(x)]
+y_finite <- y[is.finite(x)]
+cor(x_finite, y_finite)
+```
+
+**2. Replace Inf with large number:**
+```{r}
+x <- c(1, 2, Inf, 4, -Inf, 5)
+
+# Replace Inf with max/min of finite values
+x_fixed <- x
+x_fixed[x == Inf] <- max(x[is.finite(x)]) * 10
+x_fixed[x == -Inf] <- min(x[is.finite(x)]) * 10
+x_fixed
+```
+
+**3. Check before calculation:**
+```{r}
+safe_cor <- function(x, y) {
+  finite_both <- is.finite(x) & is.finite(y)
+  
+  if (sum(finite_both) < 2) {
+    stop("Need at least 2 finite pairs")
+  }
+  
+  cor(x[finite_both], y[finite_both])
+}
+```
+</div>
+
+## Testing for Special Values
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Comprehensive Testing**
+
+```{r}
+# Test functions
+x <- c(1, NA, NaN, Inf, -Inf, 0)
+
+# Individual tests
+is.na(x)       # TRUE for NA and NaN
+is.nan(x)      # TRUE only for NaN
+is.infinite(x) # TRUE for Inf and -Inf
+is.finite(x)   # TRUE for normal numbers
+
+# NULL is different
+y <- NULL
+is.null(y)     # TRUE
+is.na(y)       # logical(0) - no value to test
+
+# Combined checks
+is_valid <- function(x) {
+  !is.na(x) & !is.nan(x) & is.finite(x)
+}
+
+is_valid(x)
+```
+
+**Decision Tree:**
+```{r eval=FALSE}
+if (is.null(x)) {
+  # Handle NULL - no value at all
+} else if (is.nan(x)) {
+  # Handle NaN - invalid math result
+} else if (is.infinite(x)) {
+  # Handle Inf/-Inf - beyond limits
+} else if (is.na(x)) {
+  # Handle NA - missing data
+} else {
+  # Normal value
+}
+```
+</div>
+
+## Handling Missing Data Strategies
+
+<div class="insight-box">
+💡 **Key Insight: Missing Data Strategies**
+
+**1. Complete Case Analysis (Listwise Deletion)**
+```{r}
+df <- data.frame(
+  x = c(1, 2, NA, 4, 5),
+  y = c(10, NA, 30, 40, 50)
+)
+
+# Keep only complete rows
+complete.cases(df)
+df_complete <- df[complete.cases(df), ]
+df_complete
+```
+
+**2. Available Case Analysis (Pairwise Deletion)**
+```{r}
+# Use all available data for each calculation
+cor(df, use = "pairwise.complete.obs")
+```
+
+**3. Imputation (Replacing with Estimates)**
+```{r}
+# Replace with mean (simple)
+df$x[is.na(df$x)] <- mean(df$x, na.rm = TRUE)
+
+# Replace with median (robust to outliers)
+df$y[is.na(df$y)] <- median(df$y, na.rm = TRUE)
+```
+
+**4. Keep as NA (Most Honest)**
+```{r}
+# Just handle NAs in analysis
+mean(df$x, na.rm = TRUE)
+```
+
+**When to use each:**
+- **Complete case**: When data missing completely at random (MCAR)
+- **Pairwise**: When you want to use all available information
+- **Imputation**: When you have good reason to estimate missing values
+- **Keep NA**: When missingness is informative
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Four special values**: NA (missing), NULL (nothing), NaN (invalid math), Inf (infinite)
+2. **NA vs NULL**: NA is a placeholder in a vector, NULL is absence of vector
+3. **Test before using**: Always check `is.na()`, `is.null()`, `is.finite()`
+4. **Use isTRUE()**: For conditions that might be NA
+5. **na.rm = TRUE**: Most statistical functions need this with NAs
+6. **NaN from invalid math**: sqrt(-1), 0/0, etc.
+7. **Inf from overflow**: 1/0, exp(1000), etc.
+
+**Quick Reference:**
+
+| Value | Test | Meaning | Example |
+|-------|------|---------|---------|
+| NA | `is.na()` | Missing data | Survey non-response |
+| NULL | `is.null()` | No value | Uninitialized variable |
+| NaN | `is.nan()` | Invalid math | 0/0 |
+| Inf | `is.infinite()` | Infinite | 1/0 |
+
+**In if() statements:**
+
+```{r eval=FALSE}
+# ❌ Dangerous
+if (x > 5) { }  # Errors if x is NA or NULL
+
+# ✅ Safe
+if (!is.na(x) && x > 5) { }
+if (isTRUE(x > 5)) { }
+if (length(x) > 0 && !is.na(x) && x > 5) { }
+```
+
+**With functions:**
+
+```{r eval=FALSE}
+# ❌ May error
+mean(x)
+var(x)
+cor(x, y)
+
+# ✅ Handle missing
+mean(x, na.rm = TRUE)
+var(x[is.finite(x)])
+cor(x, y, use = "complete.obs")
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Identify the Type**
+
+What are these and why?
+
+```{r eval=FALSE}
+# A
+x <- c()
+typeof(x)
+
+# B  
+y <- sqrt(-1)
+class(y)
+
+# C
+z <- 1/0
+is.finite(z)
+
+# D
+w <- c(1, 2, NA, 4)
+w == NA
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Fix the Code**
+
+Debug these:
+
+```{r eval=FALSE}
+# Problem 1
+data <- c(1, 2, NA, 4, 5)
+if (mean(data) > 3) {
+  print("High average")
+}
+
+# Problem 2
+get_score <- function(x) {
+  if (x > 10) {
+    return(x * 2)
+  }
+}
+score <- get_score(5)
+if (score > 10) {
+  print("High score")
+}
+
+# Problem 3
+values <- c(10, 20, 0, 30)
+log_values <- log(values)
+mean(log_values)
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Robust Function**
+
+Write `robust_mean(x)` that:
+1. Handles NA, NULL, NaN, Inf
+2. Reports how many of each were found
+3. Calculates mean of valid values
+4. Returns list with mean and diagnostics
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Data Cleaning**
+
+You have survey data:
+
+```{r eval=FALSE}
+survey <- data.frame(
+  age = c(25, NA, 35, -999, 40),  # -999 = missing
+  income = c(50000, 75000, 0, 80000, NA),  # 0 = refused
+  satisfaction = c(5, 3, NA, 4, 99)  # 99 = invalid
+)
+```
+
+Clean it:
+1. Convert -999 to NA
+2. Convert 0 in income to NA
+3. Convert 99 in satisfaction to NA
+4. Calculate complete case statistics
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+# A - Empty vector
+x <- c()
+typeof(x)  # "logical" (default empty type)
+
+# B - NaN from invalid math
+y <- sqrt(-1)
+class(y)  # "numeric"
+is.nan(y)  # TRUE
+
+# C - Inf from division by zero
+z <- 1/0
+is.finite(z)  # FALSE (Inf is not finite)
+
+# D - Comparison with NA gives NA
+w <- c(1, 2, NA, 4)
+w == NA  # All NA! Use is.na() instead
+is.na(w)  # Correct way
+```
+
+**Exercise 2:**
+
+```{r}
+# Problem 1 - Need na.rm
+data <- c(1, 2, NA, 4, 5)
+mean_val <- mean(data, na.rm = TRUE)
+if (!is.na(mean_val) && mean_val > 3) {
+  print("High average")
+}
+
+# Problem 2 - Check for NULL
+get_score <- function(x) {
+  if (x > 10) {
+    return(x * 2)
+  } else {
+    return(0)  # Return 0 instead of NULL
+  }
+}
+score <- get_score(5)
+if (!is.null(score) && score > 10) {
+  print("High score")
+}
+
+# Problem 3 - Handle -Inf from log(0)
+values <- c(10, 20, 0, 30)
+log_values <- log(values)
+log_values[is.infinite(log_values)] <- NA
+mean(log_values, na.rm = TRUE)
+```
+
+**Exercise 3:**
+
+```{r}
+robust_mean <- function(x) {
+  # Initialize diagnostics
+  diagnostics <- list(
+    total = length(x),
+    null = is.null(x),
+    na = 0,
+    nan = 0,
+    inf = 0,
+    valid = 0
+  )
+  
+  # Check for NULL
+  if (is.null(x)) {
+    return(list(mean = NULL, diagnostics = diagnostics))
+  }
+  
+  # Count special values
+  diagnostics$na <- sum(is.na(x) & !is.nan(x))
+  diagnostics$nan <- sum(is.nan(x))
+  diagnostics$inf <- sum(is.infinite(x))
+  
+  # Find valid values
+  valid <- x[!is.na(x) & !is.nan(x) & is.finite(x)]
+  diagnostics$valid <- length(valid)
+  
+  # Calculate mean
+  if (length(valid) == 0) {
+    mean_val <- NA
+  } else {
+    mean_val <- mean(valid)
+  }
+  
+  # Return
+  list(
+    mean = mean_val,
+    diagnostics = diagnostics
+  )
+}
+
+# Test
+robust_mean(c(1, 2, NA, NaN, Inf, 5, -Inf))
+```
+
+**Exercise 4:**
+
+```{r}
+survey <- data.frame(
+  age = c(25, NA, 35, -999, 40),
+  income = c(50000, 75000, 0, 80000, NA),
+  satisfaction = c(5, 3, NA, 4, 99)
+)
+
+# Clean data
+clean_survey <- survey
+
+# Convert -999 to NA in age
+clean_survey$age[clean_survey$age == -999] <- NA
+
+# Convert 0 to NA in income
+clean_survey$income[clean_survey$income == 0] <- NA
+
+# Convert 99 to NA in satisfaction
+clean_survey$satisfaction[clean_survey$satisfaction == 99] <- NA
+
+# Complete case analysis
+clean_survey_complete <- clean_survey[complete.cases(clean_survey), ]
+
+# Statistics
+list(
+  n_complete = nrow(clean_survey_complete),
+  mean_age = mean(clean_survey_complete$age),
+  mean_income = mean(clean_survey_complete$income),
+  mean_satisfaction = mean(clean_survey_complete$satisfaction)
+)
+```
+</details>

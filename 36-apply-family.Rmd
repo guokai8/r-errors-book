@@ -1,0 +1,663 @@
+# Part XIII: Programming Patterns {-}
+
+# apply Family & Iteration {#apply-family}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- apply, lapply, sapply, mapply
+- Common iteration errors
+- When to use each function
+- Performance considerations
+- Alternative approaches
+
+**Key Errors Covered:** 20+ iteration errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+R's apply family provides vectorized operations:
+
+```{r}
+# Instead of loops
+result <- numeric(nrow(mtcars))
+for (i in 1:nrow(mtcars)) {
+  result[i] <- mean(as.numeric(mtcars[i, ]))
+}
+
+# Use apply
+result <- apply(mtcars, 1, mean)
+head(result)
+```
+
+Let's master the apply family!
+
+## apply() - Arrays and Matrices
+
+<div class="insight-box">
+💡 **Key Insight: apply() for Matrices**
+
+```{r}
+# Create matrix
+mat <- matrix(1:12, nrow = 3, ncol = 4)
+mat
+
+# Apply to rows (MARGIN = 1)
+row_sums <- apply(mat, 1, sum)
+row_sums
+
+# Apply to columns (MARGIN = 2)
+col_means <- apply(mat, 2, mean)
+col_means
+
+# Custom function
+apply(mat, 1, function(x) max(x) - min(x))
+
+# With additional arguments
+apply(mat, 2, sum, na.rm = TRUE)
+
+# Both dimensions
+apply(mat, c(1, 2), sqrt)
+```
+</div>
+
+## Error #1: `dim(X) must have positive length` {#dim-positive}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+# Try apply on vector
+vec <- 1:10
+apply(vec, 1, sum)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in apply(vec, 1, sum) : dim(X) must have a positive length
+```
+</div>
+
+### What It Means
+
+`apply()` requires a matrix/array, not a vector.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use lapply() or sapply()**
+
+```{r}
+# For vectors, use lapply/sapply
+vec <- 1:10
+
+# Wrong: apply(vec, 1, sqrt)
+
+# Right: use sapply
+sapply(vec, sqrt)
+
+# Or vectorized operation
+sqrt(vec)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Convert to Matrix**
+
+```{r}
+# If you really need apply
+vec <- 1:10
+mat <- matrix(vec, ncol = 1)
+apply(mat, 1, function(x) x * 2)
+
+# But this is unnecessary - use vectorization
+vec * 2
+```
+</div>
+
+## lapply() - Lists
+
+<div class="insight-box">
+💡 **Key Insight: lapply() Always Returns List**
+
+```{r}
+# Create list
+my_list <- list(a = 1:5, b = 6:10, c = 11:15)
+
+# Apply function to each element
+result <- lapply(my_list, mean)
+result
+
+# With custom function
+lapply(my_list, function(x) sum(x^2))
+
+# On data frame (df is a list of columns)
+lapply(mtcars[, 1:3], mean)
+
+# Extract elements
+lapply(my_list, `[`, 1:2)
+
+# With multiple arguments
+lapply(my_list, sum, na.rm = TRUE)
+```
+</div>
+
+## sapply() - Simplified
+
+<div class="insight-box">
+💡 **Key Insight: sapply() Simplifies Output**
+
+```{r}
+my_list <- list(a = 1:5, b = 6:10, c = 11:15)
+
+# lapply returns list
+lapply(my_list, mean)
+
+# sapply returns vector
+sapply(my_list, mean)
+
+# sapply with matrix output
+sapply(my_list, function(x) c(mean = mean(x), sd = sd(x)))
+
+# When can't simplify, returns list
+sapply(my_list, summary)  # Returns list
+```
+</div>
+
+## Error #2: Unexpected Output Type {#unexpected-type}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Problem
+
+```{r}
+# sapply behavior depends on output
+result1 <- sapply(1:3, function(x) x)
+result1
+class(result1)  # vector
+
+result2 <- sapply(1:3, function(x) c(x, x^2))
+result2
+class(result2)  # matrix
+
+result3 <- sapply(1:3, function(x) list(x, x^2))
+result3
+class(result3)  # list
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use vapply() for Type Safety**
+
+```{r}
+# Specify output type
+result <- vapply(1:3, function(x) x * 2, FUN.VALUE = numeric(1))
+result
+
+# Will error if output doesn't match
+# vapply(1:3, function(x) c(x, x^2), FUN.VALUE = numeric(1))
+
+# For multiple values
+result <- vapply(1:3, function(x) c(x, x^2), FUN.VALUE = numeric(2))
+result
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use lapply() and Post-Process**
+
+```{r}
+# Always get list, then convert
+result <- lapply(1:3, function(x) x * 2)
+unlist(result)
+
+# Or use do.call
+do.call(c, result)
+```
+</div>
+
+## mapply() - Multiple Arguments
+
+<div class="insight-box">
+💡 **Key Insight: mapply() for Parallel Iteration**
+
+```{r}
+# Apply function to multiple vectors in parallel
+mapply(function(x, y) x + y, 
+       x = 1:5, 
+       y = 6:10)
+
+# Multiple arguments
+mapply(rep, 
+       x = 1:4, 
+       times = 4:1)
+
+# With data frames
+df1 <- data.frame(a = 1:3, b = 4:6)
+df2 <- data.frame(c = 7:9, d = 10:12)
+
+mapply(function(x, y) x + y, df1$a, df2$c)
+
+# MoreArgs for constant arguments
+mapply(function(x, y, z) x + y + z,
+       x = 1:3,
+       y = 4:6,
+       MoreArgs = list(z = 10))
+```
+</div>
+
+## tapply() - Grouped Apply
+
+<div class="insight-box">
+💡 **Key Insight: tapply() for Split-Apply-Combine**
+
+```{r}
+# Apply function by groups
+tapply(mtcars$mpg, mtcars$cyl, mean)
+
+# Multiple grouping variables
+tapply(mtcars$mpg, 
+       list(Cyl = mtcars$cyl, Gear = mtcars$gear), 
+       mean)
+
+# With custom function
+tapply(mtcars$mpg, mtcars$cyl, 
+       function(x) c(mean = mean(x), sd = sd(x)))
+
+# Like dplyr group_by + summarize
+library(dplyr)
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(mean_mpg = mean(mpg))
+```
+</div>
+
+## Common Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Choose Right Function**
+
+```{r}
+# Pattern 1: Apply to each column of data frame
+lapply(mtcars[, 1:3], mean)
+sapply(mtcars[, 1:3], mean)
+
+# Pattern 2: Apply to each row
+apply(mtcars[, 1:3], 1, sum)
+
+# Pattern 3: Apply with multiple inputs
+mapply(function(x, y) x / y,
+       x = mtcars$hp,
+       y = mtcars$wt)
+
+# Pattern 4: Apply by groups
+tapply(mtcars$mpg, mtcars$cyl, mean)
+
+# Pattern 5: Nested lists
+nested <- list(
+  a = list(x = 1:3, y = 4:6),
+  b = list(x = 7:9, y = 10:12)
+)
+
+# Get all 'x' elements
+lapply(nested, `[[`, "x")
+
+# Apply to nested structure
+lapply(nested, function(sublist) {
+  lapply(sublist, mean)
+})
+```
+</div>
+
+## Performance Considerations
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Vectorize When Possible**
+
+```{r}
+# Compare performance
+n <- 10000
+
+# Loop (slow)
+system.time({
+  result <- numeric(n)
+  for (i in 1:n) {
+    result[i] <- sqrt(i)
+  }
+})
+
+# sapply (better)
+system.time({
+  result <- sapply(1:n, sqrt)
+})
+
+# Vectorized (best)
+system.time({
+  result <- sqrt(1:n)
+})
+
+# When apply family is appropriate
+df <- data.frame(matrix(rnorm(1000), ncol = 10))
+
+# Row-wise operations (apply is good)
+system.time({
+  apply(df, 1, mean)
+})
+
+# Column-wise operations (vectorized is better)
+system.time({
+  colMeans(df)
+})
+```
+</div>
+
+## Error #3: Function Not Vectorized {#not-vectorized}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-logic">🧠 LOGIC</span>
+
+### The Problem
+
+```{r error=TRUE}
+# Custom function expecting single value
+my_function <- function(x) {
+  if (x > 0) {
+    return("positive")
+  } else {
+    return("negative")
+  }
+}
+
+# Doesn't work with vectors
+my_function(c(-1, 2, -3, 4))
+```
+
+<div class="warning-box">
+⚠️ **WARNING**
+
+```
+Warning: the condition has length > 1
+```
+</div>
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use sapply/vapply**
+
+```{r}
+# Apply to each element
+sapply(c(-1, 2, -3, 4), my_function)
+
+# Type-safe version
+vapply(c(-1, 2, -3, 4), my_function, FUN.VALUE = character(1))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Vectorize the Function**
+
+```{r}
+# Make function vectorized
+my_function_vec <- Vectorize(my_function)
+my_function_vec(c(-1, 2, -3, 4))
+
+# Or rewrite using ifelse
+my_function_better <- function(x) {
+  ifelse(x > 0, "positive", "negative")
+}
+
+my_function_better(c(-1, 2, -3, 4))
+```
+</div>
+
+## Alternative: purrr Package
+
+<div class="insight-box">
+💡 **Key Insight: purrr for Modern Iteration**
+
+```{r message=FALSE}
+library(purrr)
+
+# map() family (like lapply/sapply)
+map(1:3, ~ . * 2)           # Returns list
+map_dbl(1:3, ~ . * 2)       # Returns numeric
+map_chr(1:3, ~ as.character(.))  # Returns character
+
+# map2() for two inputs (like mapply)
+map2_dbl(1:3, 4:6, ~ .x + .y)
+
+# pmap() for multiple inputs
+pmap_dbl(list(x = 1:3, y = 4:6, z = 7:9), 
+         function(x, y, z) x + y + z)
+
+# Useful helpers
+list(a = 1:3, b = 4:6, c = 7:9) %>%
+  map_dbl(mean)
+
+# Safe operations
+map(c("1", "2", "not_a_number"), 
+    possibly(as.numeric, otherwise = NA))
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **apply()** - For matrices/arrays
+2. **lapply()** - Always returns list
+3. **sapply()** - Simplifies output
+4. **vapply()** - Type-safe sapply
+5. **mapply()** - Multiple inputs
+6. **tapply()** - Grouped operations
+7. **Vectorize when possible** - Faster than apply
+
+**Quick Reference:**
+
+| Function | Input | Output | Use Case |
+|----------|-------|--------|----------|
+| apply() | Matrix/array | Vector/list | Row/column operations |
+| lapply() | List/vector | List | Any operation |
+| sapply() | List/vector | Vector/matrix | When simplified OK |
+| vapply() | List/vector | Specified type | Type safety |
+| mapply() | Multiple vectors | Vector/list | Parallel iteration |
+| tapply() | Vector + groups | Array | Split-apply-combine |
+
+**Usage Patterns:**
+
+```{r eval=FALSE}
+# Matrices
+apply(matrix, 1, function)    # By row
+apply(matrix, 2, function)    # By column
+
+# Lists
+lapply(list, function)        # Returns list
+sapply(list, function)        # Simplified
+vapply(list, function, type)  # Type-safe
+
+# Multiple inputs
+mapply(function, x, y)
+
+# Grouped
+tapply(values, groups, function)
+
+# Modern alternative
+library(purrr)
+map(list, function)           # Like lapply
+map_dbl(list, function)       # Like sapply with numeric
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+Use vectorized operations when possible
+Use vapply() for type safety
+Choose right function for task
+Consider purrr for complex operations
+
+# ❌ Avoid
+Using apply() on vectors
+Using sapply() when type matters
+Growing objects in loops
+Unnecessary apply when vectorized solution exists
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Apply Practice**
+
+Using mtcars:
+1. Calculate row means using apply
+2. Calculate column medians using apply
+3. Find max value in each row
+4. Compare performance with vectorized versions
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Custom Function with Apply**
+
+Write function to:
+1. Take a data frame
+2. For each numeric column, calculate mean, sd, min, max
+3. Return as data frame
+4. Use appropriate apply function
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: mapply Practice**
+
+Create two vectors and:
+1. Add them element-wise with mapply
+2. Use custom function with multiple arguments
+3. Compare with vectorized approach
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+# 1. Row means
+row_means_apply <- apply(mtcars, 1, mean)
+row_means_vec <- rowMeans(mtcars)
+
+all.equal(row_means_apply, row_means_vec)
+
+# 2. Column medians
+col_medians <- apply(mtcars, 2, median)
+col_medians
+
+# 3. Max in each row
+row_max <- apply(mtcars, 1, max)
+head(row_max)
+
+# 4. Performance comparison
+library(microbenchmark)
+
+microbenchmark(
+  apply = apply(mtcars, 1, mean),
+  rowMeans = rowMeans(mtcars),
+  times = 100
+)
+
+# Vectorized is much faster!
+```
+
+**Exercise 2:**
+
+```{r}
+summarize_numeric <- function(df) {
+  # Get numeric columns
+  numeric_cols <- sapply(df, is.numeric)
+  df_numeric <- df[, numeric_cols]
+  
+  # Calculate statistics for each column
+  stats <- lapply(df_numeric, function(col) {
+    c(
+      mean = mean(col, na.rm = TRUE),
+      sd = sd(col, na.rm = TRUE),
+      min = min(col, na.rm = TRUE),
+      max = max(col, na.rm = TRUE)
+    )
+  })
+  
+  # Convert to data frame
+  result <- do.call(rbind, stats)
+  result <- as.data.frame(result)
+  result$variable <- rownames(result)
+  rownames(result) <- NULL
+  
+  result[, c("variable", "mean", "sd", "min", "max")]
+}
+
+# Test
+summarize_numeric(mtcars)
+
+# Alternative using vapply for type safety
+summarize_numeric_safe <- function(df) {
+  numeric_cols <- sapply(df, is.numeric)
+  df_numeric <- df[, numeric_cols]
+  
+  stats <- vapply(df_numeric, function(col) {
+    c(mean = mean(col, na.rm = TRUE),
+      sd = sd(col, na.rm = TRUE),
+      min = min(col, na.rm = TRUE),
+      max = max(col, na.rm = TRUE))
+  }, FUN.VALUE = numeric(4))
+  
+  result <- as.data.frame(t(stats))
+  result$variable <- rownames(result)
+  rownames(result) <- NULL
+  
+  result[, c("variable", "mean", "sd", "min", "max")]
+}
+
+summarize_numeric_safe(iris)
+```
+
+**Exercise 3:**
+
+```{r}
+# Create vectors
+x <- 1:10
+y <- 11:20
+
+# 1. Add with mapply
+result_mapply <- mapply(function(a, b) a + b, x, y)
+result_mapply
+
+# 2. Custom function
+weighted_sum <- function(a, b, weight = 0.5) {
+  a * weight + b * (1 - weight)
+}
+
+result_custom <- mapply(weighted_sum, x, y, MoreArgs = list(weight = 0.3))
+result_custom
+
+# 3. Compare with vectorized
+result_vec <- x + y
+all.equal(result_mapply, result_vec)
+
+# Performance
+microbenchmark(
+  mapply = mapply(`+`, x, y),
+  vectorized = x + y,
+  times = 1000
+)
+
+# Vectorized is MUCH faster
+```
+</details>

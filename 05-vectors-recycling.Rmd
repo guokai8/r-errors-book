@@ -1,0 +1,924 @@
+# Vectors & Recycling {#vectors-recycling}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- How R's vector recycling works
+- When recycling helps and when it hurts
+- Length mismatch errors
+- Replacement length errors
+- Vectorization best practices
+
+**Key Errors Covered:** 15+ recycling and length errors
+
+**Difficulty:** ⭐ Beginner to ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+R's superpower is **vectorization** - operations work on entire vectors at once. But with this power comes a quirky feature called **recycling** that causes endless confusion.
+
+```{r}
+# Simple vectorization
+c(1, 2, 3) + c(10, 20, 30)
+```
+
+But what about this?
+
+```{r}
+# Different lengths!
+c(1, 2, 3, 4) + c(10, 20)
+```
+
+It works! But is this what you wanted? Let's explore when recycling helps and when it causes errors.
+
+## Understanding Recycling
+
+<div class="insight-box">
+💡 **Key Insight: The Recycling Rule**
+
+When vectors of different lengths are used together, **R repeats the shorter one** to match the longer one.
+
+```{r}
+# What happens:
+c(1, 2, 3, 4) + c(10, 20)
+
+# R expands to:
+c(1, 2, 3, 4) + c(10, 20, 10, 20)
+#                        ↑   ↑  recycled!
+```
+
+**Works smoothly when:**
+- One vector is length 1 (scalar)
+- Lengths are multiples (2 and 4, 3 and 6)
+
+**Warns when:**
+- Lengths aren't multiples (3 and 5)
+
+**Errors when:**
+- Replacement context and lengths don't match
+</div>
+
+## Error #1: `longer object length is not a multiple` {#recycling-warning}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-dimension">📏 LENGTH</span>
+
+### The Warning
+
+```{r}
+c(1, 2, 3) + c(10, 20, 30, 40, 50)
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Warning message:
+In c(1, 2, 3) + c(10, 20, 30, 40, 50) :
+  longer object length is not a multiple of shorter object length
+```
+</div>
+
+### What It Means
+
+R is recycling, but the lengths don't match evenly. This usually indicates a mistake.
+
+### Common Causes
+
+#### Cause 1: Data Mismatch
+
+```{r}
+# You have 100 observations
+data <- rnorm(100)
+
+# But only 3 group labels
+groups <- c("A", "B", "C")
+
+# Recycling happens
+combined <- data.frame(value = data, group = groups)
+```
+
+The warning tells you: "Hey, are you sure about this?"
+
+#### Cause 2: Filtering Gone Wrong
+
+```{r}
+x <- 1:10
+y <- 1:7  # Oops, lost some values
+
+# Operations warn
+x + y
+x * y
+```
+
+#### Cause 3: Unintended Partial Matching
+
+```{r}
+treatment <- c("Drug", "Placebo")
+outcomes <- rnorm(25)  # 25 subjects
+
+# Assigning treatment to outcomes
+data.frame(outcome = outcomes, treatment = treatment)
+```
+
+Warning: 25 is not a multiple of 2!
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Fix the Lengths**
+
+```{r}
+# Original problem
+x <- 1:10
+y <- 1:7
+
+# Option A: Trim to match
+min_len <- min(length(x), length(y))
+x[1:min_len] + y[1:min_len]
+
+# Option B: Extend with NA
+y_extended <- c(y, rep(NA, length(x) - length(y)))
+x + y_extended
+
+# Option C: Explicit recycling (if intentional)
+y_recycled <- rep(y, length.out = length(x))
+x + y_recycled
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check Lengths Before Operating**
+
+```{r}
+safe_operation <- function(x, y, op = `+`) {
+  if (length(x) != length(y)) {
+    # Check if one is length 1 (scalar - OK)
+    if (length(x) == 1 || length(y) == 1) {
+      return(op(x, y))
+    }
+    
+    # Check if lengths are multiples
+    if (max(length(x), length(y)) %% min(length(x), length(y)) != 0) {
+      warning("Lengths are not multiples: ", 
+              length(x), " and ", length(y))
+    }
+  }
+  
+  return(op(x, y))
+}
+
+# Test
+safe_operation(1:10, 1:7, `+`)  # Warns
+safe_operation(1:10, 1:5, `+`)  # No warning (10/5 = 2)
+safe_operation(1:10, 2, `+`)    # No warning (scalar)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use rep() Explicitly**
+
+```{r}
+# Make intention clear
+x <- 1:12
+pattern <- c(1, 2, 3)
+
+# Explicit recycling
+y <- rep(pattern, length.out = length(x))
+x + y
+
+# Or with times
+y <- rep(pattern, times = length(x) / length(pattern))
+x + y
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Silent Recycling with Multiples**
+
+```{r}
+# No warning when lengths are multiples!
+x <- 1:6
+y <- c(10, 20, 30)  # 6 is multiple of 3
+
+result <- x + y
+result
+
+# R expanded y to: c(10, 20, 30, 10, 20, 30)
+# Was this intended?
+```
+
+**Always check:** Just because it doesn't warn doesn't mean it's correct!
+</div>
+
+## Error #2: `replacement has X rows, data has Y` {#replacement-rows}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-dimension">📏 LENGTH</span>
+
+### The Error
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5, y = 6:10)
+df$z <- 1:3  # Wrong length!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in `$<-.data.frame`(`*tmp*`, z, value = 1:3) : 
+  replacement has 3 rows, data has 5
+```
+</div>
+
+### What It Means
+
+You're trying to add/replace a column, but the number of values doesn't match the number of rows.
+
+### Common Causes
+
+#### Cause 1: Wrong Length Column
+
+```{r error=TRUE}
+df <- data.frame(id = 1:10)
+
+# Calculated something with wrong length
+summary_values <- c(100, 200, 300)  # Only 3 values
+
+# Try to add as column
+df$summary <- summary_values  # Error!
+```
+
+#### Cause 2: Filtered Data Reassignment
+
+```{r error=TRUE}
+df <- data.frame(x = 1:10, y = rnorm(10))
+
+# Filter
+subset_df <- df[df$y > 0, ]  # Maybe 6 rows
+
+# Create column for subset
+new_values <- 1:6
+
+# Try to add to original
+df$new <- new_values  # Error! Original has 10 rows
+```
+
+#### Cause 3: Aggregation Length Mismatch
+
+```{r error=TRUE}
+# 20 observations
+df <- data.frame(
+  id = 1:20,
+  group = rep(c("A", "B"), each = 10)
+)
+
+# Aggregate to 2 values (one per group)
+group_means <- tapply(df$id, df$group, mean)
+
+# Try to add back to original
+df$group_mean <- group_means  # Error! 2 values, 20 rows
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Match the Length**
+
+```{r}
+df <- data.frame(id = 1:10)
+summary_values <- c(100, 200, 300)
+
+# Recycle explicitly
+df$summary <- rep(summary_values, length.out = nrow(df))
+
+# Or extend with NA
+df$summary <- c(summary_values, rep(NA, nrow(df) - length(summary_values)))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Merge/Join for Aggregates**
+
+```{r}
+# Original data
+df <- data.frame(
+  id = 1:20,
+  group = rep(c("A", "B"), each = 10),
+  value = rnorm(20)
+)
+
+# Aggregate
+group_summary <- aggregate(value ~ group, df, mean)
+names(group_summary)[2] <- "group_mean"
+
+# Merge back
+df <- merge(df, group_summary, by = "group")
+head(df)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: dplyr Way (Cleaner)**
+
+```{r}
+library(dplyr)
+
+df <- data.frame(
+  id = 1:20,
+  group = rep(c("A", "B"), each = 10),
+  value = rnorm(20)
+)
+
+# Add group mean to each row
+df <- df %>%
+  group_by(group) %>%
+  mutate(group_mean = mean(value)) %>%
+  ungroup()
+
+head(df)
+```
+</div>
+
+## Error #3: `number of items to replace is not a multiple` {#replacement-multiple}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-dimension">📏 LENGTH</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- 1:10
+x[1:7] <- c(100, 200)  # 7 positions, 2 values
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in x[1:7] <- c(100, 200) : 
+  number of items to replace is not a multiple of replacement length
+```
+</div>
+
+### What It Means
+
+You're replacing a subset, but the lengths don't match evenly (not multiples).
+
+### When This Happens
+
+```{r error=TRUE}
+# Replacing 10 items with 3 values
+x <- 1:10
+x[] <- c(1, 2, 3)  # 10 is not a multiple of 3
+
+# Replacing 7 items with 2 values
+x[1:7] <- c(10, 20)  # 7 is not a multiple of 2
+```
+
+But these work:
+
+```{r}
+# Length 1 always works
+x <- 1:10
+x[1:7] <- 99
+x
+
+# Multiples work
+x <- 1:10
+x[1:6] <- c(10, 20, 30)  # 6 is multiple of 3
+x
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Make Lengths Match**
+
+```{r}
+x <- 1:10
+
+# Option A: Recycle explicitly
+replacement <- rep(c(100, 200), length.out = 7)
+x[1:7] <- replacement
+x
+
+# Option B: Subset to match
+x <- 1:10
+x[1:2] <- c(100, 200)  # Only replace 2
+x
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use ifelse() for Conditional Replacement**
+
+```{r}
+x <- 1:10
+
+# Replace first 7 with pattern
+x <- ifelse(seq_along(x) <= 7, 
+            rep(c(100, 200), length.out = length(x))[seq_along(x)], 
+            x)
+x
+```
+</div>
+
+## Error #4: `replacement has length zero` {#replacement-zero}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-dimension">📏 LENGTH</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- 1:5
+x[3] <- c()  # Empty vector!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in x[3] <- c() : replacement has length zero
+```
+</div>
+
+### What It Means
+
+You're trying to replace elements with an empty vector (length 0).
+
+### Common Causes
+
+#### Cause 1: Empty Filter Result
+
+```{r error=TRUE}
+df <- data.frame(x = 1:10, y = letters[1:10])
+
+# Filter returns empty
+subset_values <- df$x[df$y == "z"]  # No "z", returns numeric(0)
+
+# Try to use for replacement
+df$new[1:5] <- subset_values  # Error!
+```
+
+#### Cause 2: Function Returns Empty
+
+```{r error=TRUE}
+get_values <- function(condition) {
+  if (condition) {
+    return(1:5)
+  } else {
+    return(numeric(0))  # Oops!
+  }
+}
+
+x <- 1:10
+x[1:5] <- get_values(FALSE)  # Error!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Before Replacing**
+
+```{r}
+x <- 1:10
+replacement <- numeric(0)  # Empty
+
+# Check first
+if (length(replacement) > 0) {
+  x[1:length(replacement)] <- replacement
+} else {
+  message("No replacement values")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use NA as Default**
+
+```{r}
+get_values_safe <- function(condition) {
+  if (condition) {
+    return(1:5)
+  } else {
+    return(NA)  # Or a default value
+  }
+}
+
+x <- 1:10
+x[1:5] <- get_values_safe(FALSE)  # Works, assigns NA
+x
+```
+</div>
+
+## Vectorization Best Practices
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Length-Safe Operations**
+
+```{r}
+# 1. Check lengths match
+operate_safely <- function(x, y, fun) {
+  if (length(x) != length(y)) {
+    stop("Vectors must be same length. Got ", 
+         length(x), " and ", length(y))
+  }
+  fun(x, y)
+}
+
+# 2. Use recycling intentionally (scalars only)
+add_scalar <- function(vec, scalar) {
+  stopifnot(length(scalar) == 1)
+  vec + scalar
+}
+
+# 3. Document recycling behavior
+#' Add vectors with explicit recycling
+#' @param x numeric vector
+#' @param y numeric vector (will be recycled to length of x)
+add_with_recycling <- function(x, y) {
+  if (length(y) == 1) {
+    return(x + y)  # Scalar - always OK
+  }
+  
+  y_recycled <- rep(y, length.out = length(x))
+  return(x + y_recycled)
+}
+```
+</div>
+
+## Understanding Vector Operations
+
+<div class="insight-box">
+💡 **Key Insight: What Gets Recycled**
+
+```{r}
+# Arithmetic operators
+1:4 + c(10, 20)           # Addition
+1:4 - c(10, 20)           # Subtraction
+1:4 * c(2, 3)             # Multiplication
+1:4 / c(2, 4)             # Division
+
+# Logical operators
+c(TRUE, FALSE) & c(TRUE, TRUE, FALSE, FALSE)
+c(TRUE, FALSE) | c(FALSE, FALSE, TRUE, TRUE)
+
+# Comparison operators
+1:6 > c(2, 4, 6)          # Recycles both
+
+# Assignment
+x <- 1:12
+x[] <- c(1, 2, 3)         # Recycles to 12
+x
+```
+
+**Key point:** Recycling happens in MANY contexts!
+</div>
+
+## Edge Cases and Gotchas
+
+### Gotcha #1: Matrix Recycling
+
+```{r}
+# Matrices recycle by column!
+matrix(1:2, nrow = 3, ncol = 4)
+```
+
+Warning appears because 12 (3×4) is not multiple of 2.
+
+### Gotcha #2: Data Frame Column Recycling
+
+```{r}
+# This works - length 1 always recycles
+df <- data.frame(
+  x = 1:5,
+  y = 10  # Recycled to 5
+)
+df
+
+# This works - multiple lengths
+df <- data.frame(
+  x = 1:6,
+  y = c(1, 2)  # Recycled to 6
+)
+df
+```
+
+```{r error=TRUE}
+# This fails - not a multiple
+df <- data.frame(
+  x = 1:5,
+  y = c(1, 2)  # 5 is not multiple of 2
+)
+```
+
+### Gotcha #3: List Operations Don't Recycle
+
+```{r error=TRUE}
+# Vectors recycle
+c(1, 2) + c(10, 20, 30)  # Works (with warning)
+
+# Lists don't
+list(1, 2) + list(10, 20, 30)  # Error!
+```
+
+Lists need explicit handling:
+
+```{r}
+x <- list(1, 2, 3)
+y <- list(10, 20)
+
+# Use Map or mapply
+Map(`+`, x, rep(y, length.out = length(x)))
+```
+
+## Debugging Recycling Issues
+
+<div class="insight-box">
+💡 **Debugging Checklist**
+
+```{r}
+# 1. Check lengths
+x <- 1:10
+y <- 1:7
+length(x)
+length(y)
+
+# 2. Check if they're multiples
+max(length(x), length(y)) %% min(length(x), length(y))
+# 0 = clean multiple, anything else = partial recycling
+
+# 3. Visualize recycling
+rep(y, length.out = length(x))
+
+# 4. Test operation
+tryCatch(
+  x + y,
+  warning = function(w) {
+    message("Warning caught: ", w$message)
+  }
+)
+
+# 5. Check for unexpected conversions
+class(x); typeof(x)
+class(y); typeof(y)
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Recycling is automatic**: R repeats shorter vectors to match longer ones
+2. **Warnings appear**: When lengths aren't multiples (except scalars)
+3. **Scalars always work**: Length 1 recycles to any length
+4. **Check before operating**: Use `length()` to verify matches
+5. **Explicit is better**: Use `rep()` to show intent
+6. **Data frames are strict**: Column lengths must match (or be length 1)
+7. **Errors vs warnings**: Replacement operations error, arithmetic operations warn
+
+**Quick Reference:**
+
+| Situation | Behavior |
+|-----------|----------|
+| Same length | No recycling needed |
+| One is length 1 | Silent recycling (scalar) |
+| Lengths are multiples | Silent recycling (e.g., 2 and 6) |
+| Lengths not multiples | Warning + recycling (e.g., 3 and 7) |
+| Replacement, wrong length | Error (not multiples) |
+| Replacement, length 0 | Error |
+| Data frame column | Error if not length 1 or nrow |
+
+**Prevention:**
+
+```{r eval=FALSE}
+# Always check
+stopifnot(length(x) == length(y))
+
+# Or use scalars only
+stopifnot(length(y) == 1)
+
+# Or recycle explicitly
+y <- rep(y, length.out = length(x))
+```
+
+**Remember:** No warning doesn't mean correct! Multiples recycle silently.
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Predict the Outcome**
+
+What will happen? Will it work, warn, or error?
+
+```{r eval=FALSE}
+# A
+c(1, 2, 3, 4) + c(10, 20)
+
+# B
+c(1, 2, 3, 4, 5) + c(10, 20)
+
+# C
+df <- data.frame(x = 1:10)
+df$y <- c(1, 2, 3, 4, 5)
+
+# D
+x <- 1:12
+x[] <- c(1, 2, 3, 4)
+
+# E
+matrix(1:5, nrow = 5, ncol = 5)
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Fix the Code**
+
+Debug these recycling problems:
+
+```{r eval=FALSE}
+# Problem 1
+students <- 1:25
+groups <- c("A", "B", "C")
+data.frame(student = students, group = groups)
+
+# Problem 2
+values <- rnorm(100)
+weights <- c(1, 2, 3)
+weighted <- values * weights
+
+# Problem 3
+df <- data.frame(id = 1:20)
+summary_stats <- c(mean = 50, sd = 10, n = 20)
+df$mean <- summary_stats["mean"]
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Safe Operations**
+
+Write a function `safe_add(x, y)` that:
+1. Checks if lengths match
+2. If not, asks user what to do:
+   - Error
+   - Recycle shorter
+   - Trim longer
+   - Extend with NA
+3. Performs the operation
+4. Returns result with attribute showing what was done
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Real World**
+
+You have exam scores for 100 students across 4 quarters:
+
+```{r eval=FALSE}
+scores_q1 <- rnorm(100, mean = 75, sd = 10)
+scores_q2 <- rnorm(98, mean = 78, sd = 10)   # 2 students dropped
+scores_q3 <- rnorm(102, mean = 80, sd = 10)  # 2 new students
+scores_q4 <- rnorm(100, mean = 82, sd = 10)
+```
+
+Create a data frame with:
+- All students who completed at least one quarter
+- NA for missing scores
+- Calculate average score per student
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+# A - Works, silent (4 is multiple of 2)
+c(1, 2, 3, 4) + c(10, 20)
+
+# B - Works, warns (5 not multiple of 2)
+c(1, 2, 3, 4, 5) + c(10, 20)
+
+# C - Errors (10 not multiple of 5)
+tryCatch(
+  data.frame(x = 1:10, y = c(1, 2, 3, 4, 5)),
+  error = function(e) message("Error: ", e$message)
+)
+
+# D - Works, silent (12 is multiple of 4)
+x <- 1:12
+x[] <- c(1, 2, 3, 4)
+x
+
+# E - Works, silent (25 is multiple of 5)
+matrix(1:5, nrow = 5, ncol = 5)
+```
+
+**Exercise 2:**
+
+```{r}
+# Problem 1 - Recycle groups explicitly
+students <- 1:25
+groups <- c("A", "B", "C")
+data.frame(
+  student = students, 
+  group = rep(groups, length.out = length(students))
+)
+
+# Problem 2 - Make intention clear
+values <- rnorm(100)
+weights <- c(1, 2, 3)
+weights_full <- rep(weights, length.out = length(values))
+weighted <- values * weights_full
+
+# Problem 3 - Extract scalar properly
+df <- data.frame(id = 1:20)
+summary_stats <- c(mean = 50, sd = 10, n = 20)
+df$mean <- summary_stats[["mean"]]  # Single value
+```
+
+**Exercise 3:**
+
+```{r}
+safe_add <- function(x, y, action = c("error", "recycle", "trim", "extend")) {
+  action <- match.arg(action)
+  
+  if (length(x) == length(y)) {
+    result <- x + y
+    attr(result, "action") <- "none_needed"
+    return(result)
+  }
+  
+  if (action == "error") {
+    stop("Lengths don't match: ", length(x), " vs ", length(y))
+  }
+  
+  if (action == "recycle") {
+    max_len <- max(length(x), length(y))
+    x <- rep(x, length.out = max_len)
+    y <- rep(y, length.out = max_len)
+    result <- x + y
+    attr(result, "action") <- "recycled"
+  }
+  
+  if (action == "trim") {
+    min_len <- min(length(x), length(y))
+    result <- x[1:min_len] + y[1:min_len]
+    attr(result, "action") <- "trimmed"
+  }
+  
+  if (action == "extend") {
+    max_len <- max(length(x), length(y))
+    x <- c(x, rep(NA, max_len - length(x)))
+    y <- c(y, rep(NA, max_len - length(y)))
+    result <- x + y
+    attr(result, "action") <- "extended"
+  }
+  
+  return(result)
+}
+
+# Test
+safe_add(1:5, 1:3, "recycle")
+```
+
+**Exercise 4:**
+
+```{r}
+# Create scores with different lengths
+set.seed(123)
+scores_q1 <- rnorm(100, mean = 75, sd = 10)
+scores_q2 <- rnorm(98, mean = 78, sd = 10)
+scores_q3 <- rnorm(102, mean = 80, sd = 10)
+scores_q4 <- rnorm(100, mean = 82, sd = 10)
+
+# Find max number of students
+max_students <- max(length(scores_q1), length(scores_q2), 
+                   length(scores_q3), length(scores_q4))
+
+# Extend all to max length with NA
+extend_with_na <- function(x, target_len) {
+  c(x, rep(NA, target_len - length(x)))
+}
+
+# Create data frame
+df <- data.frame(
+  student_id = 1:max_students,
+  q1 = extend_with_na(scores_q1, max_students),
+  q2 = extend_with_na(scores_q2, max_students),
+  q3 = extend_with_na(scores_q3, max_students),
+  q4 = extend_with_na(scores_q4, max_students)
+)
+
+# Calculate average (ignoring NAs)
+df$average <- rowMeans(df[, c("q1", "q2", "q3", "q4")], na.rm = TRUE)
+
+# Keep only students with at least one score
+df <- df[!is.nan(df$average), ]
+
+head(df)
+```
+</details>

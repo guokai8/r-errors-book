@@ -1,0 +1,109 @@
+# R6 and S4 Systems {#r6-s4-oop}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- R6 classes (mutable objects)
+- S4 system (formal OOP)
+- When to use each
+- Common errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## R6 Classes
+
+R6 provides mutable, encapsulated objects:
+
+```{r message=FALSE}
+library(R6)
+
+# Define R6 class
+Person <- R6Class("Person",
+  public = list(
+    name = NULL,
+    age = NULL,
+    
+    initialize = function(name, age) {
+      self$name <- name
+      self$age <- age
+    },
+    
+    greet = function() {
+      paste("Hello, I'm", self$name)
+    },
+    
+    birthday = function() {
+      self$age <- self$age + 1
+      invisible(self)
+    }
+  )
+)
+
+# Create instance
+alice <- Person$new("Alice", 30)
+alice$greet()
+alice$birthday()
+alice$age  # Now 31 (mutable!)
+```
+
+## S4 System
+
+S4 provides formal class definitions:
+
+```{r}
+# Define S4 class
+setClass("PersonS4",
+  slots = list(
+    name = "character",
+    age = "numeric"
+  )
+)
+
+# Create instance
+alice_s4 <- new("PersonS4", name = "Alice", age = 30)
+
+# Define method
+setGeneric("greet", function(x) standardGeneric("greet"))
+setMethod("greet", "PersonS4", function(x) {
+  paste("Hello", x@name)
+})
+
+greet(alice_s4)
+```
+
+## When to Use Each
+
+| System | Use When |
+|--------|----------|
+| S3 | Simple classes, R-like feel |
+| R6 | Mutable state, encapsulation |
+| S4 | Formal definitions, Bioconductor |
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **R6** - Mutable objects with encapsulation
+2. **S4** - Formal OOP with type checking
+3. **S3** - Still most common for simple cases
+4. **Choose based on needs** - Each has trade-offs
+
+**Quick Reference:**
+
+```{r eval=FALSE}
+# R6
+MyClass <- R6Class("MyClass",
+  public = list(
+    initialize = function() {},
+    method = function() {}
+  )
+)
+obj <- MyClass$new()
+
+# S4
+setClass("MyClass", slots = list(x = "numeric"))
+obj <- new("MyClass", x = 1)
+```
+</div>

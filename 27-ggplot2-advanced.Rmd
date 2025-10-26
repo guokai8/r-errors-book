@@ -1,0 +1,156 @@
+# Advanced ggplot2 {#ggplot2-advanced}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Scales and coordinate systems
+- Advanced themes
+- Annotations and labels
+- Multiple plots
+- Statistical transformations
+
+**Key Errors Covered:** 18+ advanced ggplot2 errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Advanced ggplot2 enables publication-quality graphics:
+
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+
+# Advanced plot
+ggplot(mtcars, aes(x = mpg, y = hp, color = wt)) +
+  geom_point(size = 3) +
+  scale_color_gradient(low = "blue", high = "red") +
+  scale_x_continuous(breaks = seq(10, 35, 5)) +
+  coord_cartesian(ylim = c(50, 350)) +
+  theme_minimal() +
+  labs(title = "Horsepower vs MPG")
+```
+
+## Scales
+
+<div class="insight-box">
+💡 **Key Insight: Scale Functions**
+
+```{r}
+# Continuous scales
+ggplot(mtcars, aes(x = mpg, y = hp, color = wt)) +
+  geom_point() +
+  scale_color_gradient(low = "blue", high = "red")
+
+# Discrete scales
+ggplot(mtcars, aes(x = factor(cyl), y = mpg, fill = factor(cyl))) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("4" = "green", "6" = "blue", "8" = "red"))
+
+# Log scales
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  scale_y_log10()
+```
+</div>
+
+## Error #1: `Discrete value supplied to continuous scale` {#discrete-continuous}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+ggplot(mtcars, aes(x = mpg, y = hp, color = cyl)) +
+  geom_point() +
+  scale_color_gradient(low = "blue", high = "red")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: Discrete value supplied to continuous scale
+```
+</div>
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Match Scale to Data Type**
+
+```{r}
+# For discrete: use discrete scale
+ggplot(mtcars, aes(x = mpg, y = hp, color = factor(cyl))) +
+  geom_point() +
+  scale_color_manual(values = c("4" = "green", "6" = "blue", "8" = "red"))
+
+# For continuous: ensure numeric
+ggplot(mtcars, aes(x = mpg, y = hp, color = wt)) +
+  geom_point() +
+  scale_color_gradient(low = "blue", high = "red")
+```
+</div>
+
+## Themes
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Custom Themes**
+
+```{r}
+custom_theme <- theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title = element_text(size = 12, face = "bold"),
+    legend.position = "right",
+    panel.grid.minor = element_blank()
+  )
+
+ggplot(mtcars, aes(x = mpg, y = hp, color = factor(cyl))) +
+  geom_point(size = 3) +
+  custom_theme +
+  labs(title = "Custom Themed Plot")
+```
+</div>
+
+## Annotations
+
+<div class="insight-box">
+💡 **Key Insight: Adding Annotations**
+
+```{r}
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  annotate("text", x = 30, y = 250, label = "High HP", color = "red") +
+  geom_hline(yintercept = mean(mtcars$hp), linetype = "dashed")
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Match scales to data types**
+2. **Customize with themes**
+3. **Add annotations for context**
+4. **Use appropriate coordinates**
+
+**Quick Reference:**
+
+```{r eval=FALSE}
+# Scales
+scale_x_continuous()
+scale_color_manual()
+scale_fill_brewer()
+
+# Themes
+theme_minimal()
+theme()
+
+# Annotations
+annotate()
+geom_hline/vline()
+```
+</div>

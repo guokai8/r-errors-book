@@ -1,0 +1,771 @@
+# Part XI: File I/O {-}
+
+# Reading Data {#reading-data}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Reading CSV and text files
+- Excel files
+- Common import errors
+- Encoding issues
+- File path problems
+- Data type detection
+
+**Key Errors Covered:** 25+ import errors
+
+**Difficulty:** ⭐⭐ Intermediate to ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Reading data is the first step in any analysis:
+
+```{r message=FALSE}
+library(readr)
+library(dplyr)
+
+# Reading CSV
+# data <- read_csv("file.csv")
+```
+
+But file reading has many pitfalls. Let's master them!
+
+## Reading CSV Files
+
+<div class="insight-box">
+💡 **Key Insight: Base R vs readr**
+
+```{r eval=FALSE}
+# Base R
+data1 <- read.csv("file.csv")
+# - Converts strings to factors by default
+# - Uses row names
+# - Slower for large files
+
+# readr (tidyverse)
+data2 <- read_csv("file.csv")
+# - Keeps strings as character
+# - No row names
+# - Much faster
+# - Better type guessing
+# - Progress bar
+```
+</div>
+
+## Error #1: `cannot open file` {#cannot-open-file}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-path">📁 PATH</span>
+
+### The Error
+
+```{r error=TRUE}
+data <- read_csv("nonexistent_file.csv")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: 'nonexistent_file.csv' does not exist in current working directory
+```
+</div>
+
+### What It Means
+
+File not found - wrong path or filename.
+
+### Common Causes
+
+```{r error=TRUE}
+# Wrong filename
+# read_csv("daat.csv")  # Typo
+
+# Wrong directory
+# read_csv("data/file.csv")  # data/ doesn't exist
+
+# Case sensitivity (Linux/Mac)
+# read_csv("File.csv")  # file is actually "file.csv"
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Working Directory**
+
+```{r}
+# Check current directory
+getwd()
+
+# List files
+list.files()
+list.files(pattern = "\\.csv$")
+
+# Check if file exists
+file.exists("mtcars.csv")
+
+# Create example file for demonstration
+write_csv(mtcars, "mtcars.csv")
+
+# Now read it
+if (file.exists("mtcars.csv")) {
+  data <- read_csv("mtcars.csv", show_col_types = FALSE)
+  cat("Successfully read", nrow(data), "rows\n")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Full Paths**
+
+```{r eval=FALSE}
+# Absolute path (Windows)
+data <- read_csv("C:/Users/username/Documents/data.csv")
+
+# Absolute path (Mac/Linux)
+data <- read_csv("/home/username/data/file.csv")
+
+# Relative from project root (best with RStudio projects)
+data <- read_csv("data/file.csv")
+
+# Use here package for project-relative paths
+library(here)
+data <- read_csv(here("data", "file.csv"))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Interactive File Selection**
+
+```{r eval=FALSE}
+# Choose file interactively
+file_path <- file.choose()
+data <- read_csv(file_path)
+
+# Or with safe checking
+safe_read_csv <- function(path = NULL) {
+  if (is.null(path)) {
+    path <- file.choose()
+  }
+  
+  if (!file.exists(path)) {
+    stop("File does not exist: ", path)
+  }
+  
+  read_csv(path)
+}
+```
+</div>
+
+## Error #2: Encoding Issues {#encoding-issues}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-encoding">🔤 ENCODING</span>
+
+### The Problem
+
+```{r eval=FALSE}
+# File with special characters appears garbled
+data <- read_csv("international_data.csv")
+# Names show as: "Müller" → "MÃ¼ller"
+```
+
+### What Happened
+
+Wrong character encoding - file is in different encoding than assumed.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Specify Encoding**
+
+```{r eval=FALSE}
+# Common encodings
+data <- read_csv("file.csv", locale = locale(encoding = "UTF-8"))
+data <- read_csv("file.csv", locale = locale(encoding = "latin1"))
+data <- read_csv("file.csv", locale = locale(encoding = "Windows-1252"))
+
+# Guess encoding
+library(readr)
+guess_encoding("file.csv")
+
+# Use guessed encoding
+encoding <- guess_encoding("file.csv")$encoding[1]
+data <- read_csv("file.csv", locale = locale(encoding = encoding))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Handle in readr**
+
+```{r eval=FALSE}
+# readr handles UTF-8 by default
+data <- read_csv("file.csv")
+
+# For other encodings
+data <- read_csv("file.csv", 
+                 locale = locale(encoding = "ISO-8859-1"))
+```
+</div>
+
+## Column Type Problems
+
+<div class="insight-box">
+💡 **Key Insight: Type Detection**
+
+```{r}
+# Create sample data
+sample_data <- tibble(
+  id = 1:5,
+  value = c("1.5", "2.3", "3.7", "NA", "5.2"),
+  date = c("2024-01-01", "2024-01-02", "2024-01-03", 
+           "2024-01-04", "2024-01-05")
+)
+
+write_csv(sample_data, "sample.csv")
+
+# Read with automatic type detection
+data1 <- read_csv("sample.csv", show_col_types = FALSE)
+str(data1)
+
+# Specify column types
+data2 <- read_csv("sample.csv",
+                  col_types = cols(
+                    id = col_integer(),
+                    value = col_double(),
+                    date = col_date()
+                  ))
+str(data2)
+
+# Shorthand
+data3 <- read_csv("sample.csv",
+                  col_types = "iDd")  # integer, double, date
+```
+</div>
+
+## Error #3: `One or more parsing failures` {#parsing-failures}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-parse">🔧 PARSE</span>
+
+### The Warning
+
+```{r warning=TRUE}
+# Create problematic data
+bad_data <- tibble(
+  id = 1:5,
+  value = c("1.5", "2.3", "not_a_number", "4.1", "5.2")
+)
+
+write_csv(bad_data, "bad_data.csv")
+
+# Read with type specification
+data <- read_csv("bad_data.csv", 
+                 col_types = cols(value = col_double()),
+                 show_col_types = FALSE)
+```
+
+<div class="warning-box">
+⚠️ **WARNING**
+
+```
+Warning: One or more parsing failures
+```
+</div>
+
+### What It Means
+
+Data doesn't match expected type.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Problems**
+
+```{r}
+# See what failed
+problems(data)
+
+# Read as character first
+data_char <- read_csv("bad_data.csv", 
+                      col_types = cols(value = col_character()))
+
+# Manually handle conversion
+data_clean <- data_char %>%
+  mutate(value_num = as.numeric(value),
+         value_clean = if_else(is.na(value_num), 0, value_num))
+
+head(data_clean)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use col_guess()**
+
+```{r}
+# Let readr guess
+data_guess <- read_csv("bad_data.csv", show_col_types = FALSE)
+
+# Check what it guessed
+spec(data_guess)
+```
+</div>
+
+## Reading Excel Files
+
+<div class="insight-box">
+💡 **Key Insight: readxl Package**
+
+```{r message=FALSE}
+library(readxl)
+
+# Create example Excel file
+library(writexl)
+write_xlsx(list(Sheet1 = mtcars), "example.xlsx")
+
+# Read Excel
+data <- read_excel("example.xlsx")
+head(data)
+
+# Specify sheet
+data <- read_excel("example.xlsx", sheet = "Sheet1")
+# Or by number
+data <- read_excel("example.xlsx", sheet = 1)
+
+# List sheets
+excel_sheets("example.xlsx")
+
+# Read specific range
+data <- read_excel("example.xlsx", range = "A1:D10")
+
+# Skip rows
+data <- read_excel("example.xlsx", skip = 2)
+
+# Specify column types
+data <- read_excel("example.xlsx",
+                   col_types = c("numeric", "text", "date"))
+```
+</div>
+
+## Error #4: `Expecting numeric` {#expecting-numeric}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r eval=FALSE}
+# Excel file with mixed types in column
+data <- read_excel("mixed_types.xlsx",
+                   col_types = "numeric")
+```
+
+<div class="error-box">
+🔴 **WARNING**
+
+```
+Warning: Expecting numeric in A2 / R2C1: got 'text'
+```
+</div>
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Read as Text First**
+
+```{r eval=FALSE}
+# Read everything as text
+data <- read_excel("file.xlsx", col_types = "text")
+
+# Then convert as needed
+data_clean <- data %>%
+  mutate(
+    numeric_col = as.numeric(numeric_col),
+    date_col = as.Date(date_col)
+  )
+```
+</div>
+
+## File Paths Best Practices
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Portable File Paths**
+
+```{r eval=FALSE}
+# ❌ Bad: Absolute paths
+read_csv("C:/Users/John/Documents/data.csv")
+
+# ❌ Bad: Backslashes (Windows only)
+read_csv("data\\file.csv")
+
+# ✅ Good: Forward slashes (cross-platform)
+read_csv("data/file.csv")
+
+# ✅ Better: here package
+library(here)
+read_csv(here("data", "file.csv"))
+
+# ✅ Best: RStudio projects + here
+# In project root:
+read_csv(here("data", "raw", "file.csv"))
+
+# Check paths
+here()                           # Project root
+here("data", "file.csv")        # Build path
+file.exists(here("data"))       # Check if exists
+```
+</div>
+
+## Reading Other Formats
+
+<div class="insight-box">
+💡 **Key Insight: Format-Specific Packages**
+
+```{r eval=FALSE}
+# SPSS, SAS, Stata
+library(haven)
+data <- read_spss("file.sav")
+data <- read_sas("file.sas7bdat")
+data <- read_stata("file.dta")
+
+# JSON
+library(jsonlite)
+data <- fromJSON("file.json")
+
+# XML
+library(xml2)
+doc <- read_xml("file.xml")
+
+# Fixed-width files
+data <- read_fwf("file.txt",
+                 fwf_widths(c(10, 8, 5)))
+
+# Delimited by other characters
+data <- read_delim("file.txt", delim = "|")
+data <- read_tsv("file.txt")  # Tab-separated
+```
+</div>
+
+## Large Files
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Handling Large Files**
+
+```{r eval=FALSE}
+# Read in chunks
+library(readr)
+
+# Specify rows to read
+data_sample <- read_csv("large_file.csv", n_max = 1000)
+
+# Read columns selectively
+data <- read_csv("large_file.csv",
+                 col_select = c(id, value, date))
+
+# Use data.table for speed
+library(data.table)
+data <- fread("large_file.csv")
+
+# Use vroom for very large files
+library(vroom)
+data <- vroom("large_file.csv")
+
+# Read in chunks with callback
+library(readr)
+chunk_size <- 10000
+read_csv_chunked("large_file.csv",
+                 callback = DataFrameCallback$new(function(chunk, pos) {
+                   # Process chunk
+                   processed <- chunk %>% filter(value > 0)
+                   # Return to accumulate
+                   processed
+                 }),
+                 chunk_size = chunk_size)
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Check file exists** - Use file.exists()
+2. **Use readr, not base R** - Faster and better
+3. **Specify encoding** - When dealing with international characters
+4. **Check column types** - Use col_types or read problems()
+5. **Use here package** - For portable paths
+6. **Handle large files** - Read in chunks or use data.table
+7. **Excel with readxl** - Specify sheets and ranges
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| cannot open file | Wrong path | Check getwd(), use here() |
+| Encoding garbled | Wrong encoding | Use locale(encoding = ...) |
+| Parsing failures | Type mismatch | Check problems(), read as text |
+| Sheet not found | Wrong sheet name | Use excel_sheets() |
+
+**Reading Functions:**
+
+```{r eval=FALSE}
+# CSV/text
+read_csv("file.csv")              # readr
+read_csv2("file.csv")             # European format (;)
+read_tsv("file.txt")              # Tab-separated
+read_delim("file.txt", "|")       # Custom delimiter
+
+# Excel
+library(readxl)
+read_excel("file.xlsx")
+read_excel("file.xlsx", sheet = 2)
+read_excel("file.xlsx", range = "A1:D10")
+
+# Other formats
+library(haven)
+read_spss("file.sav")
+read_sas("file.sas7bdat")
+read_stata("file.dta")
+
+# JSON
+library(jsonlite)
+fromJSON("file.json")
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+Use here() for paths
+Specify col_types for reliability
+Check file.exists() before reading
+Use read_csv() not read.csv()
+Handle encoding explicitly
+Read large files in chunks
+
+# ❌ Avoid
+Absolute paths
+Assuming default encoding
+Ignoring parsing warnings
+Reading entire large files
+Using read.csv() for new code
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Safe File Reader**
+
+Write `safe_read_csv()` that:
+1. Checks if file exists
+2. Handles errors gracefully
+3. Reports file info
+4. Returns data or informative error
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Excel Multi-Sheet Reader**
+
+Write function to:
+1. Read all sheets from Excel file
+2. Return named list of data frames
+3. Handle empty sheets
+4. Report sheet names and dimensions
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Data Inspector**
+
+Create `inspect_file()` that:
+1. Checks encoding
+2. Detects delimiter
+3. Previews first few rows
+4. Reports column types
+5. Identifies problems
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+safe_read_csv <- function(path, ...) {
+  # Check file exists
+  if (!file.exists(path)) {
+    stop("File does not exist: ", path)
+  }
+  
+  # Get file info
+  info <- file.info(path)
+  cat("File:", basename(path), "\n")
+  cat("Size:", round(info$size / 1024, 2), "KB\n")
+  cat("Modified:", format(info$mtime, "%Y-%m-%d %H:%M"), "\n\n")
+  
+  # Try to read
+  tryCatch({
+    data <- read_csv(path, ..., show_col_types = FALSE)
+    
+    cat("Successfully read:\n")
+    cat("  Rows:", nrow(data), "\n")
+    cat("  Columns:", ncol(data), "\n")
+    cat("  Column names:", paste(names(data), collapse = ", "), "\n")
+    
+    # Check for problems
+    probs <- problems(data)
+    if (nrow(probs) > 0) {
+      warning("Found ", nrow(probs), " parsing issues")
+      print(probs)
+    }
+    
+    return(data)
+    
+  }, error = function(e) {
+    stop("Failed to read file: ", e$message)
+  })
+}
+
+# Test
+write_csv(mtcars, "test.csv")
+data <- safe_read_csv("test.csv")
+```
+
+**Exercise 2:**
+
+```{r message=FALSE}
+library(readxl)
+
+read_all_sheets <- function(path, ...) {
+  # Check file exists
+  if (!file.exists(path)) {
+    stop("File does not exist: ", path)
+  }
+  
+  # Get sheet names
+  sheets <- excel_sheets(path)
+  
+  cat("Reading Excel file:", basename(path), "\n")
+  cat("Sheets found:", length(sheets), "\n\n")
+  
+  # Read all sheets
+  result <- list()
+  
+  for (sheet in sheets) {
+    cat("Reading sheet:", sheet, "... ")
+    
+    tryCatch({
+      data <- read_excel(path, sheet = sheet, ...)
+      
+      # Check if empty
+      if (nrow(data) == 0) {
+        cat("EMPTY\n")
+        result[[sheet]] <- NULL
+      } else {
+        cat("OK (", nrow(data), " rows, ", ncol(data), " cols)\n", sep = "")
+        result[[sheet]] <- data
+      }
+      
+    }, error = function(e) {
+      cat("ERROR:", e$message, "\n")
+      result[[sheet]] <- NULL
+    })
+  }
+  
+  cat("\nSuccessfully read", length(result), "sheets\n")
+  
+  return(result)
+}
+
+# Test
+library(writexl)
+write_xlsx(list(
+  Cars = mtcars[1:10, ],
+  Iris = iris[1:10, ],
+  Empty = data.frame()
+), "multi_sheet.xlsx")
+
+all_data <- read_all_sheets("multi_sheet.xlsx")
+names(all_data)
+```
+
+**Exercise 3:**
+
+```{r}
+inspect_file <- function(path, n_preview = 5) {
+  cat("=== File Inspection ===\n\n")
+  
+  # Check exists
+  if (!file.exists(path)) {
+    stop("File does not exist: ", path)
+  }
+  
+  # File info
+  info <- file.info(path)
+  cat("File:", path, "\n")
+  cat("Size:", round(info$size / 1024, 2), "KB\n")
+  cat("Modified:", format(info$mtime, "%Y-%m-%d %H:%M"), "\n\n")
+  
+  # Guess encoding
+  cat("Encoding:\n")
+  enc <- guess_encoding(path, n_max = 1000)
+  print(enc)
+  cat("\n")
+  
+  # Try to detect structure
+  cat("Structure Detection:\n")
+  
+  # Read first few lines
+  lines <- readLines(path, n = 10)
+  
+  # Detect delimiter
+  delims <- c(",", ";", "\t", "|")
+  delim_counts <- sapply(delims, function(d) {
+    sum(grepl(d, lines[1], fixed = TRUE))
+  })
+  
+  likely_delim <- delims[which.max(delim_counts)]
+  cat("Likely delimiter:", 
+      switch(likely_delim,
+             "," = "comma",
+             ";" = "semicolon",
+             "\t" = "tab",
+             "|" = "pipe"), "\n\n")
+  
+  # Preview
+  cat("Preview (first", n_preview, "lines):\n")
+  cat(paste(head(lines, n_preview), collapse = "\n"), "\n\n")
+  
+  # Try to read
+  cat("Reading data...\n")
+  data <- read_csv(path, show_col_types = FALSE, n_max = 100)
+  
+  cat("Dimensions:", nrow(data), "rows (preview) x", ncol(data), "columns\n\n")
+  
+  cat("Column types:\n")
+  print(spec(data))
+  
+  # Check for problems
+  probs <- problems(data)
+  if (nrow(probs) > 0) {
+    cat("\nProblems found:\n")
+    print(probs)
+  } else {
+    cat("\nNo parsing problems detected\n")
+  }
+  
+  invisible(data)
+}
+
+# Test
+write_csv(mtcars, "inspect_test.csv")
+inspect_file("inspect_test.csv")
+```
+</details>
+
+## Cleanup
+
+```{r echo=FALSE}
+# Clean up example files
+unlink(c("mtcars.csv", "sample.csv", "bad_data.csv", "example.xlsx",
+         "test.csv", "multi_sheet.xlsx", "inspect_test.csv"))
+```

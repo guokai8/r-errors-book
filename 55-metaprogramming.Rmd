@@ -1,0 +1,79 @@
+# Metaprogramming & NSE {#metaprogramming}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Non-standard evaluation (NSE)
+- Quasiquotation and tidy eval
+- Expression manipulation
+- Common metaprogramming errors
+
+**Key Errors Covered:** 30+ NSE errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Non-Standard Evaluation
+
+NSE allows functions to capture expressions, not just values.
+
+```{r eval=FALSE}
+# Standard evaluation
+mean(mtcars$mpg)
+
+# Non-standard evaluation (dplyr)
+library(dplyr)
+mtcars %>% filter(mpg > 20)  # mpg not quoted!
+
+# How it works
+library(rlang)
+
+my_filter <- function(data, condition) {
+  # Capture expression
+  cond_expr <- enquo(condition)
+  
+  # Evaluate in data context
+  data[eval_tidy(cond_expr, data), ]
+}
+
+my_filter(mtcars, mpg > 20)
+```
+
+## Tidy Evaluation
+
+```{r eval=FALSE}
+# Embrace with {{}}
+my_summary <- function(data, var) {
+  data %>%
+    summarize(
+      mean = mean({{ var }}),
+      sd = sd({{ var }})
+    )
+}
+
+mtcars %>% my_summary(mpg)
+
+# Inject with !!
+var_name <- sym("mpg")
+mtcars %>% select(!!var_name)
+
+# Splice with !!!
+vars <- syms(c("mpg", "hp"))
+mtcars %>% select(!!!vars)
+```
+
+## Common NSE Errors
+
+1. Variable not found in context
+2. Forgot to quote/unquote
+3. Wrong environment for evaluation
+4. Infinite recursion in quoting
+5. Can't use standard R operators
+
+## Summary
+
+Metaprogramming enables:
+- Domain-specific languages
+- Formula interfaces
+- Tidy evaluation
+- Code generation

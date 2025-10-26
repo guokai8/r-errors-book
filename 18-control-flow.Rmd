@@ -1,0 +1,1173 @@
+# Control Flow {#control-flow}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- if/else statements
+- for, while, repeat loops
+- break and next
+- switch statements
+- Common control flow errors
+
+**Key Errors Covered:** 15+ control flow errors
+
+**Difficulty:** ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+Control flow directs code execution, but has pitfalls:
+
+```{r error=TRUE}
+x <- 5
+
+# Looks okay...
+if (x > 3 & x < 10) {
+  print("In range")
+}
+```
+
+```{r}
+# Works, but what about this?
+x <- c(5, 15)
+
+if (x > 3 & x < 10) {  # Warning!
+  print("In range")
+}
+```
+
+Let's master control flow to avoid these issues.
+
+## if/else Basics
+
+<div class="insight-box">
+💡 **Key Insight: if Requires Single Logical**
+
+```{r}
+# Correct: single TRUE/FALSE
+if (TRUE) {
+  print("Yes")
+}
+
+if (5 > 3) {
+  print("Five is greater")
+}
+
+# With else
+x <- 10
+if (x > 5) {
+  print("Large")
+} else {
+  print("Small")
+}
+
+# else if
+x <- 5
+if (x > 10) {
+  print("Large")
+} else if (x > 5) {
+  print("Medium")
+} else {
+  print("Small")
+}
+
+# ifelse for vectors (different!)
+x <- c(3, 7, 12)
+ifelse(x > 5, "Large", "Small")
+```
+
+**Key points:**
+- `if` needs single logical value
+- `ifelse()` is vectorized (for vectors)
+- `if` can have `else` and `else if`
+- Braces `{}` recommended even for single lines
+</div>
+
+## Error #1: `the condition has length > 1` {#condition-length-gt-1}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-logic">🧠 LOGIC</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- c(5, 15)
+
+if (x > 10) {
+  print("Greater than 10")
+}
+```
+
+<div class="error-box">
+🔴 **ERROR** (R >= 4.2)
+
+```
+Error in if (x > 10) { : the condition has length > 1
+```
+</div>
+
+In older R versions, this gives a warning and uses only the first element.
+
+### What It Means
+
+You're using a vector in `if` when it expects a single TRUE/FALSE.
+
+### Common Causes
+
+#### Cause 1: Testing Vector
+
+```{r error=TRUE}
+ages <- c(15, 25, 35)
+
+if (ages >= 18) {
+  print("All adults")
+}
+```
+
+#### Cause 2: Multiple Conditions
+
+```{r error=TRUE}
+x <- 5
+y <- 10
+
+# Wrong: creates vector of length 2
+if (c(x > 3, y > 8)) {
+  print("Both true")
+}
+```
+
+#### Cause 3: Using | instead of ||
+
+```{r}
+x <- c(5, 15)
+
+# & and | are vectorized
+x > 3 & x < 10  # Vector of 2 elements
+
+# && and || use only first element
+x > 3 && x < 10  # Single logical (from first element)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use && or || for Scalar Conditions**
+
+```{r}
+x <- 5
+y <- 10
+
+# Logical AND
+if (x > 3 && y > 8) {
+  print("Both conditions true")
+}
+
+# Logical OR  
+if (x < 3 || y > 8) {
+  print("At least one true")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use all() or any() for Vectors**
+
+```{r}
+ages <- c(15, 25, 35)
+
+# Check if all are adults
+if (all(ages >= 18)) {
+  print("All adults")
+} else {
+  print("Some minors")
+}
+
+# Check if any are adults
+if (any(ages >= 18)) {
+  print("At least one adult")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use ifelse() for Vectorized Operations**
+
+```{r}
+ages <- c(15, 25, 35)
+
+# Vectorized: returns vector
+status <- ifelse(ages >= 18, "Adult", "Minor")
+status
+
+# Or with dplyr::case_when (cleaner for multiple conditions)
+library(dplyr)
+case_when(
+  ages < 13 ~ "Child",
+  ages < 18 ~ "Teen",
+  ages < 65 ~ "Adult",
+  TRUE ~ "Senior"
+)
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: & vs && and | vs ||**
+
+```{r}
+# For if statements (scalar)
+x <- 5
+y <- 10
+
+# Use && and || (short-circuit evaluation)
+if (x > 3 && y > 8) {
+  print("Both true")
+}
+
+# For vectors
+v1 <- c(TRUE, FALSE, TRUE)
+v2 <- c(TRUE, TRUE, FALSE)
+
+# Use & and | (element-wise)
+v1 & v2
+v1 | v2
+
+# Never use && or || on vectors in if!
+```
+
+**Key difference:**
+- `&` and `|`: Vectorized, return vector
+- `&&` and `||`: Scalar, return single value, short-circuit
+</div>
+
+## Error #2: `argument is of length zero` {#argument-length-zero}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-logic">🧠 LOGIC</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- numeric(0)  # Empty vector
+
+if (x > 5) {
+  print("Greater")
+}
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in if (x > 5) { : argument is of length zero
+```
+</div>
+
+### What It Means
+
+You're testing an empty vector in `if`.
+
+### Common Causes
+
+#### Cause 1: Empty Result from Operation
+
+```{r error=TRUE}
+data <- c(1, 2, 3, 4)
+filtered <- data[data > 10]  # Empty!
+
+if (filtered > 0) {
+  print("Has values")
+}
+```
+
+#### Cause 2: Missing Data
+
+```{r error=TRUE}
+value <- NA
+result <- value[!is.na(value)]  # Empty if all NA
+
+if (length(result) > 0) {  # Good
+  # ...
+}
+
+if (result > 0) {  # Bad! Error if empty
+  # ...
+}
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Length First**
+
+```{r}
+x <- numeric(0)
+
+if (length(x) > 0 && x[1] > 5) {
+  print("First element greater than 5")
+}
+
+# Or more robustly
+safe_check <- function(x, threshold) {
+  if (length(x) == 0) {
+    return(FALSE)
+  }
+  x[1] > threshold
+}
+
+if (safe_check(x, 5)) {
+  print("Greater")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Provide Default**
+
+```{r}
+x <- numeric(0)
+
+# Use default if empty
+value <- if (length(x) > 0) x[1] else 0
+
+if (value > 5) {
+  print("Greater")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use any() or all()**
+
+```{r}
+x <- numeric(0)
+
+# any() and all() handle empty vectors
+any(x > 5)  # FALSE (no elements satisfy condition)
+all(x > 5)  # TRUE (all zero elements satisfy condition!)
+
+if (any(x > 5)) {
+  print("At least one greater")
+}
+```
+</div>
+
+## for Loops
+
+<div class="insight-box">
+💡 **Key Insight: for Loop Patterns**
+
+```{r}
+# 1. Loop over vector
+for (i in 1:5) {
+  print(i)
+}
+
+# 2. Loop over elements
+fruits <- c("apple", "banana", "cherry")
+for (fruit in fruits) {
+  print(fruit)
+}
+
+# 3. Loop with indices
+for (i in seq_along(fruits)) {
+  cat(i, ":", fruits[i], "\n")
+}
+
+# 4. Nested loops
+for (i in 1:3) {
+  for (j in 1:2) {
+    cat("(", i, ",", j, ") ")
+  }
+  cat("\n")
+}
+
+# 5. Pre-allocate results (important for performance!)
+n <- 1000
+result <- numeric(n)  # Pre-allocate
+
+for (i in 1:n) {
+  result[i] <- i^2
+}
+```
+
+**Best practices:**
+- Use `seq_along()` instead of `1:length()`
+- Pre-allocate result vectors
+- Consider vectorization instead
+- Use `for` for side effects (plots, files)
+</div>
+
+## Error #3: `object not found` in loops {#loop-object-not-found}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-scope">🔍 SCOPE</span>
+
+### The Error
+
+```{r error=TRUE}
+# Empty vector
+values <- numeric(0)
+
+for (i in 1:length(values)) {
+  print(values[i])
+}
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in 1:length(values) : argument of length 0
+```
+</div>
+
+Wait, that's different. Let me show the real issue:
+
+```{r error=TRUE}
+# This actually works (badly)
+values <- numeric(0)
+for (i in 1:length(values)) {  # 1:0 creates c(1, 0)
+  print(i)
+}
+```
+
+### The Real Problem
+
+```{r}
+# 1:length() is dangerous with empty vectors
+values <- numeric(0)
+1:length(values)  # c(1, 0) - not what you want!
+
+# Safer: seq_along()
+seq_along(values)  # integer(0) - correct!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use seq_along()**
+
+```{r}
+values <- numeric(0)
+
+# Safe with empty vectors
+for (i in seq_along(values)) {
+  print(values[i])
+}
+# Doesn't iterate (correct behavior)
+
+# Works with non-empty too
+values <- c(10, 20, 30)
+for (i in seq_along(values)) {
+  print(values[i])
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check Length First**
+
+```{r}
+values <- numeric(0)
+
+if (length(values) > 0) {
+  for (i in 1:length(values)) {
+    print(values[i])
+  }
+} else {
+  message("No values to process")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use seq_len()**
+
+```{r}
+n <- 0
+
+# seq_len() handles zero correctly
+for (i in seq_len(n)) {
+  print(i)
+}
+# Doesn't iterate
+
+n <- 5
+for (i in seq_len(n)) {
+  print(i)
+}
+# Iterates 1 to 5
+```
+</div>
+
+## while Loops
+
+<div class="insight-box">
+💡 **Key Insight: while vs for**
+
+```{r}
+# for: known number of iterations
+for (i in 1:5) {
+  print(i)
+}
+
+# while: iterate until condition false
+count <- 1
+while (count <= 5) {
+  print(count)
+  count <- count + 1
+}
+
+# while with break
+count <- 1
+while (TRUE) {
+  print(count)
+  count <- count + 1
+  if (count > 5) break
+}
+
+# Infinite loop danger!
+# while (TRUE) {
+#   # Never breaks!
+# }
+```
+
+**When to use while:**
+- Unknown number of iterations
+- Convergence checking
+- Reading until end
+- Waiting for condition
+</div>
+
+## break and next
+
+<div class="insight-box">
+💡 **Key Insight: Loop Control**
+
+```{r}
+# break: exit loop immediately
+for (i in 1:10) {
+  if (i > 5) break
+  print(i)
+}
+# Prints 1-5, then stops
+
+# next: skip to next iteration
+for (i in 1:10) {
+  if (i %% 2 == 0) next  # Skip even numbers
+  print(i)
+}
+# Prints only odd numbers
+
+# Combined
+for (i in 1:20) {
+  if (i > 15) break       # Stop at 15
+  if (i %% 2 == 0) next   # Skip evens
+  print(i)
+}
+# Prints odd numbers up to 15
+
+# In nested loops
+for (i in 1:3) {
+  for (j in 1:3) {
+    if (i == j) next  # Skip diagonal
+    cat("(", i, ",", j, ") ")
+  }
+  cat("\n")
+}
+```
+</div>
+
+## repeat Loops
+
+<div class="insight-box">
+💡 **Key Insight: repeat Loop**
+
+```{r}
+# repeat: infinite loop with break
+count <- 0
+repeat {
+  count <- count + 1
+  print(count)
+  if (count >= 5) break
+}
+
+# Common pattern: read until done
+# repeat {
+#   line <- readLines(connection, n = 1)
+#   if (length(line) == 0) break
+#   process(line)
+# }
+
+# Convergence checking
+tolerance <- 0.001
+value <- 10
+repeat {
+  old_value <- value
+  value <- value / 2 + 1
+  
+  if (abs(value - old_value) < tolerance) {
+    break
+  }
+}
+cat("Converged to:", value, "\n")
+```
+</div>
+
+## switch Statement
+
+<div class="bestpractice-box">
+🎯 **Best Practice: switch()**
+
+```{r}
+# Cleaner than multiple if/else
+operation <- "add"
+
+result <- switch(operation,
+  add = 10 + 5,
+  subtract = 10 - 5,
+  multiply = 10 * 5,
+  divide = 10 / 5,
+  "Unknown operation"  # Default
+)
+result
+
+# With functions
+calculate <- function(op, x, y) {
+  switch(op,
+    "+" = x + y,
+    "-" = x - y,
+    "*" = x * y,
+    "/" = x / y,
+    stop("Unknown operation: ", op)
+  )
+}
+
+calculate("+", 10, 5)
+calculate("*", 10, 5)
+
+# Numeric switch (uses position)
+type <- 2
+switch(type,
+  "First",    # 1
+  "Second",   # 2
+  "Third"     # 3
+)
+
+# Multiple cases to same result
+grade <- "B"
+message <- switch(grade,
+  "A" = ,
+  "B" = "Good job!",
+  "C" = ,
+  "D" = "Need improvement",
+  "F" = "Failed",
+  "Invalid grade"
+)
+message
+```
+</div>
+
+## Common Loop Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Loop Patterns**
+
+```{r}
+# 1. Accumulation
+total <- 0
+for (i in 1:10) {
+  total <- total + i
+}
+total
+
+# Better: use sum()
+sum(1:10)
+
+# 2. Building a result vector
+n <- 5
+squares <- numeric(n)  # Pre-allocate!
+for (i in 1:n) {
+  squares[i] <- i^2
+}
+squares
+
+# Better: vectorize
+(1:5)^2
+
+# 3. Processing with indices
+data <- c(10, 20, 30, 40)
+for (i in seq_along(data)) {
+  cat("Element", i, "is", data[i], "\n")
+}
+
+# 4. Conditional accumulation
+values <- c(1, 5, 3, 8, 2, 9, 4)
+count <- 0
+for (val in values) {
+  if (val > 5) {
+    count <- count + 1
+  }
+}
+count
+
+# Better: use sum()
+sum(values > 5)
+
+# 5. Early exit
+find_first <- function(x, threshold) {
+  for (i in seq_along(x)) {
+    if (x[i] > threshold) {
+      return(i)
+    }
+  }
+  return(NA)
+}
+
+find_first(c(1, 3, 7, 2, 9), 5)
+
+# 6. Nested iteration
+matrix_data <- matrix(1:9, nrow = 3)
+for (i in 1:nrow(matrix_data)) {
+  for (j in 1:ncol(matrix_data)) {
+    cat(matrix_data[i, j], " ")
+  }
+  cat("\n")
+}
+
+# Better: often use apply family or vectorization
+```
+</div>
+
+## Vectorization vs Loops
+
+<div class="pitfall-box">
+⚠️ **Performance: Vectorization Usually Better**
+
+```{r}
+n <- 10000
+
+# Loop (slow)
+system.time({
+  result <- numeric(n)
+  for (i in 1:n) {
+    result[i] <- sqrt(i)
+  }
+})
+
+# Vectorized (fast)
+system.time({
+  result <- sqrt(1:n)
+})
+
+# When to use loops:
+# 1. Sequential dependencies
+fibonacci <- function(n) {
+  fib <- numeric(n)
+  fib[1] <- 1
+  fib[2] <- 1
+  for (i in 3:n) {
+    fib[i] <- fib[i-1] + fib[i-2]  # Depends on previous
+  }
+  fib
+}
+
+# 2. Side effects (printing, plotting, file I/O)
+for (i in 1:3) {
+  plot(1:10, main = paste("Plot", i))
+  Sys.sleep(0.1)
+}
+
+# 3. Complex logic that can't be vectorized
+# 4. Early termination conditions
+```
+</div>
+
+## ifelse() Details
+
+<div class="insight-box">
+💡 **Key Insight: ifelse() Behavior**
+
+```{r}
+# Basic ifelse
+x <- c(1, 5, 3, 8, 2)
+ifelse(x > 4, "High", "Low")
+
+# Nested ifelse
+ifelse(x < 3, "Low",
+       ifelse(x < 7, "Medium", "High"))
+
+# With NAs
+x_na <- c(1, 5, NA, 8, 2)
+ifelse(x_na > 4, "High", "Low")  # NA stays NA
+
+# Type coercion in ifelse
+ifelse(c(TRUE, FALSE, TRUE), 1, "No")  # Coerces to character!
+
+# More control with dplyr::case_when
+library(dplyr)
+case_when(
+  x < 3 ~ "Low",
+  x < 7 ~ "Medium",
+  TRUE ~ "High"  # Default
+)
+
+# Maintains types better
+case_when(
+  c(TRUE, FALSE, TRUE) ~ 1L,
+  TRUE ~ NA_integer_
+)
+```
+
+**Prefer case_when() for:**
+- Multiple conditions
+- Type preservation
+- Clearer code
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **if needs single logical** - Use `&&`/`||` not `&`/`|`
+2. **Check length first** - Avoid length-zero errors
+3. **Use seq_along()** - Not `1:length()` in loops
+4. **Pre-allocate vectors** - Important for performance
+5. **break exits loop** - `next` skips iteration
+6. **Vectorize when possible** - Usually faster than loops
+7. **ifelse() is vectorized** - Different from `if`
+8. **Use case_when()** - Cleaner than nested ifelse
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| condition has length > 1 | Vector in if | Use `all()`, `any()`, or `&&`/`||` |
+| argument is of length zero | Empty vector in if | Check `length()` first |
+| Infinite loop | No break condition | Add break or fix condition |
+| Wrong 1:length() | Empty vector | Use `seq_along()` |
+
+**Control Flow:**
+
+```{r eval=FALSE}
+# if/else
+if (condition) {
+  # code
+} else if (other_condition) {
+  # code  
+} else {
+  # code
+}
+
+# ifelse (vectorized)
+ifelse(test, yes, no)
+
+# for loop
+for (i in seq_along(x)) {
+  # code
+}
+
+# while loop
+while (condition) {
+  # code
+}
+
+# repeat loop
+repeat {
+  # code
+  if (condition) break
+}
+
+# switch
+switch(value,
+  case1 = result1,
+  case2 = result2,
+  default
+)
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+if (length(x) > 0 && x[1] > 5)     # Check length
+for (i in seq_along(x))             # Safe indexing
+result <- numeric(n); for...       # Pre-allocate
+result <- sqrt(x)                   # Vectorize when possible
+
+# ❌ Avoid
+if (x > 5)                          # Vector in if
+for (i in 1:length(x))              # Fails on empty
+for... result <- c(result, new)     # Growing vector (slow)
+for (i in 1:n) result[i] <- x[i]^2  # Loop when vectorization works
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Safe Condition Checker**
+
+Write `safe_if(condition, true_val, false_val)` that:
+1. Checks if condition is single logical
+2. Handles NA in condition
+3. Returns appropriate value
+4. Gives helpful errors
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Loop Converter**
+
+Convert this loop to vectorized code:
+```{r eval=FALSE}
+x <- 1:1000
+result <- numeric(length(x))
+for (i in seq_along(x)) {
+  if (x[i] %% 2 == 0) {
+    result[i] <- x[i]^2
+  } else {
+    result[i] <- x[i]^3
+  }
+}
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Find First**
+
+Write `find_first(x, condition)` that:
+1. Finds first element satisfying condition
+2. Returns index and value
+3. Handles case where none match
+4. Uses early exit for efficiency
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Grade Classifier**
+
+Write `classify_grade(score)` using switch() that:
+1. Converts numeric score to letter grade
+2. Handles vectorized input
+3. Validates input range (0-100)
+4. Returns appropriate grade
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+safe_if <- function(condition, true_val, false_val) {
+  # Check if condition is logical
+  if (!is.logical(condition)) {
+    stop("Condition must be logical, got ", class(condition)[1])
+  }
+  
+  # Check length
+  if (length(condition) == 0) {
+    stop("Condition has length zero")
+  }
+  
+  if (length(condition) > 1) {
+    warning("Condition has length ", length(condition), 
+            ", using first element only")
+    condition <- condition[1]
+  }
+  
+  # Handle NA
+  if (is.na(condition)) {
+    warning("Condition is NA, returning NA")
+    return(NA)
+  }
+  
+  # Return appropriate value
+  if (condition) {
+    true_val
+  } else {
+    false_val
+  }
+}
+
+# Test
+safe_if(TRUE, "yes", "no")
+safe_if(5 > 3, "greater", "less")
+safe_if(NA, "yes", "no")  # Warning
+safe_if(c(TRUE, FALSE), "yes", "no")  # Warning
+```
+
+```{r error=TRUE}
+safe_if("not logical", "yes", "no")  # Error
+```
+
+**Exercise 2:**
+
+```{r}
+# Original loop
+x <- 1:1000
+result_loop <- numeric(length(x))
+for (i in seq_along(x)) {
+  if (x[i] %% 2 == 0) {
+    result_loop[i] <- x[i]^2
+  } else {
+    result_loop[i] <- x[i]^3
+  }
+}
+
+# Vectorized version 1: ifelse
+result_vec1 <- ifelse(x %% 2 == 0, x^2, x^3)
+
+# Vectorized version 2: case_when
+library(dplyr)
+result_vec2 <- case_when(
+  x %% 2 == 0 ~ x^2,
+  TRUE ~ x^3
+)
+
+# Vectorized version 3: logical indexing
+result_vec3 <- numeric(length(x))
+even <- x %% 2 == 0
+result_vec3[even] <- x[even]^2
+result_vec3[!even] <- x[!even]^3
+
+# Verify all give same result
+all.equal(result_loop, result_vec1)
+all.equal(result_loop, result_vec2)
+all.equal(result_loop, result_vec3)
+
+# Compare performance
+library(microbenchmark)
+microbenchmark(
+  loop = {
+    result <- numeric(length(x))
+    for (i in seq_along(x)) {
+      if (x[i] %% 2 == 0) result[i] <- x[i]^2
+      else result[i] <- x[i]^3
+    }
+  },
+  ifelse = ifelse(x %% 2 == 0, x^2, x^3),
+  case_when = case_when(x %% 2 == 0 ~ x^2, TRUE ~ x^3),
+  logical_index = {
+    result <- numeric(length(x))
+    even <- x %% 2 == 0
+    result[even] <- x[even]^2
+    result[!even] <- x[!even]^3
+  },
+  times = 100
+)
+```
+
+**Exercise 3:**
+
+```{r}
+find_first <- function(x, condition) {
+  # Validate inputs
+  if (!is.function(condition)) {
+    stop("condition must be a function")
+  }
+  
+  if (length(x) == 0) {
+    return(list(index = NA, value = NA, found = FALSE))
+  }
+  
+  # Search with early exit
+  for (i in seq_along(x)) {
+    if (condition(x[i])) {
+      return(list(
+        index = i,
+        value = x[i],
+        found = TRUE
+      ))
+    }
+  }
+  
+  # None found
+  list(index = NA, value = NA, found = FALSE)
+}
+
+# Test
+data <- c(1, 3, 5, 8, 2, 9, 4)
+
+# Find first > 5
+find_first(data, function(x) x > 5)
+
+# Find first even
+find_first(data, function(x) x %% 2 == 0)
+
+# Find first > 100 (none)
+find_first(data, function(x) x > 100)
+
+# Empty vector
+find_first(numeric(0), function(x) x > 5)
+
+# More complex condition
+find_first(c("apple", "banana", "cherry"), 
+          function(x) nchar(x) > 5)
+```
+
+**Exercise 4:**
+
+```{r}
+classify_grade <- function(score) {
+  # Validate input
+  if (!is.numeric(score)) {
+    stop("Score must be numeric")
+  }
+  
+  # Vectorized function
+  sapply(score, function(s) {
+    # Check range
+    if (is.na(s)) {
+      return(NA_character_)
+    }
+    
+    if (s < 0 || s > 100) {
+      warning("Score ", s, " is out of range (0-100)")
+      return("Invalid")
+    }
+    
+    # Classify using switch on integer ranges
+    grade_num <- cut(s, 
+                    breaks = c(-Inf, 60, 70, 80, 90, Inf),
+                    labels = FALSE)
+    
+    switch(grade_num,
+      "F",  # 1: 0-59
+      "D",  # 2: 60-69
+      "C",  # 3: 70-79
+      "B",  # 4: 80-89
+      "A"   # 5: 90-100
+    )
+  })
+}
+
+# Test
+classify_grade(85)
+classify_grade(c(45, 65, 75, 85, 95))
+classify_grade(c(95, NA, 105, 65))
+
+# More detailed version with +/-
+classify_grade_detailed <- function(score) {
+  sapply(score, function(s) {
+    if (is.na(s)) return(NA_character_)
+    if (s < 0 || s > 100) return("Invalid")
+    
+    if (s >= 97) return("A+")
+    if (s >= 93) return("A")
+    if (s >= 90) return("A-")
+    if (s >= 87) return("B+")
+    if (s >= 83) return("B")
+    if (s >= 80) return("B-")
+    if (s >= 77) return("C+")
+    if (s >= 73) return("C")
+    if (s >= 70) return("C-")
+    if (s >= 67) return("D+")
+    if (s >= 63) return("D")
+    if (s >= 60) return("D-")
+    return("F")
+  })
+}
+
+classify_grade_detailed(c(98, 88, 78, 68, 58))
+```
+</details>

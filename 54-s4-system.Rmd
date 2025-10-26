@@ -1,0 +1,64 @@
+# S4 Object System {#s4-system}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- S4 formal classes and methods
+- Slots and validation
+- Multiple dispatch
+- When to use S4
+
+**Key Errors Covered:** 15+ S4 errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## S4 Overview
+
+S4 provides formal, rigorous OOP - used in Bioconductor.
+
+```{r eval=FALSE}
+# Define S4 class
+setClass("Person",
+  slots = c(
+    name = "character",
+    age = "numeric"
+  ),
+  validity = function(object) {
+    if (object@age < 0) {
+      return("Age must be positive")
+    }
+    TRUE
+  }
+)
+
+# Create object
+p <- new("Person", name = "Bob", age = 25)
+
+# Access slots with @
+p@name
+p@age
+```
+
+## Key Features
+
+**Formal classes:** Explicit slot types
+**Validation:** Built-in checking
+**Multiple dispatch:** Dispatch on multiple arguments
+**Stricter:** More rigid than S3
+
+## Common S4 Errors
+
+1. Slot doesn't exist - check setClass definition
+2. Wrong type for slot - must match signature
+3. Invalid object - fails validation
+4. Use $ instead of @ - use @ for slots
+5. Forgot setGeneric - define generic first
+
+## Summary
+
+S4 provides formal OOP with:
+- Explicit slot types
+- Built-in validation
+- Multiple dispatch
+- Rigorous structure

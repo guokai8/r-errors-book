@@ -1,0 +1,186 @@
+# Iteration Best Practices {#iteration-best-practices}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- When to use loops vs apply vs purrr
+- Vectorization strategies
+- Performance optimization
+- Common pitfalls
+- Design patterns
+
+**Key Errors Covered:** 12+ iteration errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Choosing the right iteration method matters:
+
+```{r message=FALSE}
+library(purrr)
+library(dplyr)
+```
+
+## Vectorization First
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Prefer Vectorized Operations**
+
+```{r}
+# ❌ Bad: Loop
+result <- numeric(length(mtcars$mpg))
+for (i in seq_along(mtcars$mpg)) {
+  result[i] <- mtcars$mpg[i] * 2
+}
+
+# ❌ Bad: apply
+result <- sapply(mtcars$mpg, function(x) x * 2)
+
+# ✅ Good: Vectorized
+result <- mtcars$mpg * 2
+
+# Performance comparison
+n <- 10000
+x <- 1:n
+
+system.time(sapply(x, sqrt))
+system.time(sqrt(x))  # Much faster!
+```
+</div>
+
+## When to Use Each
+
+<div class="insight-box">
+💡 **Key Insight: Decision Guide**
+
+```{r eval=FALSE}
+# Use VECTORIZED operations when possible
+x * 2
+sqrt(x)
+paste0("ID_", x)
+
+# Use FOR LOOPS when:
+# - Sequential dependencies
+# - Early termination needed
+# - Side effects (plotting, writing files)
+
+# Use APPLY family when:
+# - Row/column operations on matrices
+# - Simple transformations on lists
+# - Base R only (no tidyverse)
+
+# Use PURRR when:
+# - Type safety matters
+# - Complex error handling needed
+# - Working with nested lists
+# - Modern tidyverse workflows
+```
+</div>
+
+## Growing Objects Anti-Pattern
+
+<div class="pitfall-box">
+⚠️ **Avoid Growing Objects**
+
+```{r}
+# ❌ Very bad: Growing vector
+n <- 1000
+system.time({
+  result <- c()
+  for (i in 1:n) {
+    result <- c(result, i^2)
+  }
+})
+
+# ✅ Good: Pre-allocate
+system.time({
+  result <- numeric(n)
+  for (i in 1:n) {
+    result[i] <- i^2
+  }
+})
+
+# ✅ Best: Vectorize
+system.time({
+  result <- (1:n)^2
+})
+
+# Growing lists
+# ❌ Bad
+result_list <- list()
+for (i in 1:n) {
+  result_list[[i]] <- i^2
+}
+
+# ✅ Good: Pre-allocate
+result_list <- vector("list", n)
+for (i in 1:n) {
+  result_list[[i]] <- i^2
+}
+
+# ✅ Better: Use map
+result_list <- map(1:n, ~ .^2)
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Decision Tree:**
+
+```
+Can it be vectorized?
+├─ Yes → Use vectorized operations
+└─ No → Is it row/column-wise on matrix?
+    ├─ Yes → Use apply()
+    └─ No → Working with lists?
+        ├─ Yes → Need type safety?
+        │   ├─ Yes → Use purrr::map_*()
+        │   └─ No → Use lapply/sapply
+        └─ No → Sequential dependencies?
+            └─ Yes → Use for loop
+```
+
+**Quick Reference:**
+
+| Task | Best Choice | Why |
+|------|-------------|-----|
+| Element-wise math | Vectorized | Fastest |
+| Row operations | apply() | Built-in |
+| List operations | purrr::map() | Type-safe |
+| Sequential | for loop | Clear logic |
+| Side effects | for/walk() | Explicit |
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+Vectorize when possible
+Pre-allocate in loops
+Use type-safe functions
+Consider readability
+Profile before optimizing
+
+# ❌ Avoid
+Growing objects in loops
+Unnecessary apply/map
+Over-optimization early
+Complex nested iterations
+```
+</div>
+
+## Completion
+
+<div class="chapter-summary">
+**Part XIII Complete!**
+
+You've mastered:
+- apply family functions
+- purrr for modern iteration
+- Best practices and patterns
+- Performance considerations
+
+**Ready for:** Part XIV (Package Development)!
+</div>

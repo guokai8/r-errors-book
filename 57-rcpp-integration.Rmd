@@ -1,0 +1,88 @@
+# Rcpp & C++ Integration {#rcpp}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- When to use C++
+- Basic Rcpp syntax
+- Compiling and using C++ code
+- Common Rcpp errors
+
+**Key Errors Covered:** 25+ Rcpp errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## When to Use Rcpp
+
+Use C++ for:
+- **Loops** that can't be vectorized
+- **Recursive functions** with many calls
+- **Performance-critical** code
+- **Complex algorithms** with many steps
+
+```{r eval=FALSE}
+library(Rcpp)
+
+# Simple C++ function
+cppFunction('
+int add_cpp(int x, int y) {
+  return x + y;
+}
+')
+
+add_cpp(2, 3)  # 5
+```
+
+## Basic Rcpp Example
+
+```{r eval=FALSE}
+# Sum in C++ (much faster for large vectors)
+cppFunction('
+double sum_cpp(NumericVector x) {
+  int n = x.size();
+  double total = 0;
+  
+  for(int i = 0; i < n; i++) {
+    total += x[i];
+  }
+  
+  return total;
+}
+')
+
+# Benchmark
+x <- rnorm(1e6)
+bench::mark(
+  R = sum(x),
+  Rcpp = sum_cpp(x)
+)
+```
+
+## Rcpp Data Types
+
+```{r eval=FALSE}
+# R type -> Rcpp type
+# numeric -> NumericVector
+# integer -> IntegerVector
+# character -> CharacterVector
+# logical -> LogicalVector
+# list -> List
+# data.frame -> DataFrame
+```
+
+## Common Rcpp Errors
+
+1. Compilation failed - check C++ syntax
+2. Index out of bounds - C++ is 0-indexed
+3. Type mismatch - wrong Rcpp type
+4. Memory leak - forgot to clean up
+5. Segmentation fault - pointer error
+
+## Summary
+
+Rcpp enables:
+- 10-100x speedups for loops
+- Access to C++ libraries
+- Performance optimization
+- Complex algorithm implementation

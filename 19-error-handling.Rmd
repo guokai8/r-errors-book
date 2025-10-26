@@ -1,0 +1,1174 @@
+# Error Handling {#error-handling}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- try() and tryCatch()
+- Creating custom errors
+- Warning and message handling
+- Defensive programming
+- Debugging strategies
+
+**Key Errors Covered:** 12+ error handling patterns
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Error handling lets you gracefully handle problems:
+
+```{r error=TRUE}
+# Without error handling
+result <- log("not a number")
+```
+
+```{r}
+# With error handling
+result <- try(log("not a number"), silent = TRUE)
+
+if (inherits(result, "try-error")) {
+  cat("Error occurred, using default value\n")
+  result <- NA
+}
+result
+```
+
+Let's master error handling for robust code.
+
+## Error Basics
+
+<div class="insight-box">
+💡 **Key Insight: Errors, Warnings, Messages**
+
+```{r error=TRUE}
+# Error: stops execution
+stop("This is an error")
+```
+
+```{r}
+# Warning: continues execution
+warning("This is a warning")
+cat("Execution continues\n")
+
+# Message: informational
+message("This is a message")
+cat("Execution continues\n")
+
+# Creating conditions
+# Error
+error_func <- function(x) {
+  if (x < 0) {
+    stop("x must be non-negative")
+  }
+  sqrt(x)
+}
+```
+
+```{r error=TRUE}
+error_func(-5)
+```
+
+```{r}
+# Warning
+warn_func <- function(x) {
+  if (x < 0) {
+    warning("x is negative, taking absolute value")
+    x <- abs(x)
+  }
+  sqrt(x)
+}
+
+warn_func(-5)
+
+# Message
+message_func <- function(x) {
+  message("Calculating square root of ", x)
+  sqrt(x)
+}
+
+message_func(25)
+```
+</div>
+
+## try()
+
+<div class="insight-box">
+💡 **Key Insight: try() Basics**
+
+```{r}
+# Without try: error stops everything
+safe_log <- function(x) {
+  result <- try(log(x), silent = TRUE)
+  
+  if (inherits(result, "try-error")) {
+    return(NA)
+  }
+  
+  result
+}
+
+# Test
+safe_log(10)      # Works
+safe_log("text")  # Returns NA instead of error
+
+# Process multiple values
+values <- list(10, "text", 100, "more text", 50)
+
+results <- lapply(values, safe_log)
+results
+
+# Or with verbose errors
+results_verbose <- lapply(values, function(x) {
+  try(log(x), silent = FALSE)
+})
+```
+
+**When to use try():**
+- Simple error catching
+- Don't need to distinguish error types
+- Want to return special value on error
+- Processing multiple items
+</div>
+
+## tryCatch()
+
+<div class="insight-box">
+💡 **Key Insight: tryCatch() for Full Control**
+
+```{r}
+# Full control over errors, warnings, messages
+safe_divide <- function(x, y) {
+  tryCatch(
+    {
+      # Try this code
+      if (y == 0) stop("Division by zero")
+      x / y
+    },
+    error = function(e) {
+      # Handle error
+      message("Error: ", e$message)
+      return(Inf)
+    },
+    warning = function(w) {
+      # Handle warning
+      message("Warning: ", w$message)
+    },
+    finally = {
+      # Always runs (cleanup)
+      message("Division attempted")
+    }
+  )
+}
+
+safe_divide(10, 2)
+safe_divide(10, 0)
+
+# More complex example
+read_data_safe <- function(file) {
+  tryCatch(
+    {
+      data <- read.csv(file)
+      message("Successfully read ", nrow(data), " rows")
+      data
+    },
+    error = function(e) {
+      if (grepl("cannot open", e$message)) {
+        stop("File not found: ", file)
+      } else if (grepl("more columns", e$message)) {
+        stop("File format error in: ", file)
+      } else {
+        stop("Unknown error reading: ", file, "\n", e$message)
+      }
+    }
+  )
+}
+
+# Example with warnings
+sqrt_checked <- function(x) {
+  tryCatch(
+    {
+      if (!is.numeric(x)) {
+        stop("Input must be numeric")
+      }
+      if (any(x < 0)) {
+        warning("Negative values detected, taking absolute value")
+        x <- abs(x)
+      }
+      sqrt(x)
+    },
+    error = function(e) {
+      message("Error: ", e$message)
+      return(rep(NA, length(x)))
+    },
+    warning = function(w) {
+      message("Warning caught: ", w$message)
+      # Re-signal the warning
+      warning(w)
+    }
+  )
+}
+
+sqrt_checked(c(4, -9, 16))
+```
+
+**tryCatch() handlers:**
+- `error`: catches errors
+- `warning`: catches warnings
+- `message`: catches messages
+- `finally`: always runs (cleanup)
+</div>
+
+## Custom Errors
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Custom Error Classes**
+
+```{r}
+# Create custom error class
+validation_error <- function(message, field = NULL) {
+  structure(
+    list(message = message, field = field),
+    class = c("validation_error", "error", "condition")
+  )
+}
+
+# Function using custom errors
+validate_age <- function(age) {
+  if (!is.numeric(age)) {
+    stop(validation_error(
+      "Age must be numeric",
+      field = "age"
+    ))
+  }
+  
+  if (age < 0) {
+    stop(validation_error(
+      "Age cannot be negative",
+      field = "age"
+    ))
+  }
+  
+  if (age > 150) {
+    stop(validation_error(
+      "Age seems unrealistic",
+      field = "age"
+    ))
+  }
+  
+  TRUE
+}
+
+# Catch and handle custom errors
+process_age <- function(age) {
+  tryCatch(
+    {
+      validate_age(age)
+      message("Valid age: ", age)
+    },
+    validation_error = function(e) {
+      message("Validation failed for field '", e$field, "': ", e$message)
+    },
+    error = function(e) {
+      message("Other error: ", e$message)
+    }
+  )
+}
+
+process_age(25)
+process_age(-5)
+process_age("invalid")
+
+# Multiple custom error types
+value_error <- function(message, value = NULL) {
+  structure(
+    list(message = message, value = value),
+    class = c("value_error", "error", "condition")
+  )
+}
+
+type_error <- function(message, expected = NULL, got = NULL) {
+  structure(
+    list(message = message, expected = expected, got = got),
+    class = c("type_error", "error", "condition")
+  )
+}
+
+# Function with multiple error types
+safe_calculate <- function(x, y, op) {
+  # Type checking
+  if (!is.numeric(x) || !is.numeric(y)) {
+    stop(type_error(
+      "Inputs must be numeric",
+      expected = "numeric",
+      got = c(class(x)[1], class(y)[1])
+    ))
+  }
+  
+  # Value checking
+  if (op == "/" && y == 0) {
+    stop(value_error(
+      "Cannot divide by zero",
+      value = y
+    ))
+  }
+  
+  # Calculate
+  switch(op,
+    "+" = x + y,
+    "-" = x - y,
+    "*" = x * y,
+    "/" = x / y,
+    stop("Unknown operation: ", op)
+  )
+}
+
+# Handle different error types
+calculate_safe <- function(x, y, op) {
+  tryCatch(
+    safe_calculate(x, y, op),
+    type_error = function(e) {
+      message("Type error: expected ", e$expected, 
+              ", got ", paste(e$got, collapse = ", "))
+      NA
+    },
+    value_error = function(e) {
+      message("Value error: ", e$message)
+      Inf
+    },
+    error = function(e) {
+      message("Other error: ", e$message)
+      NA
+    }
+  )
+}
+
+calculate_safe(10, 5, "+")
+calculate_safe("10", 5, "+")
+calculate_safe(10, 0, "/")
+```
+</div>
+
+## Defensive Programming
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Input Validation**
+
+```{r}
+# Comprehensive validation
+calculate_mean <- function(x, na.rm = FALSE, trim = 0) {
+  # Check x exists and is not NULL
+  if (missing(x)) {
+    stop("Argument 'x' is missing with no default")
+  }
+  
+  if (is.null(x)) {
+    stop("Argument 'x' cannot be NULL")
+  }
+  
+  # Check x type
+  if (!is.numeric(x)) {
+    stop("Argument 'x' must be numeric, got ", class(x)[1])
+  }
+  
+  # Check x length
+  if (length(x) == 0) {
+    warning("x has length 0, returning NA")
+    return(NA_real_)
+  }
+  
+  # Check na.rm type
+  if (!is.logical(na.rm) || length(na.rm) != 1) {
+    stop("Argument 'na.rm' must be a single logical value")
+  }
+  
+  # Check trim
+  if (!is.numeric(trim) || length(trim) != 1) {
+    stop("Argument 'trim' must be a single numeric value")
+  }
+  
+  if (trim < 0 || trim >= 0.5) {
+    stop("Argument 'trim' must be in [0, 0.5)")
+  }
+  
+  # All validated, proceed
+  mean(x, na.rm = na.rm, trim = trim)
+}
+
+# Test
+calculate_mean(1:10)
+calculate_mean(c(1, 2, NA, 4), na.rm = TRUE)
+```
+
+```{r error=TRUE}
+calculate_mean("not numeric")
+calculate_mean(1:10, na.rm = "yes")
+calculate_mean(1:10, trim = 0.6)
+```
+
+```{r}
+# Reusable validators
+is_single_numeric <- function(x, name = "argument") {
+  if (!is.numeric(x) || length(x) != 1) {
+    stop(name, " must be a single numeric value")
+  }
+  TRUE
+}
+
+is_single_logical <- function(x, name = "argument") {
+  if (!is.logical(x) || length(x) != 1) {
+    stop(name, " must be a single logical value")
+  }
+  TRUE
+}
+
+is_probability <- function(x, name = "argument") {
+  is_single_numeric(x, name)
+  if (x < 0 || x > 1) {
+    stop(name, " must be between 0 and 1")
+  }
+  TRUE
+}
+
+# Using validators
+sample_with_prob <- function(x, size, prob) {
+  is_probability(prob, "prob")
+  is_single_numeric(size, "size")
+  
+  # ... rest of function
+}
+```
+</div>
+
+## Assertions
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Assertions**
+
+```{r}
+# Simple assertions
+assert_that <- function(condition, message = "Assertion failed") {
+  if (!condition) {
+    stop(message, call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+# Usage
+calculate_discount <- function(price, discount_pct) {
+  assert_that(is.numeric(price), "price must be numeric")
+  assert_that(price > 0, "price must be positive")
+  assert_that(is.numeric(discount_pct), "discount_pct must be numeric")
+  assert_that(discount_pct >= 0 && discount_pct <= 100, 
+              "discount_pct must be between 0 and 100")
+  
+  price * (1 - discount_pct / 100)
+}
+
+calculate_discount(100, 20)
+```
+
+```{r error=TRUE}
+calculate_discount(-100, 20)
+calculate_discount(100, 150)
+```
+
+```{r}
+# Using assertthat package (if available)
+if (requireNamespace("assertthat", quietly = TRUE)) {
+  library(assertthat)
+  
+  validate_input <- function(x) {
+    assert_that(is.numeric(x))
+    assert_that(length(x) > 0)
+    assert_that(all(!is.na(x)))
+  }
+}
+
+# Stopifnot (base R)
+calculate_ratio <- function(x, y) {
+  stopifnot(
+    "x must be numeric" = is.numeric(x),
+    "y must be numeric" = is.numeric(y),
+    "y cannot be zero" = all(y != 0)
+  )
+  
+  x / y
+}
+
+calculate_ratio(10, 5)
+```
+
+```{r error=TRUE}
+calculate_ratio(10, 0)
+```
+</div>
+
+## Warnings and Suppression
+
+<div class="insight-box">
+💡 **Key Insight: Warning Control**
+
+```{r}
+# Generate warning
+careful_sqrt <- function(x) {
+  if (any(x < 0)) {
+    warning("Negative values found, returning NaN for those")
+  }
+  sqrt(x)
+}
+
+careful_sqrt(c(4, -9, 16))
+
+# Suppress warnings
+suppressWarnings({
+  result <- careful_sqrt(c(4, -9, 16))
+})
+result
+
+# Capture warnings
+result <- withCallingHandlers(
+  careful_sqrt(c(4, -9, 16)),
+  warning = function(w) {
+    message("Caught warning: ", w$message)
+  }
+)
+
+# Turn warnings into errors
+options(warn = 2)  # Warnings become errors
+```
+
+```{r error=TRUE}
+careful_sqrt(c(4, -9, 16))  # Now errors!
+```
+
+```{r}
+options(warn = 0)  # Reset to default
+
+# Suppress specific warnings
+suppressWarnings(
+  log(-1),  # Would warn: NaNs produced
+  classes = "warning"
+)
+
+# Count warnings
+warn_count <- 0
+withCallingHandlers(
+  {
+    for (i in -5:5) {
+      log(i)
+    }
+  },
+  warning = function(w) {
+    warn_count <<- warn_count + 1
+    invokeRestart("muffleWarning")
+  }
+)
+cat("Warnings generated:", warn_count, "\n")
+```
+</div>
+
+## Error Recovery
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Graceful Failure**
+
+```{r}
+# Provide defaults on error
+read_config <- function(file, default = list()) {
+  tryCatch(
+    {
+      config <- read.csv(file)
+      message("Loaded configuration from ", file)
+      config
+    },
+    error = function(e) {
+      warning("Could not read config file, using defaults: ", e$message)
+      default
+    }
+  )
+}
+
+# Retry logic
+retry <- function(expr, max_attempts = 3, wait = 1) {
+  for (attempt in 1:max_attempts) {
+    result <- try(expr, silent = TRUE)
+    
+    if (!inherits(result, "try-error")) {
+      return(result)
+    }
+    
+    if (attempt < max_attempts) {
+      message("Attempt ", attempt, " failed, retrying...")
+      Sys.sleep(wait)
+    }
+  }
+  
+  stop("All ", max_attempts, " attempts failed")
+}
+
+# Simulate flaky function
+flaky_function <- function() {
+  if (runif(1) < 0.7) {  # 70% failure rate
+    stop("Random failure")
+  }
+  "Success!"
+}
+
+# Use with retry
+# result <- retry(flaky_function(), max_attempts = 5)
+
+# Fallback chain
+with_fallbacks <- function(...) {
+  funcs <- list(...)
+  
+  for (i in seq_along(funcs)) {
+    result <- try(funcs[[i]](), silent = TRUE)
+    
+    if (!inherits(result, "try-error")) {
+      if (i > 1) {
+        message("Used fallback #", i)
+      }
+      return(result)
+    }
+  }
+  
+  stop("All fallback options failed")
+}
+
+# Example
+get_data <- function() {
+  with_fallbacks(
+    function() {
+      # Primary: read from file
+      read.csv("data.csv")
+    },
+    function() {
+      # Fallback 1: read from backup
+      read.csv("data_backup.csv")
+    },
+    function() {
+      # Fallback 2: use default
+      data.frame(x = 1:10, y = 11:20)
+    }
+  )
+}
+```
+</div>
+
+## on.exit()
+
+<div class="insight-box">
+💡 **Key Insight: Cleanup with on.exit()**
+
+```{r}
+# Ensure cleanup happens
+write_temp_file <- function(data) {
+  temp_file <- tempfile()
+  
+  # Ensure file is deleted even if error occurs
+  on.exit(unlink(temp_file))
+  
+  # Write data
+  writeLines(data, temp_file)
+  
+  # Process (might error)
+  processed <- toupper(readLines(temp_file))
+  
+  processed
+  # temp_file automatically deleted here
+}
+
+write_temp_file(c("hello", "world"))
+
+# Multiple cleanups
+complex_function <- function() {
+  conn <- file("temp.txt", "w")
+  on.exit(close(conn), add = TRUE)
+  
+  old_wd <- getwd()
+  on.exit(setwd(old_wd), add = TRUE)
+  
+  old_par <- par(mfrow = c(1, 1))
+  on.exit(par(old_par), add = TRUE)
+  
+  # Do work...
+  # All cleanup happens automatically
+}
+
+# Conditional cleanup
+read_with_progress <- function(file, show_progress = TRUE) {
+  if (show_progress) {
+    pb <- txtProgressBar(max = 100, style = 3)
+    on.exit(close(pb))
+  }
+  
+  # Read file...
+  # Progress bar closed automatically if created
+}
+```
+</div>
+
+## Debugging Strategies
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Debugging Techniques**
+
+```{r eval=FALSE}
+# 1. Print debugging
+my_func <- function(x, y) {
+  cat("x =", x, "\n")
+  cat("y =", y, "\n")
+  
+  result <- x + y
+  cat("result =", result, "\n")
+  
+  result
+}
+
+# 2. Browser debugging
+my_func_debug <- function(x, y) {
+  browser()  # Pauses execution here
+  result <- x + y
+  result
+}
+
+# 3. Conditional browser
+my_func_conditional <- function(x, y) {
+  result <- x + y
+  
+  if (result < 0) {
+    browser()  # Only pause if negative
+  }
+  
+  result
+}
+
+# 4. Debug function
+debug(my_func)  # Next call will enter debugger
+my_func(5, 10)
+undebug(my_func)
+
+# 5. Recover on error
+options(error = recover)  # Enter debugger on error
+# ... run code ...
+options(error = NULL)  # Reset
+
+# 6. Traceback
+tryCatch(
+  {
+    # Code that errors
+  },
+  error = function(e) {
+    cat("Error occurred:\n")
+    print(e)
+    cat("\nTraceback:\n")
+    print(sys.calls())
+  }
+)
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **try() for simple cases** - Returns special object on error
+2. **tryCatch() for full control** - Handle errors, warnings, messages
+3. **Custom error classes** - Better error handling
+4. **Validate inputs early** - Defensive programming
+5. **Use assertions** - Make assumptions explicit
+6. **on.exit() for cleanup** - Ensures cleanup happens
+7. **Debug systematically** - browser(), debug(), traceback()
+
+**Quick Reference:**
+
+| Function | Purpose | When to Use |
+|----------|---------|-------------|
+| try() | Simple error catching | Don't need error details |
+| tryCatch() | Full error handling | Need to handle differently |
+| stop() | Raise error | Invalid input/state |
+| warning() | Non-fatal issue | Questionable but proceeding |
+| message() | Information | Status updates |
+| on.exit() | Cleanup | Files, connections, state |
+
+**Error Handling:**
+
+```{r eval=FALSE}
+# try()
+result <- try(risky_operation(), silent = TRUE)
+if (inherits(result, "try-error")) {
+  # Handle error
+}
+
+# tryCatch()
+tryCatch(
+  {
+    # Code that might error
+  },
+  error = function(e) {
+    # Handle error
+  },
+  warning = function(w) {
+    # Handle warning
+  },
+  finally = {
+    # Cleanup (always runs)
+  }
+)
+
+# Custom errors
+my_error <- function(msg) {
+  structure(
+    list(message = msg),
+    class = c("my_error", "error", "condition")
+  )
+}
+
+# Validation
+stopifnot(
+  "x must be positive" = x > 0,
+  "y must be numeric" = is.numeric(y)
+)
+
+# Cleanup
+on.exit(cleanup(), add = TRUE)
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+tryCatch(expr, error = function(e) ...)  # Explicit handling
+stopifnot("msg" = condition)             # Named conditions
+on.exit(cleanup(), add = TRUE)           # Always cleanup
+Validate inputs early                    # Fail fast
+
+# ❌ Avoid
+try(expr, silent = TRUE) without check   # Ignoring errors
+stop() without informative message       # Unclear errors
+No input validation                      # Unclear failures
+Cleanup without on.exit()                # May not run
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Safe File Reader**
+
+Write `read_file_safe(file, default)` that:
+1. Tries to read the file
+2. Returns default on error
+3. Logs what happened
+4. Handles missing file vs corrupt file differently
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Retry with Backoff**
+
+Write `retry_with_backoff(expr, max_attempts, initial_wait)` that:
+1. Retries failed operations
+2. Doubles wait time after each failure
+3. Returns result or final error
+4. Logs attempts
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Input Validator**
+
+Write `validate_data_frame(df, required_cols, col_types)` that:
+1. Checks df is data frame
+2. Verifies required columns present
+3. Validates column types
+4. Returns informative errors
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Transaction Pattern**
+
+Write `with_transaction(expr)` that:
+1. Sets up state before expr
+2. Runs expr
+3. Commits if successful
+4. Rolls back if error
+5. Always cleans up
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+read_file_safe <- function(file, default = NULL, verbose = TRUE) {
+  tryCatch(
+    {
+      # Check file exists
+      if (!file.exists(file)) {
+        stop("File not found: ", file, call. = FALSE)
+      }
+      
+      # Try to read
+      data <- readLines(file)
+      
+      if (verbose) {
+        message("Successfully read ", length(data), " lines from ", file)
+      }
+      
+      data
+    },
+    error = function(e) {
+      # Classify error
+      if (grepl("File not found", e$message)) {
+        if (verbose) {
+          warning("File does not exist: ", file, ", using default")
+        }
+      } else if (grepl("cannot open", e$message)) {
+        if (verbose) {
+          warning("Cannot open file: ", file, ", using default")
+        }
+      } else {
+        if (verbose) {
+          warning("Error reading file: ", e$message, ", using default")
+        }
+      }
+      
+      default
+    }
+  )
+}
+
+# Test
+read_file_safe("nonexistent.txt", default = c("default", "content"))
+
+# Create test file
+writeLines(c("line 1", "line 2"), "test.txt")
+read_file_safe("test.txt")
+unlink("test.txt")
+```
+
+**Exercise 2:**
+
+```{r}
+retry_with_backoff <- function(expr, max_attempts = 3, 
+                               initial_wait = 1, verbose = TRUE) {
+  wait_time <- initial_wait
+  
+  for (attempt in 1:max_attempts) {
+    result <- try(expr, silent = TRUE)
+    
+    if (!inherits(result, "try-error")) {
+      if (verbose && attempt > 1) {
+        message("Succeeded on attempt ", attempt)
+      }
+      return(result)
+    }
+    
+    # Failed
+    error_msg <- attr(result, "condition")$message
+    
+    if (attempt < max_attempts) {
+      if (verbose) {
+        message("Attempt ", attempt, "/", max_attempts, 
+                " failed: ", error_msg)
+        message("Waiting ", wait_time, " seconds before retry...")
+      }
+      
+      Sys.sleep(wait_time)
+      wait_time <- wait_time * 2  # Exponential backoff
+    } else {
+      stop("All ", max_attempts, " attempts failed. Last error: ", 
+           error_msg)
+    }
+  }
+}
+
+# Test with flaky function
+attempt_counter <- 0
+flaky_operation <- function() {
+  attempt_counter <<- attempt_counter + 1
+  if (attempt_counter < 3) {
+    stop("Temporary failure")
+  }
+  "Success!"
+}
+
+attempt_counter <- 0
+result <- retry_with_backoff(
+  flaky_operation(),
+  max_attempts = 5,
+  initial_wait = 0.1
+)
+result
+```
+
+**Exercise 3:**
+
+```{r}
+validate_data_frame <- function(df, required_cols = NULL, col_types = NULL) {
+  errors <- character()
+  
+  # Check is data frame
+  if (!is.data.frame(df)) {
+    stop("Input must be a data frame, got ", class(df)[1])
+  }
+  
+  # Check required columns
+  if (!is.null(required_cols)) {
+    missing_cols <- setdiff(required_cols, names(df))
+    if (length(missing_cols) > 0) {
+      errors <- c(errors, 
+        paste("Missing required columns:", 
+              paste(missing_cols, collapse = ", "))
+      )
+    }
+  }
+  
+  # Check column types
+  if (!is.null(col_types)) {
+    for (col_name in names(col_types)) {
+      expected_type <- col_types[[col_name]]
+      
+      if (!col_name %in% names(df)) {
+        errors <- c(errors,
+          paste("Column", col_name, "not found for type checking")
+        )
+        next
+      }
+      
+      actual_type <- class(df[[col_name]])[1]
+      
+      if (actual_type != expected_type) {
+        errors <- c(errors,
+          paste("Column", col_name, "has type", actual_type, 
+                "but expected", expected_type)
+        )
+      }
+    }
+  }
+  
+  # Report errors
+  if (length(errors) > 0) {
+    stop("Data frame validation failed:\n  ",
+         paste(errors, collapse = "\n  "),
+         call. = FALSE)
+  }
+  
+  invisible(TRUE)
+}
+
+# Test
+df_good <- data.frame(
+  id = 1:5,
+  name = letters[1:5],
+  value = rnorm(5)
+)
+
+validate_data_frame(
+  df_good,
+  required_cols = c("id", "name"),
+  col_types = list(id = "integer", name = "character")
+)
+
+df_bad <- data.frame(
+  id = letters[1:5],  # Wrong type
+  value = rnorm(5)
+)
+```
+
+```{r error=TRUE}
+validate_data_frame(
+  df_bad,
+  required_cols = c("id", "name"),  # Missing name
+  col_types = list(id = "integer")  # Wrong type
+)
+```
+
+**Exercise 4:**
+
+```{r}
+with_transaction <- function(expr, setup = NULL, commit = NULL, 
+                            rollback = NULL, cleanup = NULL) {
+  # Setup
+  state <- NULL
+  if (!is.null(setup)) {
+    message("Setting up transaction...")
+    state <- setup()
+  }
+  
+  # Ensure cleanup happens
+  on.exit({
+    if (!is.null(cleanup)) {
+      message("Cleaning up...")
+      cleanup(state)
+    }
+  })
+  
+  # Try operation
+  result <- tryCatch(
+    {
+      message("Executing transaction...")
+      result <- expr
+      
+      # Commit on success
+      if (!is.null(commit)) {
+        message("Committing transaction...")
+        commit(state, result)
+      }
+      
+      result
+    },
+    error = function(e) {
+      # Rollback on error
+      if (!is.null(rollback)) {
+        message("Error occurred, rolling back...")
+        rollback(state)
+      }
+      
+      stop("Transaction failed: ", e$message, call. = FALSE)
+    }
+  )
+  
+  result
+}
+
+# Example: Simulated database transaction
+db_transaction_example <- function() {
+  with_transaction(
+    expr = {
+      # Simulate operations
+      message("  Writing records...")
+      Sys.sleep(0.1)
+      
+      # Simulate error
+      if (runif(1) < 0.3) {
+        stop("Simulated database error")
+      }
+      
+      message("  Updates complete")
+      list(rows_affected = 10)
+    },
+    setup = function() {
+      message("  Opening connection")
+      list(conn = "connection_object")
+    },
+    commit = function(state, result) {
+      message("  Committing changes")
+    },
+    rollback = function(state) {
+      message("  Rolling back changes")
+    },
+    cleanup = function(state) {
+      message("  Closing connection")
+    }
+  )
+}
+
+# Try running (may succeed or fail)
+# db_transaction_example()
+```
+</details>

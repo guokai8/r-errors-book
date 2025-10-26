@@ -1,0 +1,918 @@
+# Working Directory & Path Errors {#working-directory-paths}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Understanding R's working directory concept
+- Common file path errors and solutions
+- Absolute vs relative paths
+- Cross-platform path compatibility
+- File encoding issues
+
+**Key Errors Covered:** 12+ path and file-related errors
+
+**Difficulty:** ⭐ Beginner to ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+"It worked on my computer!" 
+
+This famous phrase often stems from working directory and path issues. R needs to know *where* your files are, and this seemingly simple concept causes endless frustration.
+
+In this chapter, you'll master:
+- How R finds files
+- Why paths break across systems
+- Encoding nightmares
+- Connection errors
+
+## Error #1: Cannot Open File - No Such File or Directory {#no-such-file}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-file">💾 FILE/PATH</span>
+
+### The Error
+
+```{r error=TRUE, eval=FALSE}
+data <- read.csv("mydata.csv")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in file(file, "rt") : cannot open the connection
+In addition: Warning message:
+In file(file, "rt") :
+  cannot open file 'mydata.csv': No such file or directory
+```
+</div>
+
+### What It Means
+
+R looked for `mydata.csv` in the current working directory and didn't find it.
+
+### Understanding Working Directory
+
+```{r}
+# Where is R looking?
+getwd()
+```
+
+This is your **working directory** - R's current location in your file system.
+
+### Common Causes
+
+#### Cause 1: File is Elsewhere
+
+```{r eval=FALSE}
+# Your file is here: ~/Documents/project/data/mydata.csv
+# But R is looking here:
+getwd()
+#> [1] "/Users/username/Documents"
+
+# R won't find it!
+read.csv("mydata.csv")  # Error!
+```
+
+#### Cause 2: Wrong Working Directory
+
+```{r eval=FALSE}
+# You opened R in wrong folder
+getwd()
+#> [1] "/Users/username"
+
+# But your file is in:
+# /Users/username/Documents/R_projects/project1/
+```
+
+#### Cause 3: Typo in Filename
+
+```{r error=TRUE, eval=FALSE}
+# File is named: "mydata.csv"
+read.csv("myData.csv")  # Wrong case!
+read.csv("my_data.csv")  # Wrong underscore!
+read.csv("mydata.txt")  # Wrong extension!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Change Working Directory**
+
+```{r eval=FALSE}
+# Set working directory to where file is
+setwd("/Users/username/Documents/R_projects/project1")
+getwd()  # Verify
+
+# Now this works:
+read.csv("mydata.csv")
+```
+
+**In RStudio:**
+- Session > Set Working Directory > Choose Directory
+- Or use Files pane > More > Set As Working Directory
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Full Path**
+
+```{r eval=FALSE}
+# Absolute path (always works, regardless of wd)
+data <- read.csv("/Users/username/Documents/R_projects/project1/mydata.csv")
+
+# Windows:
+data <- read.csv("C:/Users/username/Documents/project1/mydata.csv")
+# Note: Forward slashes! or escaped backslashes: "C:\\Users\\..."
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use Relative Path**
+
+```{r eval=FALSE}
+# If working directory is: /Users/username/Documents/R_projects
+# And file is in:          /Users/username/Documents/R_projects/project1/data/
+
+# Relative path:
+data <- read.csv("project1/data/mydata.csv")
+
+# Go up one directory:
+data <- read.csv("../other_project/data.csv")
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 4: Use RStudio Projects**
+
+**Best Practice!**
+
+1. File > New Project > New Directory
+2. Place all files in project directory
+3. Always use relative paths
+4. Working directory auto-set to project root
+
+```{r eval=FALSE}
+# With project structure:
+# myproject/
+#   ├── myproject.Rproj
+#   ├── scripts/
+#   │   └── analysis.R
+#   └── data/
+#       └── mydata.csv
+
+# In any script:
+data <- read.csv("data/mydata.csv")  # Always works!
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 5: Use here Package**
+
+```{r eval=FALSE}
+library(here)
+
+# Automatically finds project root
+here()
+
+# Build paths relative to project root
+data <- read.csv(here("data", "mydata.csv"))
+
+# Works everywhere, across all systems!
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: setwd() in Scripts**
+
+**DON'T DO THIS:**
+```{r eval=FALSE}
+# hardcoded-badscript.R
+setwd("/Users/alice/Documents/my_project")  # Only works on Alice's computer!
+data <- read.csv("data.csv")
+```
+
+**DO THIS INSTEAD:**
+```{r eval=FALSE}
+# Use R Projects + relative paths
+# Or use here package
+library(here)
+data <- read.csv(here("data", "data.csv"))
+```
+
+**Why?**
+- Your path won't work on others' computers
+- Breaks reproducibility
+- Fails when you move project
+</div>
+
+### Checking If File Exists
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Defensive File Reading**
+
+```{r eval=FALSE}
+filename <- "data/mydata.csv"
+
+# Check before reading
+if (file.exists(filename)) {
+  data <- read.csv(filename)
+  message("File loaded successfully!")
+} else {
+  stop("File not found: ", filename, "\n",
+       "Current directory: ", getwd(), "\n",
+       "Files available: ", paste(list.files(), collapse = ", "))
+}
+```
+</div>
+
+## Error #2: Cannot Change Working Directory {#cannot-change-wd}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-file">💾 FILE/PATH</span>
+
+### The Error
+
+```{r error=TRUE, eval=FALSE}
+setwd("/path/that/doesnt/exist")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in setwd("/path/that/doesnt/exist") : 
+  cannot change working directory
+```
+</div>
+
+### Common Causes
+
+#### Cause 1: Directory Doesn't Exist
+
+```{r eval=FALSE}
+setwd("/Users/alice/Documents/nonexistent")  # Typo or not created
+```
+
+#### Cause 2: Permission Denied
+
+```{r eval=FALSE}
+# Trying to access restricted directory
+setwd("/private/var/root")  # No permission!
+```
+
+#### Cause 3: Wrong Path Format
+
+```{r eval=FALSE}
+# Windows: backslashes need escaping
+setwd("C:\Users\alice\Documents")  # ERROR!
+
+# Should be:
+setwd("C:/Users/alice/Documents")     # Forward slashes
+setwd("C:\\Users\\alice\\Documents")  # Escaped backslashes
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Verify directory exists:**
+```{r eval=FALSE}
+path <- "/Users/alice/Documents/project"
+dir.exists(path)  # Check first
+
+if (dir.exists(path)) {
+  setwd(path)
+} else {
+  dir.create(path, recursive = TRUE)  # Create if needed
+  setwd(path)
+}
+```
+
+**2. List available directories:**
+```{r eval=FALSE}
+# See what's in current location
+list.dirs(getwd(), recursive = FALSE)
+```
+
+**3. Use correct path separators:**
+```{r eval=FALSE}
+# Cross-platform path building
+path <- file.path("Users", "alice", "Documents", "project")
+setwd(file.path("/", path))  # Works on all systems
+```
+
+**4. Check permissions:**
+```{r eval=FALSE}
+# See if you can write to directory
+test_file <- file.path(path, "test.txt")
+tryCatch({
+  writeLines("test", test_file)
+  file.remove(test_file)
+  message("Directory is writable")
+}, error = function(e) {
+  message("Permission denied or directory doesn't exist")
+})
+```
+</div>
+
+## Error #3: Invalid Multibyte String {#invalid-multibyte}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-file">💾 FILE/PATH</span>
+
+### The Error
+
+```{r error=TRUE, eval=FALSE}
+data <- read.csv("données.csv")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in read.table(file = file, header = header, sep = sep, quote = quote,  : 
+  invalid multibyte string at '<...>'
+```
+</div>
+
+### What It Means
+
+The file contains characters that R can't interpret with the current encoding. Common with:
+- Accented characters (é, ñ, ü)
+- Non-Latin scripts (中文, العربية, русский)
+- Special symbols (€, £, ©)
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Specify Encoding**
+
+```{r eval=FALSE}
+# Try different encodings
+data <- read.csv("données.csv", fileEncoding = "UTF-8")
+data <- read.csv("données.csv", fileEncoding = "latin1")
+data <- read.csv("données.csv", fileEncoding = "ISO-8859-1")
+
+# For readr (tidyverse)
+library(readr)
+data <- read_csv("données.csv", locale = locale(encoding = "UTF-8"))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Detect Encoding**
+
+```{r eval=FALSE}
+# Auto-detect encoding
+library(readr)
+guess_encoding("données.csv")
+
+# Use detected encoding
+encoding_info <- guess_encoding("données.csv")
+data <- read_csv("données.csv", 
+                locale = locale(encoding = encoding_info$encoding[1]))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Handle in Filename**
+
+```{r eval=FALSE}
+# Rename file to avoid non-ASCII characters
+file.rename("données.csv", "donnees.csv")
+data <- read.csv("donnees.csv")
+```
+</div>
+
+<div class="insight-box">
+💡 **Key Insight: Common Encodings**
+
+- **UTF-8**: Universal, handles all languages (use this!)
+- **Latin1 (ISO-8859-1)**: Western European languages
+- **Windows-1252**: Windows default (similar to Latin1)
+- **ASCII**: Basic English only
+
+**Best Practice:** Always save files in UTF-8
+</div>
+
+## Error #4: Embedded Nul in String {#embedded-nul}
+
+<span class="difficulty-advanced">⭐⭐⭐ ADVANCED</span> <span class="category-badge cat-file">💾 FILE/PATH</span>
+
+### The Error
+
+```{r error=TRUE, eval=FALSE}
+data <- read.csv("corrupted.csv")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in read.table(file = file, header = header, sep = sep, quote = quote,  : 
+  embedded nul in string: '<text>\0more_text'
+```
+</div>
+
+### What It Means
+
+The file contains null bytes (`\0`), indicating file corruption or wrong file type.
+
+### Common Causes
+
+1. File is corrupted
+2. File is not actually text/CSV (might be binary)
+3. Encoding issues
+4. Incomplete download
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Verify file type:**
+```{r eval=FALSE}
+# Check file
+file.info("corrupted.csv")
+
+# Try to read first few bytes
+readBin("corrupted.csv", "raw", n = 100)
+# If you see lots of 00, it's binary or corrupted
+```
+
+**2. Remove null bytes:**
+```{r eval=FALSE}
+# Read as binary and clean
+con <- file("corrupted.csv", "rb")
+raw_data <- readBin(con, "raw", n = file.info("corrupted.csv")$size)
+close(con)
+
+# Remove null bytes
+clean_data <- raw_data[raw_data != 0]
+
+# Write cleaned file
+writeBin(clean_data, "cleaned.csv")
+
+# Now try reading
+data <- read.csv("cleaned.csv")
+```
+
+**3. Re-download file:**
+If downloaded from internet, download again - might have been interrupted.
+
+**4. Use readr (more robust):**
+```{r eval=FALSE}
+library(readr)
+data <- read_csv("corrupted.csv")  # Often handles better
+```
+</div>
+
+## Error #5: Cannot Open the Connection {#cannot-open-connection}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-file">💾 FILE/PATH</span>
+
+### The Error
+
+```{r error=TRUE, eval=FALSE}
+con <- file("data.csv", "r")
+data <- read.csv(con)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in file(file, "rt") : cannot open the connection
+```
+</div>
+
+### Common Causes
+
+#### Cause 1: File is Open in Another Program
+
+```{r eval=FALSE}
+# File open in Excel - Windows locks it
+read.csv("data.csv")  # Error!
+```
+
+**Solution:** Close the file in other programs
+
+#### Cause 2: File is Being Written By Another Process
+
+```{r eval=FALSE}
+# One R process writing, another trying to read
+writeLines(text, "file.txt")  # Process 1
+data <- readLines("file.txt")  # Process 2 - might fail
+```
+
+**Solution:** Wait or use proper locking
+
+#### Cause 3: Connection Already Open
+
+```{r eval=FALSE}
+con <- file("data.csv", "r")
+# ... forgot to close ...
+con <- file("data.csv", "r")  # Error! Already connected
+```
+
+**Solution:** 
+```{r eval=FALSE}
+close(con)  # Close first
+con <- file("data.csv", "r")  # Now works
+```
+
+#### Cause 4: Network Path Issues
+
+```{r eval=FALSE}
+# Reading from network drive
+read.csv("//server/share/data.csv")  # Might fail if not connected
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Close all connections:**
+```{r eval=FALSE}
+# See open connections
+showConnections()
+
+# Close all
+closeAllConnections()
+```
+
+**2. Use on.exit() for cleanup:**
+```{r eval=FALSE}
+read_file_safely <- function(filename) {
+  con <- file(filename, "r")
+  on.exit(close(con))  # Always closes, even if error
+  
+  data <- readLines(con)
+  return(data)
+}
+```
+
+**3. Use tryCatch:**
+```{r eval=FALSE}
+tryCatch({
+  data <- read.csv("data.csv")
+}, error = function(e) {
+  message("Could not read file. Is it open in another program?")
+  message("Error: ", e$message)
+  closeAllConnections()
+})
+```
+
+**4. Check file accessibility:**
+```{r eval=FALSE}
+check_file_accessible <- function(filename) {
+  # Check exists
+  if (!file.exists(filename)) {
+    stop("File doesn't exist: ", filename)
+  }
+  
+  # Check readable
+  if (file.access(filename, mode = 4) != 0) {
+    stop("File not readable: ", filename)
+  }
+  
+  # Try to open
+  tryCatch({
+    con <- file(filename, "r")
+    close(con)
+    return(TRUE)
+  }, error = function(e) {
+    stop("Cannot open file (locked or in use?): ", filename)
+  })
+}
+```
+</div>
+
+## Error #6: Incomplete Final Line Found {#incomplete-final-line}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-file">💾 FILE/PATH</span>
+
+### The Warning
+
+```{r eval=FALSE}
+data <- read.csv("data.csv")
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Warning message:
+In read.table(file = file, header = header, sep = sep, quote = quote,  : 
+  incomplete final line found by readTableHeader on 'data.csv'
+```
+</div>
+
+### What It Means
+
+The file doesn't end with a newline character. Text files should end with `\n`, but this one doesn't.
+
+### Should You Worry?
+
+**Usually NO** - R still reads the file correctly. It's just being pedantic about file format.
+
+**Maybe YES** - If you notice missing data from last line.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Ignore it (if data looks complete):**
+Data is usually fine, just suppress warning if annoying:
+
+```{r eval=FALSE}
+suppressWarnings(data <- read.csv("data.csv"))
+```
+
+**2. Fix the file:**
+```{r eval=FALSE}
+# Read file
+lines <- readLines("data.csv")
+
+# Add final newline
+writeLines(lines, "data.csv")
+
+# Now reads without warning
+data <- read.csv("data.csv")
+```
+
+**3. Use readr (no warning):**
+```{r eval=FALSE}
+library(readr)
+data <- read_csv("data.csv")  # No warning
+```
+</div>
+
+## Path Construction Best Practices
+
+<div class="bestpractice-box">
+🎯 **Cross-Platform Paths**
+
+**Problem:** Paths differ across operating systems
+- Windows: `C:\Users\alice\Documents`
+- Mac/Linux: `/Users/alice/Documents`
+
+**Solution: Use `file.path()`**
+
+```{r}
+# Works on ALL systems
+project_path <- file.path("Users", "alice", "Documents", "project")
+data_file <- file.path(project_path, "data", "mydata.csv")
+print(data_file)
+
+# Compare to manual (breaks on Windows):
+wrong <- "Users/alice/Documents/project/data/mydata.csv"
+```
+
+**Benefits:**
+- Automatic path separator
+- No escaping needed
+- Works everywhere
+</div>
+
+<div class="bestpractice-box">
+🎯 **Project Structure**
+
+Organize files consistently:
+
+```
+myproject/
+├── myproject.Rproj        # RStudio project file
+├── README.md              # Project documentation
+├── .gitignore            # Git ignore file
+├── data/                 # Data files
+│   ├── raw/             # Original, unmodified data
+│   └── processed/       # Cleaned data
+├── scripts/             # R scripts
+│   ├── 01-import.R
+│   ├── 02-clean.R
+│   └── 03-analyze.R
+├── functions/           # Custom functions
+│   └── helpers.R
+├── output/              # Results
+│   ├── figures/
+│   └── tables/
+└── reports/             # Rmarkdown documents
+    └── analysis.Rmd
+```
+
+**Then use:**
+```{r eval=FALSE}
+library(here)
+
+# Always works, regardless of working directory
+data <- read.csv(here("data", "raw", "mydata.csv"))
+source(here("functions", "helpers.R"))
+ggsave(here("output", "figures", "plot1.png"))
+```
+</div>
+
+## Debugging Path Issues
+
+<div class="insight-box">
+💡 **Diagnosis Toolkit**
+
+```{r eval=FALSE}
+# Where am I?
+getwd()
+
+# What's here?
+list.files()
+list.files(recursive = TRUE)  # Include subdirectories
+
+# Can I read this file?
+file.exists("data.csv")
+file.access("data.csv", mode = 4)  # 4 = read
+
+# What's the full path?
+normalizePath("data.csv")
+
+# Get file info
+file.info("data.csv")
+
+# Open connections?
+showConnections()
+
+# Project root (with here package)
+library(here)
+here()
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Use R Projects** - Auto-manages working directory
+2. **Use `here` package** - Build paths that work everywhere
+3. **Avoid `setwd()`** in scripts - Breaks portability
+4. **Use `file.path()`** - Cross-platform compatibility
+5. **Handle encodings** - UTF-8 for everything
+6. **Close connections** - Use `on.exit()` for safety
+7. **Check files exist** before reading
+
+**Quick Reference:**
+
+| Problem | Solution |
+|---------|----------|
+| File not found | Check with `file.exists()`, verify working directory |
+| Can't change directory | Verify path exists with `dir.exists()` |
+| Encoding issues | Specify `fileEncoding = "UTF-8"` |
+| Embedded nul | File corrupted or binary; re-download |
+| Can't open connection | Close other programs; use `closeAllConnections()` |
+| Incomplete final line | Usually harmless; use `readr` to avoid |
+
+**The Golden Rule:**
+```{r eval=FALSE}
+# Setup once (in project)
+library(here)
+data <- read.csv(here("data", "mydata.csv"))
+# Works everywhere, every time!
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Path Detective**
+
+You receive this error:
+```{r eval=FALSE}
+data <- read.csv("../../data/experiment1/results.csv")
+# Error: cannot open file
+```
+
+Your working directory is: `/Users/bob/projects/analysis/scripts/R`
+
+1. Where is R looking for the file?
+2. What's the full path it's trying?
+3. Write three different ways to fix it.
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Cross-Platform Script**
+
+Write a script that:
+1. Works on Windows, Mac, and Linux
+2. Reads data from `data/input.csv`
+3. Saves output to `results/output.csv`
+4. Creates directories if they don't exist
+5. Handles errors gracefully
+
+Use best practices from this chapter.
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Encoding Hunter**
+
+You have a CSV with French text that produces encoding errors.
+
+1. How do you detect the encoding?
+2. How do you read it correctly?
+3. How do you convert it to UTF-8?
+4. How do you prevent this issue in future?
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+1-2. R looks for: `/Users/bob/projects/data/experiment1/results.csv`
+
+3. Three solutions:
+```{r eval=FALSE}
+# Solution 1: Change working directory
+setwd("/Users/bob/projects")
+data <- read.csv("data/experiment1/results.csv")
+
+# Solution 2: Full path
+data <- read.csv("/Users/bob/projects/data/experiment1/results.csv")
+
+# Solution 3: Use here (BEST)
+library(here)
+here()  # Finds project root
+data <- read.csv(here("data", "experiment1", "results.csv"))
+```
+
+**Exercise 2:**
+
+```{r eval=FALSE}
+# cross_platform_script.R
+library(here)
+
+# Function with error handling
+read_and_process <- function() {
+  # Define paths
+  input_file <- here("data", "input.csv")
+  output_dir <- here("results")
+  output_file <- here("results", "output.csv")
+  
+  # Create output directory if needed
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+    message("Created directory: ", output_dir)
+  }
+  
+  # Check input file exists
+  if (!file.exists(input_file)) {
+    stop("Input file not found: ", input_file)
+  }
+  
+  # Read data
+  data <- tryCatch({
+    read.csv(input_file)
+  }, error = function(e) {
+    stop("Could not read input file: ", e$message)
+  })
+  
+  # Process (example)
+  results <- data  # Your processing here
+  
+  # Write results
+  tryCatch({
+    write.csv(results, output_file, row.names = FALSE)
+    message("Results saved to: ", output_file)
+  }, error = function(e) {
+    stop("Could not write output file: ", e$message)
+  })
+  
+  return(results)
+}
+
+# Run
+read_and_process()
+```
+
+**Exercise 3:**
+
+```{r eval=FALSE}
+library(readr)
+
+# 1. Detect encoding
+encoding_info <- guess_encoding("french_data.csv")
+print(encoding_info)
+
+# 2. Read with correct encoding
+data <- read_csv("french_data.csv", 
+                locale = locale(encoding = encoding_info$encoding[1]))
+
+# 3. Convert to UTF-8
+write_csv(data, "french_data_utf8.csv")
+
+# 4. Prevention:
+# - Always save files as UTF-8
+# - Document encoding in README
+# - Use readr::write_csv() which always uses UTF-8
+# - Add encoding check in data import scripts
+```
+</details>

@@ -1,0 +1,334 @@
+# Regression & ANOVA {#regression-anova}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Linear regression
+- ANOVA (one-way, two-way)
+- Model diagnostics
+- Common regression errors
+- Interpreting results
+
+**Key Errors Covered:** 20+ regression errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Regression and ANOVA are fundamental statistical tools:
+
+```{r}
+# Simple linear regression
+model <- lm(mpg ~ hp, data = mtcars)
+summary(model)
+```
+
+Let's master these analyses!
+
+## Linear Regression
+
+<div class="insight-box">
+💡 **Key Insight: lm() Function**
+
+```{r}
+# Simple regression (one predictor)
+model1 <- lm(mpg ~ hp, data = mtcars)
+summary(model1)
+
+# Multiple regression
+model2 <- lm(mpg ~ hp + wt + cyl, data = mtcars)
+summary(model2)
+
+# With interaction
+model3 <- lm(mpg ~ hp * wt, data = mtcars)
+summary(model3)
+
+# Polynomial
+model4 <- lm(mpg ~ poly(hp, 2), data = mtcars)
+summary(model4)
+
+# Extract components
+coef(model1)          # Coefficients
+fitted(model1)        # Fitted values
+residuals(model1)     # Residuals
+predict(model1)       # Predictions
+confint(model1)       # Confidence intervals
+```
+</div>
+
+## Error #1: `NA/NaN/Inf in 'y'` {#na-in-y}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-data">📊 DATA</span>
+
+### The Error
+
+```{r error=TRUE}
+# Data with NA
+data_na <- mtcars
+data_na$mpg[1:3] <- NA
+
+lm(mpg ~ hp, data = data_na)
+```
+
+<div class="error-box">
+🔴 **ERROR/WARNING**
+
+Model runs but removes NAs with warning. Can cause issues downstream.
+</div>
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Handle NAs Explicitly**
+
+```{r}
+# Remove NAs before modeling
+data_clean <- mtcars[complete.cases(mtcars[, c("mpg", "hp")]), ]
+model <- lm(mpg ~ hp, data = data_clean)
+
+# Or use na.omit
+data_clean2 <- na.omit(mtcars[, c("mpg", "hp", "wt")])
+model2 <- lm(mpg ~ hp + wt, data = data_clean2)
+
+# Check for NAs
+cat("Complete cases:", sum(complete.cases(mtcars)), "\n")
+cat("NAs in mpg:", sum(is.na(mtcars$mpg)), "\n")
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use na.action**
+
+```{r}
+# Different NA handling
+model_fail <- lm(mpg ~ hp, data = data_na, na.action = na.fail)  # Fails if NA
+# model_exclude <- lm(mpg ~ hp, data = data_na, na.action = na.exclude)  # Excludes
+# model_omit <- lm(mpg ~ hp, data = data_na, na.action = na.omit)  # Omits (default)
+
+cat("na.omit: removes NAs, shortens residuals\n")
+cat("na.exclude: removes NAs, preserves length with NAs\n")
+```
+</div>
+
+## Model Diagnostics
+
+<div class="insight-box">
+💡 **Key Insight: Checking Assumptions**
+
+```{r}
+model <- lm(mpg ~ hp + wt, data = mtcars)
+
+# Diagnostic plots
+par(mfrow = c(2, 2))
+plot(model)
+par(mfrow = c(1, 1))
+
+# 1. Residuals vs Fitted - Check linearity
+# 2. Q-Q plot - Check normality
+# 3. Scale-Location - Check homoscedasticity
+# 4. Residuals vs Leverage - Check influential points
+
+# Individual checks
+# Normality of residuals
+shapiro.test(residuals(model))
+
+# Homoscedasticity
+library(lmtest)
+bptest(model)
+
+# Multicollinearity
+library(car)
+vif(model)
+```
+</div>
+
+## ANOVA
+
+<div class="insight-box">
+💡 **Key Insight: Analysis of Variance**
+
+```{r}
+# One-way ANOVA
+anova_model <- aov(mpg ~ factor(cyl), data = mtcars)
+summary(anova_model)
+
+# Two-way ANOVA
+anova_model2 <- aov(mpg ~ factor(cyl) + factor(gear), data = mtcars)
+summary(anova_model2)
+
+# With interaction
+anova_model3 <- aov(mpg ~ factor(cyl) * factor(gear), data = mtcars)
+summary(anova_model3)
+
+# Post-hoc tests
+TukeyHSD(anova_model)
+```
+</div>
+
+## Error #2: `contrasts can be applied only to factors` {#contrasts-factors}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+# Using numeric variable as factor
+model <- lm(mpg ~ cyl, data = mtcars, contrasts = list(cyl = contr.treatment))
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in contrasts<-: contrasts can be applied only to factors with 2 or more levels
+```
+</div>
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Convert to Factor**
+
+```{r}
+# Convert numeric to factor
+mtcars$cyl_factor <- factor(mtcars$cyl)
+model <- lm(mpg ~ cyl_factor, data = mtcars)
+summary(model)
+
+# For ANOVA, must be factor
+anova_model <- aov(mpg ~ factor(cyl), data = mtcars)
+summary(anova_model)
+```
+</div>
+
+## Predictions
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Making Predictions**
+
+```{r}
+model <- lm(mpg ~ hp + wt, data = mtcars)
+
+# Predict on original data
+predictions <- predict(model)
+head(predictions)
+
+# Predict on new data
+new_data <- data.frame(
+  hp = c(100, 150, 200),
+  wt = c(2.5, 3.0, 3.5)
+)
+
+predict(model, newdata = new_data)
+
+# With confidence intervals
+predict(model, newdata = new_data, interval = "confidence")
+
+# With prediction intervals
+predict(model, newdata = new_data, interval = "prediction")
+```
+</div>
+
+## Error #3: `variable lengths differ` {#variable-lengths}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-data">📊 DATA</span>
+
+### The Error
+
+```{r error=TRUE}
+# Mismatched lengths
+x <- 1:10
+y <- 1:5
+lm(y ~ x)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in model.frame.default: variable lengths differ (found for 'x')
+```
+</div>
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Check Data Lengths**
+
+```{r}
+# Check before modeling
+x <- 1:10
+y <- 1:10  # Fixed
+
+if (length(x) != length(y)) {
+  stop("Variables must have same length")
+}
+
+model <- lm(y ~ x)
+```
+</div>
+
+## Model Comparison
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Compare Models**
+
+```{r}
+# Nested models
+model1 <- lm(mpg ~ hp, data = mtcars)
+model2 <- lm(mpg ~ hp + wt, data = mtcars)
+model3 <- lm(mpg ~ hp + wt + cyl, data = mtcars)
+
+# ANOVA comparison
+anova(model1, model2, model3)
+
+# AIC/BIC
+AIC(model1, model2, model3)
+BIC(model1, model2, model3)
+
+# R-squared
+summary(model1)$r.squared
+summary(model2)$r.squared
+summary(model3)$r.squared
+
+# Adjusted R-squared (accounts for # predictors)
+summary(model1)$adj.r.squared
+summary(model2)$adj.r.squared
+summary(model3)$adj.r.squared
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Handle NAs explicitly** - Check before modeling
+2. **Factors for ANOVA** - Convert numeric to factor
+3. **Check diagnostics** - Assumptions matter
+4. **Compare models** - Use ANOVA, AIC, BIC
+5. **Report properly** - Coefficients, p-values, R²
+6. **Predict carefully** - Match variable names
+
+**Quick Reference:**
+
+```{r eval=FALSE}
+# Linear regression
+model <- lm(y ~ x, data = df)
+model <- lm(y ~ x1 + x2, data = df)
+model <- lm(y ~ x1 * x2, data = df)  # Interaction
+
+# ANOVA
+model <- aov(y ~ factor(group), data = df)
+TukeyHSD(model)
+
+# Diagnostics
+plot(model)
+summary(model)
+
+# Predictions
+predict(model, newdata = new_df)
+predict(model, interval = "confidence")
+```
+</div>

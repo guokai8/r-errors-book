@@ -1,0 +1,1106 @@
+# Part VIII: Data Manipulation (dplyr & tidyr) {-}
+
+# Introduction to dplyr {#dplyr-intro}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- dplyr basics and philosophy
+- The pipe operator (%>% and |>)
+- Core dplyr verbs
+- Common dplyr errors
+- Tidy evaluation basics
+
+**Key Errors Covered:** 20+ dplyr errors
+
+**Difficulty:** ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+dplyr revolutionized R data manipulation:
+
+```{r error=TRUE}
+library(dplyr)
+
+# Try to filter
+mtcars %>% filter(mpg > 20)
+```
+
+```{r}
+# Works! But errors are common...
+mtcars %>% filter(mpg > 20 & cyl = 4)  # Oops!
+```
+
+Let's master dplyr to avoid these pitfalls.
+
+## dplyr Basics
+
+<div class="insight-box">
+💡 **Key Insight: The dplyr Philosophy**
+
+```{r message=FALSE}
+library(dplyr)
+
+# Core verbs (functions)
+# 1. filter() - keep rows
+# 2. select() - keep columns
+# 3. mutate() - create/modify columns
+# 4. arrange() - sort rows
+# 5. summarize() - aggregate data
+# 6. group_by() - group for operations
+
+# Each returns a data frame
+# Easy to chain with pipe
+
+# Example data
+head(mtcars)
+```
+
+**Key principles:**
+- Each function does one thing well
+- First argument is always data
+- Returns a data frame
+- Works with pipes
+- NSE (non-standard evaluation) for column names
+</div>
+
+## The Pipe Operator
+
+<div class="insight-box">
+💡 **Key Insight: Pipe Operators**
+
+```{r}
+# Traditional nesting (hard to read)
+result <- arrange(
+  filter(
+    select(mtcars, mpg, cyl, hp),
+    mpg > 20
+  ),
+  desc(hp)
+)
+
+# With magrittr pipe %>%
+result <- mtcars %>%
+  select(mpg, cyl, hp) %>%
+  filter(mpg > 20) %>%
+  arrange(desc(hp))
+
+# Native pipe |> (R >= 4.1)
+result <- mtcars |>
+  select(mpg, cyl, hp) |>
+  filter(mpg > 20) |>
+  arrange(desc(hp))
+
+result
+
+# How pipe works
+# x %>% f(y) becomes f(x, y)
+# x %>% f(y) %>% g(z) becomes g(f(x, y), z)
+
+# Pipe sends left side as first argument to right side
+mtcars %>% head(3)
+# Same as:
+head(mtcars, 3)
+```
+
+**Differences between %>% and |>:**
+- `%>%` from magrittr (more flexible)
+- `|>` native R (R >= 4.1, faster)
+- `%>%` has more features (., shortcuts)
+- `|>` simpler, no package needed
+</div>
+
+## Error #1: `object not found` with pipes {#pipe-object-not-found}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-scope">🔍 SCOPE</span>
+
+### The Error
+
+```{r error=TRUE}
+library(dplyr)
+
+mtcars %>%
+  filter(mpg > 20) %>%
+  select(mpg, cyl, hp) %>%
+  arrange(horsepower)  # Wrong column name!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in arrange():
+! Can't subset columns that don't exist.
+✖ Column `horsepower` doesn't exist.
+```
+</div>
+
+### What It Means
+
+You're referencing a column that doesn't exist in the data.
+
+### Common Causes
+
+#### Cause 1: Typo in Column Name
+
+```{r error=TRUE}
+mtcars %>%
+  select(mpgg, cyl)  # Typo: mpgg instead of mpg
+```
+
+#### Cause 2: Column Already Removed
+
+```{r error=TRUE}
+mtcars %>%
+  select(mpg, cyl) %>%
+  filter(hp > 100)  # hp not in selected columns!
+```
+
+#### Cause 3: Wrong Dataset
+
+```{r error=TRUE}
+# Expecting different columns
+iris %>%
+  select(mpg, cyl)  # iris doesn't have these columns
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Column Names**
+
+```{r}
+# Before piping, check what you have
+names(mtcars)
+
+# Or with glimpse
+glimpse(mtcars)
+
+# In pipe chain
+mtcars %>%
+  names()
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Order Operations Correctly**
+
+```{r}
+# Filter before selecting
+mtcars %>%
+  filter(hp > 100) %>%  # Use hp while it exists
+  select(mpg, cyl)      # Then select subset
+
+# Or keep needed columns
+mtcars %>%
+  select(mpg, cyl, hp) %>%  # Keep hp
+  filter(hp > 100)          # Now can use it
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use Column Existence Check**
+
+```{r}
+safe_filter <- function(data, ...) {
+  # Check if columns exist
+  expr <- rlang::enexpr(...)
+  cols_used <- all.vars(expr)
+  
+  missing_cols <- setdiff(cols_used, names(data))
+  
+  if (length(missing_cols) > 0) {
+    stop("Columns not found: ", paste(missing_cols, collapse = ", "))
+  }
+  
+  filter(data, ...)
+}
+
+# Will give helpful error
+# mtcars %>% safe_filter(horsepower > 100)
+```
+</div>
+
+## filter() Basics
+
+<div class="insight-box">
+💡 **Key Insight: filter() Patterns**
+
+```{r}
+# Keep rows where condition is TRUE
+mtcars %>%
+  filter(mpg > 20)
+
+# Multiple conditions (AND)
+mtcars %>%
+  filter(mpg > 20, cyl == 4)
+
+# Same as
+mtcars %>%
+  filter(mpg > 20 & cyl == 4)
+
+# OR condition
+mtcars %>%
+  filter(mpg > 25 | hp > 200)
+
+# Complex conditions
+mtcars %>%
+  filter(mpg > 20 & (cyl == 4 | cyl == 6))
+
+# Using %in%
+mtcars %>%
+  filter(cyl %in% c(4, 6))
+
+# Negation
+mtcars %>%
+  filter(!(cyl %in% c(4, 6)))
+
+# Or
+mtcars %>%
+  filter(!cyl %in% c(4, 6))
+
+# Filter with string operations
+mtcars %>%
+  rownames_to_column("car") %>%
+  filter(grepl("Merc", car))
+
+# Remove NAs
+data_with_na <- tibble(x = c(1, 2, NA, 4))
+data_with_na %>%
+  filter(!is.na(x))
+```
+</div>
+
+## Error #2: Using `=` instead of `==` {#filter-equals}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-syntax">🔤 SYNTAX</span>
+
+### The Error
+
+```{r error=TRUE}
+mtcars %>%
+  filter(cyl = 4)  # Wrong: = is assignment
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in filter():
+! We detected a named input.
+ℹ This usually means that you've used `=` instead of `==`.
+ℹ Did you mean `cyl == 4`?
+```
+</div>
+
+### What It Means
+
+You used assignment (`=`) instead of comparison (`==`).
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Use == for Comparison**
+
+```{r}
+# Correct: use ==
+mtcars %>%
+  filter(cyl == 4)
+
+# Other comparison operators
+mtcars %>%
+  filter(mpg > 20)      # Greater than
+
+mtcars %>%
+  filter(mpg >= 20)     # Greater or equal
+
+mtcars %>%
+  filter(mpg < 20)      # Less than
+
+mtcars %>%
+  filter(mpg <= 20)     # Less or equal
+
+mtcars %>%
+  filter(mpg != 4)      # Not equal
+
+# For NA, use is.na()
+data_with_na <- tibble(x = c(1, NA, 3))
+data_with_na %>%
+  filter(is.na(x))      # Keep NAs
+
+data_with_na %>%
+  filter(!is.na(x))     # Remove NAs
+```
+</div>
+
+## select() Basics
+
+<div class="insight-box">
+💡 **Key Insight: select() Patterns**
+
+```{r}
+# Select specific columns
+mtcars %>%
+  select(mpg, cyl, hp)
+
+# Select range
+mtcars %>%
+  select(mpg:hp)
+
+# Select by position
+mtcars %>%
+  select(1:3)
+
+# Exclude columns
+mtcars %>%
+  select(-mpg, -cyl)
+
+# Exclude range
+mtcars %>%
+  select(-(mpg:disp))
+
+# Helper functions
+# starts_with()
+iris %>%
+  select(starts_with("Sepal"))
+
+# ends_with()
+iris %>%
+  select(ends_with("Width"))
+
+# contains()
+iris %>%
+  select(contains("etal"))
+
+# matches() - regex
+mtcars %>%
+  select(matches("^d"))  # Starts with 'd'
+
+# everything() - all remaining
+mtcars %>%
+  select(mpg, cyl, everything())
+
+# where() - by condition
+mtcars %>%
+  select(where(is.numeric))
+
+# Rename while selecting
+mtcars %>%
+  select(miles_per_gallon = mpg, cylinders = cyl)
+
+# Just rename (keep all)
+mtcars %>%
+  rename(miles_per_gallon = mpg)
+```
+</div>
+
+## Error #3: `unused argument` in select {#select-unused-argument}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-args">📋 ARGS</span>
+
+### The Error
+
+```{r error=TRUE}
+mtcars %>%
+  select(mpg, cyl, cyl == 4)  # Can't filter in select!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in select():
+! Can't subset columns with `cyl == 4`.
+✖ `cyl == 4` must be numeric or character, not `logical`.
+```
+</div>
+
+### What It Means
+
+You're trying to use filter logic in select, or using wrong syntax.
+
+### Common Causes
+
+```{r error=TRUE}
+# Trying to filter in select
+mtcars %>%
+  select(mpg, cyl > 4)
+
+# Wrong helper syntax
+mtcars %>%
+  select(starts_with(Sepal))  # Missing quotes
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Separate select and filter**
+
+```{r}
+# Correct: separate operations
+mtcars %>%
+  select(mpg, cyl, hp) %>%
+  filter(cyl == 4)
+
+# Or filter first
+mtcars %>%
+  filter(cyl == 4) %>%
+  select(mpg, cyl, hp)
+
+# Use quotes with helpers
+iris %>%
+  select(starts_with("Sepal"))
+```
+</div>
+
+## mutate() Basics
+
+<div class="insight-box">
+💡 **Key Insight: mutate() Patterns**
+
+```{r}
+# Create new column
+mtcars %>%
+  mutate(mpg_per_cyl = mpg / cyl) %>%
+  select(mpg, cyl, mpg_per_cyl)
+
+# Multiple new columns
+mtcars %>%
+  mutate(
+    kpl = mpg * 0.425,
+    wt_kg = wt * 453.592
+  ) %>%
+  select(mpg, kpl, wt, wt_kg)
+
+# Modify existing column
+mtcars %>%
+  mutate(hp = hp * 0.746) %>%  # Convert to kW
+  select(hp)
+
+# Use newly created columns
+mtcars %>%
+  mutate(
+    hp_per_cyl = hp / cyl,
+    hp_ratio = hp_per_cyl / mean(hp_per_cyl)
+  ) %>%
+  select(hp, cyl, hp_per_cyl, hp_ratio)
+
+# Conditional creation
+mtcars %>%
+  mutate(
+    efficiency = case_when(
+      mpg > 25 ~ "High",
+      mpg > 20 ~ "Medium",
+      TRUE ~ "Low"
+    )
+  ) %>%
+  select(mpg, efficiency)
+
+# With ifelse
+mtcars %>%
+  mutate(
+    heavy = ifelse(wt > 3.5, "Heavy", "Light")
+  ) %>%
+  select(wt, heavy)
+
+# Keep only new columns with transmute()
+mtcars %>%
+  transmute(
+    car = rownames(mtcars),
+    kpl = mpg * 0.425
+  )
+```
+</div>
+
+## Error #4: `object not found` in mutate {#mutate-object-not-found}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-scope">🔍 SCOPE</span>
+
+### The Error
+
+```{r error=TRUE}
+mpg_threshold <- 20
+
+mtcars %>%
+  mutate(efficient = mpg > mpg_treshold)  # Typo!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in mutate():
+! object 'mpg_treshold' not found
+```
+</div>
+
+### What It Means
+
+Referenced an object or column that doesn't exist.
+
+### Common Causes
+
+```{r error=TRUE}
+# Typo in external variable
+threshold <- 20
+mtcars %>%
+  mutate(high = mpg > threshhold)
+
+# Typo in column name
+mtcars %>%
+  mutate(power_ratio = horsepower / wt)
+
+# Using column before creating it
+mtcars %>%
+  mutate(
+    mpg_ratio = mpg_scaled / mean(mpg_scaled),
+    mpg_scaled = mpg / mean(mpg)
+  )
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Names Carefully**
+
+```{r}
+# Check column names
+names(mtcars)
+
+# Check variable exists
+threshold <- 20
+exists("threshold")
+
+# Correct usage
+mtcars %>%
+  mutate(efficient = mpg > threshold) %>%
+  select(mpg, efficient)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Order Operations**
+
+```{r}
+# Create columns in right order
+mtcars %>%
+  mutate(
+    mpg_scaled = mpg / mean(mpg),
+    mpg_ratio = mpg_scaled / mean(mpg_scaled)
+  ) %>%
+  select(mpg, mpg_scaled, mpg_ratio)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use .data pronoun**
+
+```{r}
+# Explicit about column reference
+mtcars %>%
+  mutate(power_ratio = .data$hp / .data$wt) %>%
+  select(hp, wt, power_ratio)
+
+# Useful in functions
+calculate_ratio <- function(data, num_col, denom_col) {
+  data %>%
+    mutate(ratio = .data[[num_col]] / .data[[denom_col]])
+}
+
+calculate_ratio(mtcars, "hp", "wt") %>%
+  select(hp, wt, ratio)
+```
+</div>
+
+## arrange() Basics
+
+<div class="insight-box">
+💡 **Key Insight: arrange() Patterns**
+
+```{r}
+# Sort ascending (default)
+mtcars %>%
+  arrange(mpg) %>%
+  select(mpg, cyl, hp)
+
+# Sort descending
+mtcars %>%
+  arrange(desc(mpg)) %>%
+  select(mpg, cyl, hp)
+
+# Multiple columns
+mtcars %>%
+  arrange(cyl, desc(mpg)) %>%
+  select(cyl, mpg, hp)
+
+# With NA handling
+data_with_na <- tibble(
+  x = c(3, 1, NA, 2),
+  y = c("a", "b", "c", "d")
+)
+
+data_with_na %>%
+  arrange(x)  # NAs last by default
+
+# NAs first
+data_with_na %>%
+  arrange(desc(is.na(x)), x)
+```
+</div>
+
+## summarize() Basics
+
+<div class="insight-box">
+💡 **Key Insight: summarize() Patterns**
+
+```{r}
+# Single summary
+mtcars %>%
+  summarize(avg_mpg = mean(mpg))
+
+# Multiple summaries
+mtcars %>%
+  summarize(
+    avg_mpg = mean(mpg),
+    sd_mpg = sd(mpg),
+    min_mpg = min(mpg),
+    max_mpg = max(mpg),
+    n = n()
+  )
+
+# With grouping (next chapter covers in detail)
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    avg_mpg = mean(mpg),
+    count = n()
+  )
+
+# Useful summary functions
+mtcars %>%
+  summarize(
+    mean = mean(mpg),
+    median = median(mpg),
+    sd = sd(mpg),
+    min = min(mpg),
+    max = max(mpg),
+    q25 = quantile(mpg, 0.25),
+    q75 = quantile(mpg, 0.75),
+    n = n(),
+    n_distinct = n_distinct(cyl)
+  )
+```
+</div>
+
+## Common Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Common dplyr Workflows**
+
+```{r}
+# 1. Filter → Select → Arrange
+mtcars %>%
+  filter(mpg > 20) %>%
+  select(mpg, cyl, hp) %>%
+  arrange(desc(mpg))
+
+# 2. Create variables → Summarize
+mtcars %>%
+  mutate(hp_per_cyl = hp / cyl) %>%
+  summarize(
+    avg_hp_per_cyl = mean(hp_per_cyl),
+    max_hp_per_cyl = max(hp_per_cyl)
+  )
+
+# 3. Group → Summarize → Arrange
+mtcars %>%
+  group_by(cyl) %>%
+  summarize(
+    avg_mpg = mean(mpg),
+    count = n()
+  ) %>%
+  arrange(desc(avg_mpg))
+
+# 4. Top N
+mtcars %>%
+  arrange(desc(mpg)) %>%
+  slice_head(n = 5)
+
+# 5. Distinct values
+mtcars %>%
+  distinct(cyl, gear)
+
+# 6. Count
+mtcars %>%
+  count(cyl, sort = TRUE)
+
+# 7. Add row numbers
+mtcars %>%
+  mutate(row_id = row_number()) %>%
+  select(row_id, everything())
+```
+</div>
+
+## Error #5: Forgetting to assign or print {#forget-assign}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-usage">💡 USAGE</span>
+
+### The Problem
+
+```{r}
+# Doesn't save result!
+mtcars %>%
+  filter(mpg > 20) %>%
+  select(mpg, cyl)
+
+# Original unchanged
+head(mtcars, 2)
+```
+
+### What It Means
+
+dplyr doesn't modify in place - must assign result.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Assign Result**
+
+```{r}
+# Save to new variable
+high_mpg <- mtcars %>%
+  filter(mpg > 20) %>%
+  select(mpg, cyl)
+
+head(high_mpg, 3)
+
+# Or overwrite (careful!)
+mtcars_filtered <- mtcars %>%
+  filter(mpg > 20)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Just Print (for exploration)**
+
+```{r}
+# Print automatically (no assignment)
+mtcars %>%
+  filter(mpg > 20) %>%
+  select(mpg, cyl)
+
+# Explicit print
+mtcars %>%
+  filter(mpg > 20) %>%
+  select(mpg, cyl) %>%
+  print()
+```
+</div>
+
+## Debugging dplyr Chains
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Debug Pipe Chains**
+
+```{r}
+# 1. Run step by step
+# Start here
+mtcars %>%
+  filter(mpg > 20)
+
+# Add next step
+mtcars %>%
+  filter(mpg > 20) %>%
+  select(mpg, cyl, hp)
+
+# Continue...
+mtcars %>%
+  filter(mpg > 20) %>%
+  select(mpg, cyl, hp) %>%
+  arrange(desc(hp))
+
+# 2. Check intermediate results
+mtcars %>%
+  filter(mpg > 20) %>%
+  {cat("After filter:", nrow(.), "rows\n"); .} %>%
+  select(mpg, cyl, hp) %>%
+  {cat("After select:", ncol(.), "cols\n"); .} %>%
+  arrange(desc(hp))
+
+# 3. Use View() in RStudio
+# mtcars %>%
+#   filter(mpg > 20) %>%
+#   View()
+
+# 4. Print at each step
+debug_pipe <- function(data, label = NULL) {
+  if (!is.null(label)) {
+    cat("\n===", label, "===\n")
+  }
+  print(head(data, 3))
+  data
+}
+
+mtcars %>%
+  filter(mpg > 20) %>%
+  debug_pipe("After filter") %>%
+  select(mpg, cyl, hp) %>%
+  debug_pipe("After select")
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **dplyr philosophy** - Simple verbs, chainable with pipes
+2. **Pipe operator** - `%>%` or `|>` makes code readable
+3. **filter() uses ==** - Not `=` for comparison
+4. **Check column names** - Use `names()` or `glimpse()`
+5. **Order matters** - Can't use columns after removing them
+6. **Assign results** - dplyr doesn't modify in place
+7. **Debug step-by-step** - Run pipes incrementally
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| object not found | Column doesn't exist | Check names, order operations |
+| Using = not == | Assignment in filter | Use == for comparison |
+| unused argument | Wrong function usage | Check function signature |
+| Result not saved | No assignment | Assign with <- |
+
+**Core Verbs:**
+
+```{r eval=FALSE}
+# filter() - keep rows
+data %>% filter(condition)
+
+# select() - keep columns
+data %>% select(col1, col2)
+
+# mutate() - create columns
+data %>% mutate(new_col = expression)
+
+# arrange() - sort rows
+data %>% arrange(col)
+data %>% arrange(desc(col))
+
+# summarize() - aggregate
+data %>% summarize(stat = function(col))
+
+# Common helpers
+starts_with("prefix")
+ends_with("suffix")
+contains("text")
+where(is.numeric)
+everything()
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+data %>% filter(col == value)      # Use ==
+data %>% select(col1, col2)        # Select then filter if needed
+names(data)                         # Check before selecting
+result <- data %>% ...              # Assign result
+
+# ❌ Avoid
+data %>% filter(col = value)       # Using =
+data %>% select(col) %>%           # Then try to use removed col
+  filter(other_col > 5)
+data %>% filter(...) # no assign    # Result lost
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Basic Pipeline**
+
+Use `mtcars` to:
+1. Filter cars with mpg > 20
+2. Select mpg, cyl, hp, wt
+3. Create hp_per_ton = hp / wt
+4. Arrange by hp_per_ton descending
+5. Show top 5
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Error Fixing**
+
+Fix these errors:
+```{r eval=FALSE}
+# Error 1
+mtcars %>%
+  filter(cyl = 6)
+
+# Error 2
+mtcars %>%
+  select(mpg, cyl) %>%
+  filter(hp > 100)
+
+# Error 3
+mtcars %>%
+  mutate(ratio = mpg_per_cyl / wt) %>%
+  mutate(mpg_per_cyl = mpg / cyl)
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Safe Select**
+
+Write `safe_select(data, ...)` that:
+1. Checks columns exist before selecting
+2. Gives helpful error if not found
+3. Suggests similar names
+4. Works with select helpers
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Summary Report**
+
+Create function `summarize_by_group(data, group_col, value_col)` that:
+1. Groups by specified column
+2. Summarizes mean, median, sd, min, max
+3. Counts observations
+4. Returns sorted by mean descending
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+result <- mtcars %>%
+  filter(mpg > 20) %>%
+  select(mpg, cyl, hp, wt) %>%
+  mutate(hp_per_ton = hp / wt) %>%
+  arrange(desc(hp_per_ton)) %>%
+  slice_head(n = 5)
+
+result
+
+# Alternative: use top_n (deprecated but still works)
+mtcars %>%
+  filter(mpg > 20) %>%
+  select(mpg, cyl, hp, wt) %>%
+  mutate(hp_per_ton = hp / wt) %>%
+  slice_max(hp_per_ton, n = 5)
+```
+
+**Exercise 2:**
+
+```{r}
+# Error 1: Use == not =
+mtcars %>%
+  filter(cyl == 6)
+
+# Error 2: Keep hp column or filter before select
+# Option A: Select hp too
+mtcars %>%
+  select(mpg, cyl, hp) %>%
+  filter(hp > 100)
+
+# Option B: Filter first
+mtcars %>%
+  filter(hp > 100) %>%
+  select(mpg, cyl)
+
+# Error 3: Create mpg_per_cyl before using it
+mtcars %>%
+  mutate(mpg_per_cyl = mpg / cyl) %>%
+  mutate(ratio = mpg_per_cyl / wt)
+
+# Or in one mutate
+mtcars %>%
+  mutate(
+    mpg_per_cyl = mpg / cyl,
+    ratio = mpg_per_cyl / wt
+  )
+```
+
+**Exercise 3:**
+
+```{r}
+safe_select <- function(data, ...) {
+  # Capture expressions
+  cols <- rlang::enquos(...)
+  
+  # Get all column names in data
+  data_cols <- names(data)
+  
+  # Evaluate each selection
+  for (col_expr in cols) {
+    col_name <- rlang::as_name(col_expr)
+    
+    # Skip if it's a helper function call
+    if (grepl("^(starts_with|ends_with|contains|matches|everything|where)", 
+              col_name)) {
+      next
+    }
+    
+    # Check if column exists
+    if (!col_name %in% data_cols) {
+      # Find similar names
+      similar <- agrep(col_name, data_cols, max.distance = 0.3, value = TRUE)
+      
+      error_msg <- paste0("Column '", col_name, "' not found in data.")
+      
+      if (length(similar) > 0) {
+        error_msg <- paste0(error_msg, "\nDid you mean: ",
+                           paste(similar, collapse = ", "), "?")
+      }
+      
+      error_msg <- paste0(error_msg, "\nAvailable columns: ",
+                         paste(data_cols, collapse = ", "))
+      
+      stop(error_msg, call. = FALSE)
+    }
+  }
+  
+  # If all checks pass, do the select
+  select(data, !!!cols)
+}
+
+# Test
+safe_select(mtcars, mpg, cyl, hp)
+```
+
+```{r error=TRUE}
+safe_select(mtcars, mpg, horsepower)  # Helpful error
+```
+
+**Exercise 4:**
+
+```{r}
+summarize_by_group <- function(data, group_col, value_col) {
+  # Use across for flexible column selection
+  data %>%
+    group_by(across({{ group_col }})) %>%
+    summarize(
+      n = n(),
+      mean = mean({{ value_col }}, na.rm = TRUE),
+      median = median({{ value_col }}, na.rm = TRUE),
+      sd = sd({{ value_col }}, na.rm = TRUE),
+      min = min({{ value_col }}, na.rm = TRUE),
+      max = max({{ value_col }}, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    arrange(desc(mean))
+}
+
+# Test
+summarize_by_group(mtcars, cyl, mpg)
+summarize_by_group(mtcars, gear, hp)
+
+# With iris
+summarize_by_group(iris, Species, Sepal.Length)
+```
+</details>

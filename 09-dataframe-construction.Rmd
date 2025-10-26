@@ -1,0 +1,1230 @@
+# Part IV: Data Frames & Matrices {-}
+
+# Data Frame Construction {#dataframe-construction}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- How data frames are constructed
+- Row and column length requirements
+- Type coercion during construction
+- Row names and their pitfalls
+- Converting between structures
+
+**Key Errors Covered:** 15+ construction errors
+
+**Difficulty:** ⭐ Beginner to ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+Data frames are R's workhorse for tabular data. But creating them can be tricky:
+
+```{r error=TRUE}
+# This looks innocent...
+data.frame(x = 1:3, y = 1:5)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in data.frame(x = 1:3, y = 1:5) : 
+  arguments imply differing number of rows: 3, 5
+```
+</div>
+
+Let's master data frame construction and avoid all the common pitfalls.
+
+## Data Frame Basics
+
+<div class="insight-box">
+💡 **Key Insight: What is a Data Frame?**
+
+A data frame is a **list of vectors** with special properties:
+
+```{r}
+# Create a data frame
+df <- data.frame(
+  name = c("Alice", "Bob", "Charlie"),
+  age = c(25, 30, 35),
+  score = c(85, 90, 95)
+)
+
+# It's actually a list!
+typeof(df)
+is.list(df)
+
+# But special
+class(df)
+is.data.frame(df)
+
+# Each column is a vector
+df$name
+df$age
+
+# All columns must have same length
+length(df$name)
+length(df$age)
+```
+
+**Key requirements:**
+1. All columns must be same length (or length 1)
+2. Each column must be a vector (atomic or list)
+3. Row names must be unique
+4. Column names should be unique (R allows duplicates but it's confusing)
+</div>
+
+## Error #1: `arguments imply differing number of rows` {#differing-rows}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+data.frame(
+  x = 1:5,
+  y = 1:3
+)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in data.frame(x = 1:5, y = 1:3) : 
+  arguments imply differing number of rows: 5, 3
+```
+</div>
+
+### What It Means
+
+You're trying to create a data frame with columns of different lengths that aren't compatible.
+
+### The Recycling Rule
+
+Data frames allow recycling, but only in specific cases:
+
+```{r}
+# Length 1 always recycles
+data.frame(
+  x = 1:5,
+  y = 10      # Recycled to 5
+)
+
+# Multiples work
+data.frame(
+  x = 1:6,
+  y = c(1, 2)  # Recycled to 6 (multiple of 2)
+)
+```
+
+```{r error=TRUE}
+# Non-multiples fail
+data.frame(
+  x = 1:5,
+  y = 1:3      # 5 is not a multiple of 3
+)
+```
+
+### Common Causes
+
+#### Cause 1: Filtered Data
+
+```{r error=TRUE}
+# Start with same length
+ids <- 1:10
+values <- rnorm(10)
+
+# Filter one but not the other
+filtered_values <- values[values > 0]  # Might be 6 elements
+
+# Try to combine
+data.frame(id = ids, value = filtered_values)  # Error!
+```
+
+#### Cause 2: Calculation Gone Wrong
+
+```{r error=TRUE}
+# Generate data
+x <- 1:5
+y <- x * 2
+
+# Accidentally modify one
+y <- y[-3]  # Remove one element
+
+# Try to create data frame
+data.frame(x = x, y = y)
+```
+
+#### Cause 3: Reading Different Sources
+
+```{r error=TRUE}
+# Simulating reading from different sources
+col1 <- readLines(textConnection("a\nb\nc\nd\ne"))
+col2 <- readLines(textConnection("1\n2\n3"))  # Shorter!
+
+# Try to combine
+data.frame(col1 = col1, col2 = col2)
+```
+
+#### Cause 4: List Column with Wrong Length
+
+```{r error=TRUE}
+# Regular columns
+df <- data.frame(id = 1:5)
+
+# Try to add list column of wrong length
+df$nested <- list(a = 1:3, b = 4:6)  # Length 2, not 5!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Match Lengths Before Creating**
+
+```{r}
+ids <- 1:10
+values <- rnorm(10)
+filtered_values <- values[values > 0]
+
+# Option A: Filter both the same way
+keep <- values > 0
+data.frame(
+  id = ids[keep],
+  value = filtered_values
+)
+
+# Option B: Extend shorter with NA
+max_len <- max(length(ids), length(filtered_values))
+ids_ext <- c(ids, rep(NA, max_len - length(ids)))
+val_ext <- c(filtered_values, rep(NA, max_len - length(filtered_values)))
+data.frame(id = ids_ext, value = val_ext)
+
+# Option C: Trim longer to match
+min_len <- min(length(ids), length(filtered_values))
+data.frame(
+  id = ids[1:min_len],
+  value = filtered_values[1:min_len]
+)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check Lengths First**
+
+```{r}
+safe_data_frame <- function(...) {
+  # Get all arguments
+  args <- list(...)
+  
+  # Get lengths
+  lens <- sapply(args, length)
+  
+  # Check compatibility
+  max_len <- max(lens)
+  valid <- lens == 1 | lens == max_len | max_len %% lens == 0
+  
+  if (!all(valid)) {
+    invalid_lens <- unique(lens[!valid])
+    stop("Incompatible lengths: ", paste(lens, collapse = ", "))
+  }
+  
+  # Create data frame
+  data.frame(..., stringsAsFactors = FALSE)
+}
+
+# Test
+safe_data_frame(x = 1:5, y = 10)      # Works
+safe_data_frame(x = 1:6, y = c(1,2))  # Works
+```
+
+```{r error=TRUE}
+safe_data_frame(x = 1:5, y = 1:3)     # Clear error
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use tidyverse for Better Errors**
+
+```{r}
+library(tibble)
+
+# tibble is stricter - no recycling except length 1
+tibble(
+  x = 1:5,
+  y = 10      # Length 1 OK
+)
+```
+
+```{r error=TRUE}
+# Doesn't allow multiple recycling
+tibble(
+  x = 1:6,
+  y = c(1, 2)  # Error! Clearer message
+)
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Silent Recycling**
+
+```{r}
+# This works but may not be intended!
+df <- data.frame(
+  group = 1:12,
+  label = c("A", "B", "C")  # Recycled 4 times
+)
+df
+
+# Was this intended? Hard to tell!
+# Explicit is better:
+df <- data.frame(
+  group = 1:12,
+  label = rep(c("A", "B", "C"), times = 4)
+)
+```
+</div>
+
+## Error #2: `row names supplied are of wrong length` {#rownames-wrong-length}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+data.frame(
+  x = 1:5,
+  y = 6:10,
+  row.names = c("a", "b", "c")  # Only 3 names for 5 rows!
+)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in data.frame(x = 1:5, y = 6:10, row.names = c("a", "b", "c")) : 
+  row names supplied are of wrong length
+```
+</div>
+
+### What It Means
+
+Row names must be exactly one per row. No more, no less.
+
+### Row Names Basics
+
+```{r}
+# Row names are optional
+df <- data.frame(x = 1:3, y = 4:6)
+rownames(df)  # Default: "1", "2", "3"
+
+# Can set custom row names
+df <- data.frame(
+  x = 1:3,
+  y = 4:6,
+  row.names = c("first", "second", "third")
+)
+rownames(df)
+
+# Or set after creation
+df <- data.frame(x = 1:3, y = 4:6)
+rownames(df) <- c("a", "b", "c")
+rownames(df)
+```
+
+### Common Causes
+
+#### Cause 1: Wrong Count
+
+```{r error=TRUE}
+df <- data.frame(x = 1:10, y = 11:20)
+
+# Too few row names
+rownames(df) <- c("a", "b", "c")
+```
+
+#### Cause 2: After Subsetting
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5, y = 6:10)
+original_names <- c("a", "b", "c", "d", "e")
+rownames(df) <- original_names
+
+# Subset data frame
+df_subset <- df[1:3, ]
+rownames(df_subset)  # Kept original names (good)
+
+# But if you try to reuse original names on subset:
+rownames(df_subset) <- original_names  # Error! 5 names for 3 rows
+```
+
+#### Cause 3: From External Source
+
+```{r error=TRUE}
+data_values <- data.frame(x = 1:5, y = 6:10)
+labels <- c("a", "b", "c")  # From somewhere else, wrong length
+
+rownames(data_values) <- labels
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Match Length**
+
+```{r}
+df <- data.frame(x = 1:5, y = 6:10)
+names_available <- c("a", "b", "c")
+
+# Option A: Extend with numbers
+all_names <- c(names_available, 
+               paste0("row", (length(names_available)+1):nrow(df)))
+rownames(df) <- all_names
+
+# Option B: Use only available, add column instead
+df$label <- c(names_available, rep(NA, nrow(df) - length(names_available)))
+df
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check Before Assigning**
+
+```{r}
+safe_set_rownames <- function(df, names) {
+  if (length(names) != nrow(df)) {
+    warning("Row names length (", length(names), 
+            ") doesn't match rows (", nrow(df), ")")
+    return(df)
+  }
+  
+  rownames(df) <- names
+  return(df)
+}
+
+# Test
+df <- data.frame(x = 1:5, y = 6:10)
+df <- safe_set_rownames(df, c("a", "b", "c"))  # Warning, unchanged
+df <- safe_set_rownames(df, letters[1:5])      # Works
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use Column Instead**
+
+```{r}
+# Modern best practice: avoid row names
+df <- data.frame(
+  id = c("a", "b", "c", "d", "e"),
+  x = 1:5,
+  y = 6:10
+)
+
+# Use first column as identifier
+df
+
+# Can still use for indexing
+df[df$id == "c", ]
+```
+</div>
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Avoid Row Names**
+
+Row names are a legacy feature. Modern R style:
+
+```{r}
+# Old style (avoid)
+df <- data.frame(x = 1:3, y = 4:6, row.names = c("a", "b", "c"))
+
+# New style (prefer)
+df <- data.frame(
+  id = c("a", "b", "c"),
+  x = 1:3,
+  y = 4:6
+)
+
+# Tibbles don't even support row names!
+library(tibble)
+tibble(id = c("a", "b", "c"), x = 1:3, y = 4:6)
+```
+
+**Why?**
+- Row names are easily lost in operations
+- Harder to work with programmatically
+- Not supported by modern tidyverse
+- Column is more explicit and flexible
+</div>
+
+## Error #3: `duplicate row.names are not allowed` {#duplicate-rownames}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-syntax">🔤 SYNTAX</span>
+
+### The Error
+
+```{r error=TRUE}
+data.frame(
+  x = 1:3,
+  y = 4:6,
+  row.names = c("a", "b", "a")  # Duplicate!
+)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in data.frame(x = 1:3, y = 4:6, row.names = c("a", "b", "a")) : 
+  duplicate row.names: a
+```
+</div>
+
+### What It Means
+
+Row names must be unique identifiers. Duplicates aren't allowed.
+
+### Common Causes
+
+#### Cause 1: Non-Unique IDs
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5, y = 6:10)
+ids <- c("sample1", "sample2", "sample2", "sample3", "sample4")
+
+rownames(df) <- ids  # Error!
+```
+
+#### Cause 2: After Combining Data Frames
+
+```{r error=TRUE}
+df1 <- data.frame(x = 1:3, row.names = c("a", "b", "c"))
+df2 <- data.frame(x = 4:6, row.names = c("c", "d", "e"))  # "c" repeats!
+
+# rbind checks for this
+rbind(df1, df2)  # Error!
+```
+
+#### Cause 3: Default Row Names from Subsetting
+
+```{r error=TRUE}
+df <- data.frame(x = 1:10, row.names = letters[1:10])
+
+# Take rows
+df1 <- df[1:3, ]
+df2 <- df[2:4, ]  # Overlaps with df1
+
+# Try to combine
+rbind(df1, df2)  # Error! "b" and "c" appear twice
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Make Unique**
+
+```{r}
+df <- data.frame(x = 1:5, y = 6:10)
+ids <- c("sample1", "sample2", "sample2", "sample3", "sample4")
+
+# Make unique automatically
+unique_ids <- make.unique(ids, sep = "_")
+unique_ids
+
+rownames(df) <- unique_ids
+df
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Reset Row Names When Combining**
+
+```{r}
+df1 <- data.frame(x = 1:3, row.names = c("a", "b", "c"))
+df2 <- data.frame(x = 4:6, row.names = c("c", "d", "e"))
+
+# Remove row names before combining
+rownames(df1) <- NULL
+rownames(df2) <- NULL
+rbind(df1, df2)
+
+# Or use row.names = FALSE
+df_combined <- rbind(df1, df2)  # Still errors
+
+# Better: let R assign new row names
+df1_clean <- df1
+df2_clean <- df2
+rownames(df1_clean) <- NULL
+rownames(df2_clean) <- NULL
+rbind(df1_clean, df2_clean)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Check for Duplicates First**
+
+```{r}
+safe_set_rownames_unique <- function(df, names) {
+  if (anyDuplicated(names)) {
+    dupes <- names[duplicated(names)]
+    warning("Duplicate row names found: ", 
+            paste(unique(dupes), collapse = ", "))
+    names <- make.unique(names, sep = "_")
+  }
+  
+  rownames(df) <- names
+  return(df)
+}
+
+# Test
+df <- data.frame(x = 1:5)
+df <- safe_set_rownames_unique(df, c("a", "b", "a", "c", "d"))
+rownames(df)
+```
+</div>
+
+## Error #4: `invalid type (list) for variable` {#invalid-type-list}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+# Trying to create column from nested list
+data.frame(
+  id = 1:3,
+  values = list(1:3, 4:6, 7:9)  # List column - old data.frame rejects
+)
+```
+
+<div class="error-box">
+🔴 **ERROR** (in older R versions or strict mode)
+
+```
+Error in data.frame(...) : invalid type (list) for variable 'values'
+```
+</div>
+
+### What It Means
+
+Traditional `data.frame()` doesn't easily support list columns. Each column should be an atomic vector.
+
+### Modern Solution: List Columns
+
+```{r}
+# Modern R allows this with I()
+df <- data.frame(
+  id = 1:3,
+  values = I(list(1:3, 4:6, 7:9))
+)
+df
+
+# Access list column
+df$values[[1]]
+
+# Tibbles make it easier
+library(tibble)
+tibble(
+  id = 1:3,
+  values = list(1:3, 4:6, 7:9)
+)
+```
+
+### Common Causes
+
+#### Cause 1: Nested Data
+
+```{r error=TRUE}
+# Have nested data
+nested <- list(
+  list(x = 1, y = 2),
+  list(x = 3, y = 4),
+  list(x = 5, y = 6)
+)
+
+# Try to put in data frame
+data.frame(
+  id = 1:3,
+  data = nested  # Old error
+)
+```
+
+#### Cause 2: Split/Group Result
+
+```{r error=TRUE}
+# Split creates list
+values <- 1:12
+groups <- rep(1:3, each = 4)
+split_data <- split(values, groups)
+
+# Try to put in data frame directly
+data.frame(
+  group = 1:3,
+  values = split_data  # May error
+)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use I() to Protect List**
+
+```{r}
+# Wrap in I() to inhibit conversion
+df <- data.frame(
+  id = 1:3,
+  values = I(list(1:3, 4:6, 7:9))
+)
+
+# Or use list column explicitly
+df <- data.frame(id = 1:3)
+df$values <- list(1:3, 4:6, 7:9)
+df
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Tibble (Easier)**
+
+```{r}
+library(tibble)
+
+# Tibbles naturally support list columns
+tib <- tibble(
+  id = 1:3,
+  values = list(1:3, 4:6, 7:9),
+  nested = list(
+    list(a = 1, b = 2),
+    list(a = 3, b = 4),
+    list(a = 5, b = 6)
+  )
+)
+tib
+
+# Clean syntax
+tib$values
+tib$nested[[1]]
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Unnest if Possible**
+
+```{r}
+# If you don't need list column, unnest
+library(tidyr)
+
+# Start with list column
+df <- tibble(
+  id = 1:3,
+  values = list(1:3, 4:6, 7:9)
+)
+
+# Unnest to regular columns
+unnest(df, values)
+```
+</div>
+
+## Error #5: `cannot coerce class X to a data.frame` {#cannot-coerce-df-dataframe}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+# Try to convert function to data frame
+my_func <- function(x) x + 1
+as.data.frame(my_func)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in as.data.frame.default(my_func) : 
+  cannot coerce class '"function"' to a data.frame
+```
+</div>
+
+### What It Means
+
+You're trying to convert something to a data frame that can't be converted.
+
+### Common Causes
+
+#### Cause 1: Wrong Object Type
+
+```{r error=TRUE}
+# Can't convert these:
+as.data.frame(mean)           # Function
+as.data.frame(environment())  # Environment
+```
+
+#### Cause 2: Incompatible Structure
+
+```{r error=TRUE}
+# Uneven list
+irregular <- list(
+  a = 1:3,
+  b = 1:5,  # Different length!
+  c = 1:2
+)
+
+as.data.frame(irregular)
+```
+
+#### Cause 3: After Failed Operation
+
+```{r error=TRUE}
+# Operation returns something unexpected
+result <- try(stop("Error"), silent = TRUE)
+class(result)  # "try-error"
+
+as.data.frame(result)  # Can't convert error object
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Type First**
+
+```{r}
+safe_as_dataframe <- function(x) {
+  # Check if already data frame
+  if (is.data.frame(x)) {
+    return(x)
+  }
+  
+  # Check if matrix
+  if (is.matrix(x)) {
+    return(as.data.frame(x))
+  }
+  
+  # Check if list with equal lengths
+  if (is.list(x)) {
+    lens <- lengths(x)
+    if (length(unique(lens)) == 1 || all(lens == 1 | lens == max(lens))) {
+      return(as.data.frame(x, stringsAsFactors = FALSE))
+    } else {
+      stop("List has incompatible lengths: ", paste(lens, collapse = ", "))
+    }
+  }
+  
+  # Check if vector
+  if (is.atomic(x)) {
+    return(data.frame(value = x, stringsAsFactors = FALSE))
+  }
+  
+  stop("Cannot convert ", class(x)[1], " to data frame")
+}
+
+# Test
+safe_as_dataframe(1:5)
+safe_as_dataframe(matrix(1:6, 2, 3))
+safe_as_dataframe(list(a = 1:3, b = 4:6))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Fix Structure First**
+
+```{r}
+# Uneven list
+irregular <- list(
+  a = 1:3,
+  b = 1:5,
+  c = 1:2
+)
+
+# Option A: Pad with NA
+max_len <- max(lengths(irregular))
+regular <- lapply(irregular, function(x) {
+  c(x, rep(NA, max_len - length(x)))
+})
+as.data.frame(regular)
+
+# Option B: Trim to shortest
+min_len <- min(lengths(irregular))
+regular <- lapply(irregular, function(x) x[1:min_len])
+as.data.frame(regular)
+```
+</div>
+
+## Stringsasfactors Historical Issue
+
+<div class="pitfall-box">
+⚠️ **Historical Pitfall: stringsAsFactors**
+
+In R < 4.0.0, `stringsAsFactors = TRUE` was default:
+
+```{r}
+# R < 4.0.0 behavior
+df_old <- data.frame(
+  name = c("Alice", "Bob"),
+  age = c(25, 30),
+  stringsAsFactors = TRUE  # Was default
+)
+class(df_old$name)  # "factor" (was default)
+
+# R >= 4.0.0 behavior
+df_new <- data.frame(
+  name = c("Alice", "Bob"),
+  age = c(25, 30)
+  # stringsAsFactors = FALSE is now default
+)
+class(df_new$name)  # "character"
+```
+
+**Best Practice:** Always specify explicitly:
+
+```{r eval=FALSE}
+# For compatibility across R versions
+data.frame(..., stringsAsFactors = FALSE)
+
+# Or use tibble (never converts to factor)
+tibble(...)
+```
+</div>
+
+## Creating Data Frames: All Methods
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Data Frame Creation Methods**
+
+```{r}
+# Method 1: data.frame() - base R
+df1 <- data.frame(
+  x = 1:3,
+  y = 4:6,
+  stringsAsFactors = FALSE
+)
+
+# Method 2: tibble() - modern tidyverse
+library(tibble)
+df2 <- tibble(
+  x = 1:3,
+  y = 4:6
+)
+
+# Method 3: From matrix
+mat <- matrix(1:6, nrow = 2, ncol = 3)
+df3 <- as.data.frame(mat)
+
+# Method 4: From list
+lst <- list(x = 1:3, y = 4:6)
+df4 <- as.data.frame(lst)
+
+# Method 5: From vectors
+x <- 1:3
+y <- 4:6
+df5 <- data.frame(x, y)
+
+# Method 6: Reading data
+df6 <- read.csv("file.csv")  # Base R
+# df7 <- read_csv("file.csv")  # readr (tibble)
+
+# Method 7: tribble() - row-wise
+library(tibble)
+df8 <- tribble(
+  ~x, ~y,
+   1,  4,
+   2,  5,
+   3,  6
+)
+```
+
+**When to use each:**
+- `data.frame()`: Base R compatibility needed
+- `tibble()`: Modern code, better defaults
+- `as.data.frame()`: Converting from other structures
+- `tribble()`: Small data, readable layout
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **All columns must be same length** (or length 1 for recycling)
+2. **Row names must be unique** (if used at all)
+3. **Avoid row names** in modern code - use column instead
+4. **List columns need I()** in data.frame(), or use tibble
+5. **stringsAsFactors = FALSE** for compatibility
+6. **Check lengths before construction**
+7. **tibble is stricter** and usually better
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| differing number of rows | Unequal lengths | Match lengths or use length 1 |
+| row names wrong length | Row names ≠ nrows | Provide correct number |
+| duplicate row.names | Non-unique names | Use make.unique() or remove |
+| invalid type (list) | List column in old data.frame | Use I() or tibble |
+| cannot coerce to data.frame | Wrong structure | Check type and fix structure |
+
+**Construction Checklist:**
+
+```{r eval=FALSE}
+# Before creating data frame:
+lengths(list_of_vectors)     # Check all lengths
+anyDuplicated(row_names)     # Check for duplicates
+class(each_column)           # Verify types
+
+# Safe construction:
+tibble(...)                  # Stricter checking
+data.frame(..., stringsAsFactors = FALSE)  # Explicit
+
+# After construction:
+str(df)                      # Verify structure
+anyDuplicated(rownames(df))  # Check row names
+```
+
+**Modern Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+tibble(x = 1:5, y = 10)                    # Stricter
+data.frame(x = 1:5, stringsAsFactors = FALSE)  # Explicit
+
+# ❌ Avoid
+data.frame(x = 1:5)                        # stringsAsFactors unclear
+df <- data.frame(x = 1:5, row.names = names)  # Row names fragile
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Diagnose the Error**
+
+What's wrong and how do you fix it?
+
+```{r eval=FALSE}
+# Scenario 1
+df <- data.frame(
+  id = 1:10,
+  group = c("A", "B", "C")
+)
+
+# Scenario 2
+df <- data.frame(
+  x = 1:5,
+  y = 6:10,
+  row.names = c("a", "b", "c", "a", "e")
+)
+
+# Scenario 3
+df1 <- data.frame(x = 1:3, row.names = c("a", "b", "c"))
+df2 <- data.frame(x = 4:6, row.names = c("b", "c", "d"))
+combined <- rbind(df1, df2)
+
+# Scenario 4
+data.frame(
+  id = 1:3,
+  data = list(
+    c(1, 2, 3),
+    c(4, 5),
+    c(6, 7, 8, 9)
+  )
+)
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Safe Constructor**
+
+Write `safe_df(...)` that:
+1. Checks all vectors are same length or length 1
+2. Warns about recycling
+3. Checks for duplicate names
+4. Returns tibble or data.frame
+5. Handles list columns properly
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Fix Irregular Data**
+
+You have:
+```{r eval=FALSE}
+data <- list(
+  id = 1:5,
+  name = c("Alice", "Bob", "Charlie"),
+  score = c(85, 90, 95, 88)
+)
+```
+
+Create a data frame handling the unequal lengths gracefully.
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Combine with Row Names**
+
+You have multiple data frames with overlapping row names:
+```{r eval=FALSE}
+df1 <- data.frame(x = 1:3, row.names = c("a", "b", "c"))
+df2 <- data.frame(y = 4:6, row.names = c("b", "c", "d"))
+df3 <- data.frame(z = 7:9, row.names = c("c", "d", "e"))
+```
+
+Combine them into one data frame keeping all data.
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+# Scenario 1 - Length mismatch (10 vs 3)
+# Fix: Recycle explicitly or trim
+df <- data.frame(
+  id = 1:10,
+  group = rep(c("A", "B", "C"), length.out = 10)
+)
+
+# Scenario 2 - Duplicate row name "a"
+df <- data.frame(
+  x = 1:5,
+  y = 6:10,
+  row.names = make.unique(c("a", "b", "c", "a", "e"))
+)
+
+# Scenario 3 - Overlapping row names
+df1 <- data.frame(x = 1:3, row.names = c("a", "b", "c"))
+df2 <- data.frame(x = 4:6, row.names = c("b", "c", "d"))
+# Option A: Remove row names
+combined <- rbind(
+  data.frame(x = df1$x),
+  data.frame(x = df2$x)
+)
+# Option B: Keep as column
+combined <- rbind(
+  data.frame(id = rownames(df1), x = df1$x),
+  data.frame(id = rownames(df2), x = df2$x)
+)
+
+# Scenario 4 - List column (different lengths within)
+# Use tibble or I()
+library(tibble)
+df <- tibble(
+  id = 1:3,
+  data = list(
+    c(1, 2, 3),
+    c(4, 5),
+    c(6, 7, 8, 9)
+  )
+)
+# Or with data.frame:
+df <- data.frame(id = 1:3)
+df$data <- list(c(1,2,3), c(4,5), c(6,7,8,9))
+```
+
+**Exercise 2:**
+
+```{r}
+safe_df <- function(..., use_tibble = TRUE) {
+  args <- list(...)
+  
+  # Get lengths
+  lens <- sapply(args, length)
+  
+  # Check for issues
+  max_len <- max(lens)
+  
+  # Check compatibility
+  recyclable <- lens == 1 | lens == max_len
+  
+  if (!all(recyclable)) {
+    # Check if multiples
+    multiples <- max_len %% lens == 0
+    if (!all(recyclable | multiples)) {
+      stop("Incompatible lengths: ", paste(lens, collapse = ", "),
+           "\nMax length: ", max_len)
+    }
+    warning("Recycling vectors of length ", 
+            paste(unique(lens[!recyclable]), collapse = ", "),
+            " to length ", max_len)
+  }
+  
+  # Check names
+  arg_names <- names(args)
+  if (!is.null(arg_names) && anyDuplicated(arg_names)) {
+    warning("Duplicate column names: ",
+            paste(arg_names[duplicated(arg_names)], collapse = ", "))
+  }
+  
+  # Create data frame
+  if (use_tibble) {
+    library(tibble)
+    result <- tibble(...)
+  } else {
+    result <- data.frame(..., stringsAsFactors = FALSE)
+  }
+  
+  return(result)
+}
+
+# Test
+safe_df(x = 1:5, y = 10)
+safe_df(x = 1:6, y = c(1, 2))  # Warning about recycling
+```
+
+**Exercise 3:**
+
+```{r}
+data <- list(
+  id = 1:5,
+  name = c("Alice", "Bob", "Charlie"),
+  score = c(85, 90, 95, 88)
+)
+
+# Option A: Extend shorter with NA
+max_len <- max(lengths(data))
+data_fixed <- lapply(data, function(x) {
+  c(x, rep(NA, max_len - length(x)))
+})
+df <- as.data.frame(data_fixed, stringsAsFactors = FALSE)
+df
+
+# Option B: Trim all to shortest
+min_len <- min(lengths(data))
+data_fixed <- lapply(data, function(x) x[1:min_len])
+df <- as.data.frame(data_fixed, stringsAsFactors = FALSE)
+df
+
+# Option C: Use only complete cases
+# (more complex - requires pairing)
+```
+
+**Exercise 4:**
+
+```{r}
+library(tibble)
+
+df1 <- data.frame(x = 1:3, row.names = c("a", "b", "c"))
+df2 <- data.frame(y = 4:6, row.names = c("b", "c", "d"))
+df3 <- data.frame(z = 7:9, row.names = c("c", "d", "e"))
+
+# Convert row names to column
+df1_with_id <- tibble(id = rownames(df1), x = df1$x)
+df2_with_id <- tibble(id = rownames(df2), y = df2$y)
+df3_with_id <- tibble(id = rownames(df3), z = df3$z)
+
+# Full join to keep all
+library(dplyr)
+result <- df1_with_id %>%
+  full_join(df2_with_id, by = "id") %>%
+  full_join(df3_with_id, by = "id")
+
+result
+
+# Alternative: using merge
+result <- merge(df1_with_id, df2_with_id, by = "id", all = TRUE)
+result <- merge(result, df3_with_id, by = "id", all = TRUE)
+result
+```
+</details>

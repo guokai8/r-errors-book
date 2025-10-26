@@ -1,0 +1,378 @@
+# Function Factories & Operators {#function-factories}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Function factories
+- Function operators
+- Closures
+- Practical applications
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Function Factories
+
+Functions that create functions:
+
+```{r}
+# Factory: returns a function
+power_factory <- function(exp) {
+  function(x) {
+    x ^ exp
+  }
+}
+
+# Create specific functions
+square <- power_factory(2)
+cube <- power_factory(3)
+
+square(4)  # 16
+cube(4)   # 64
+
+# The exponent is "captured" in the closure
+```
+
+## Practical Example
+
+<div class="insight-box">
+💡 **Key Insight: Custom Validators**
+
+```{r}
+# Create validators
+in_range <- function(min, max) {
+  function(x) {
+    x >= min & x <= max
+  }
+}
+
+is_percentage <- in_range(0, 100)
+is_probability <- in_range(0, 1)
+
+is_percentage(50)   # TRUE
+is_percentage(150)  # FALSE
+
+is_probability(0.5)  # TRUE
+is_probability(1.5)  # FALSE
+```
+</div>
+
+## Function Operators
+
+Functions that take functions and return modified functions:
+
+```{r}
+# Add logging to any function
+add_logging <- function(f) {
+  function(...) {
+    cat("Calling function\n")
+    result <- f(...)
+    cat("Function returned:", result, "\n")
+    result
+  }
+}
+
+# Wrap existing function
+logged_sqrt <- add_logging(sqrt)
+logged_sqrt(4)
+
+# Add error handling
+safe_function <- function(f, default = NULL) {
+  function(...) {
+    tryCatch(
+      f(...),
+      error = function(e) {
+        message("Error occurred: ", e$message)
+        default
+      }
+    )
+  }
+}
+
+safe_log <- safe_function(log, default = NA)
+safe_log(10)
+safe_log(-1)  # Returns NA instead of error
+```
+
+## Memoization
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Cache Results**
+
+```{r}
+# Memoize slow functions
+memoize <- function(f) {
+  cache <- new.env(parent = emptyenv())
+  
+  function(...) {
+    key <- paste(..., sep = "_")
+    
+    if (!exists(key, envir = cache)) {
+      cache[[key]] <- f(...)
+    }
+    
+    cache[[key]]
+  }
+}
+
+# Slow function
+fibonacci <- function(n) {
+  if (n <= 1) return(n)
+  fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+# Fast version with memoization
+fibonacci_memo <- memoize(fibonacci)
+
+system.time(fibonacci(30))
+system.time(fibonacci_memo(30))  # Much faster on repeat
+```
+</div>
+
+## Real-World Applications
+
+```{r}
+# 1. Create family of similar functions
+make_adder <- function(n) {
+  function(x) x + n
+}
+
+add_10 <- make_adder(10)
+add_100 <- make_adder(100)
+
+add_10(5)
+add_100(5)
+
+# 2. Configure behavior
+make_filter <- function(pattern) {
+  function(x) {
+    grep(pattern, x, value = TRUE)
+  }
+}
+
+filter_r <- make_filter("^r")
+filter_r(c("apple", "rose", "banana", "ruby"))
+
+# 3. Delayed computation
+make_lazy <- function(expr) {
+  computed <- FALSE
+  value <- NULL
+  
+  function() {
+    if (!computed) {
+      value <<- expr
+      computed <<- TRUE
+    }
+    value
+  }
+}
+
+# Computation only happens when called
+get_data <- make_lazy({
+  cat("Computing...\n")
+  rnorm(1000)
+})
+
+# First call computes
+data <- get_data()
+
+# Subsequent calls use cached value
+data2 <- get_data()  # No "Computing..." message
+```
+
+## Common Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Common Factory Patterns**
+
+```{r}
+# 1. Partial application
+partial <- function(f, ...) {
+  args <- list(...)
+  function(...) {
+    do.call(f, c(args, list(...)))
+  }
+}
+
+# Create specialized version
+divide_by_10 <- partial(`/`, e2 = 10)
+divide_by_10(100)
+
+# 2. Compose functions
+compose <- function(f, g) {
+  function(...) {
+    f(g(...))
+  }
+}
+
+# sqrt(abs(x))
+sqrt_abs <- compose(sqrt, abs)
+sqrt_abs(-16)
+
+# 3. Negate predicate
+negate <- function(f) {
+  function(...) {
+    !f(...)
+  }
+}
+
+is_not_na <- negate(is.na)
+is_not_na(c(1, NA, 3))
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Function factories** - Functions that create functions
+2. **Closures** - Capture environment
+3. **Function operators** - Modify function behavior
+4. **Practical uses** - Validation, logging, memoization
+5. **Composition** - Build complex from simple
+
+**Quick Reference:**
+
+```{r eval=FALSE}
+# Factory
+make_power <- function(n) {
+  function(x) x^n
+}
+
+# Operator
+add_logging <- function(f) {
+  function(...) {
+    cat("Calling\n")
+    f(...)
+  }
+}
+
+# Composition
+compose <- function(f, g) {
+  function(...) f(g(...))
+}
+
+# Partial application
+partial <- function(f, ...) {
+  args <- list(...)
+  function(...) do.call(f, c(args, list(...)))
+}
+
+# Memoization
+memoize <- function(f) {
+  cache <- new.env()
+  function(...) {
+    key <- paste(...)
+    if (!exists(key, cache)) cache[[key]] <- f(...)
+    cache[[key]]
+  }
+}
+```
+
+**Common Applications:**
+
+```{r eval=FALSE}
+# ✅ Good uses
+Validators (in_range, matches_pattern)
+Adders (add_10, multiply_by)
+Loggers (add_logging)
+Error handlers (make_safe)
+Memoizers (cache results)
+
+# ❌ Avoid
+Over-complicating simple code
+When direct function is clearer
+Excessive abstraction
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Temperature Converter Factory**
+
+Create a factory that makes temperature converters:
+- `to_fahrenheit()` - Celsius to Fahrenheit
+- `to_celsius()` - Fahrenheit to Celsius
+- `to_kelvin()` - Celsius to Kelvin
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Timing Function Operator**
+
+Create a function operator that times how long a function takes:
+- Prints execution time
+- Returns the result
+- Works with any function
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+# Temperature converter factory
+make_temp_converter <- function(formula) {
+  function(temp) {
+    formula(temp)
+  }
+}
+
+# Create converters
+to_fahrenheit <- make_temp_converter(function(c) c * 9/5 + 32)
+to_celsius <- make_temp_converter(function(f) (f - 32) * 5/9)
+to_kelvin <- make_temp_converter(function(c) c + 273.15)
+
+# Test
+to_fahrenheit(0)   # 32
+to_celsius(32)     # 0
+to_kelvin(0)       # 273.15
+```
+
+**Exercise 2:**
+
+```{r}
+# Timing operator
+add_timing <- function(f) {
+  function(...) {
+    start <- Sys.time()
+    result <- f(...)
+    end <- Sys.time()
+    
+    cat("Execution time:", 
+        format(difftime(end, start, units = "secs")), "\n")
+    
+    result
+  }
+}
+
+# Test
+slow_sum <- function(n) {
+  total <- 0
+  for (i in 1:n) total <- total + i
+  total
+}
+
+timed_sum <- add_timing(slow_sum)
+timed_sum(1000000)
+```
+</details>
+
+## Completion
+
+<div class="chapter-summary">
+**Part XVII Complete!**
+
+You've mastered advanced R programming:
+- S3 object system
+- R6 and S4
+- Non-standard evaluation
+- Rcpp integration
+- Function factories
+
+**Ready for:** Production R development!
+</div>

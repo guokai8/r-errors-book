@@ -1,0 +1,889 @@
+# Part X: Statistical Operations {-}
+
+# Statistical Tests {#statistical-tests}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- t-tests (one-sample, two-sample, paired)
+- Common statistical test errors
+- Assumptions and violations
+- Interpreting results
+- Effect sizes
+
+**Key Errors Covered:** 22+ statistical errors
+
+**Difficulty:** ⭐⭐ Intermediate to ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+R excels at statistical testing, but errors are common:
+
+```{r message=FALSE}
+# Simple t-test
+t.test(mtcars$mpg[mtcars$am == 0], 
+       mtcars$mpg[mtcars$am == 1])
+```
+
+Let's master statistical testing errors!
+
+## t-tests
+
+<div class="insight-box">
+💡 **Key Insight: Types of t-tests**
+
+```{r}
+# One-sample t-test (compare to population mean)
+t.test(mtcars$mpg, mu = 20)
+
+# Two-sample t-test (independent groups)
+t.test(mpg ~ am, data = mtcars)
+
+# Paired t-test (same subjects, two conditions)
+before <- c(120, 135, 140, 125, 130)
+after <- c(115, 130, 135, 120, 128)
+t.test(before, after, paired = TRUE)
+
+# One-sided test
+t.test(mpg ~ am, data = mtcars, alternative = "greater")
+
+# Unequal variances (Welch's t-test, default)
+t.test(mpg ~ am, data = mtcars, var.equal = FALSE)
+
+# Equal variances (Student's t-test)
+t.test(mpg ~ am, data = mtcars, var.equal = TRUE)
+```
+</div>
+
+## Error #1: `not enough 'x' observations` {#not-enough-obs}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-data">📊 DATA</span>
+
+### The Error
+
+```{r error=TRUE}
+# Only one observation
+t.test(c(5))
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in t.test.default(c(5)) : not enough 'x' observations
+```
+</div>
+
+### What It Means
+
+Need at least 2 observations for t-test.
+
+### Common Causes
+
+```{r error=TRUE}
+# Empty vector after filtering
+data <- mtcars$mpg[mtcars$cyl == 99]  # No cars with 99 cylinders
+t.test(data)
+
+# Single group
+t.test(mtcars$mpg[mtcars$am == 0], mtcars$mpg[mtcars$am == 99])
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Data First**
+
+```{r}
+# Check sample sizes
+automatic <- mtcars$mpg[mtcars$am == 0]
+manual <- mtcars$mpg[mtcars$am == 1]
+
+cat("Automatic:", length(automatic), "observations\n")
+cat("Manual:", length(manual), "observations\n")
+
+if (length(automatic) >= 2 && length(manual) >= 2) {
+  t.test(automatic, manual)
+} else {
+  warning("Insufficient data for t-test")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Safe t-test Function**
+
+```{r}
+safe_t_test <- function(x, y = NULL, ...) {
+  if (is.null(y)) {
+    if (length(x) < 2) {
+      stop("x must have at least 2 observations")
+    }
+  } else {
+    if (length(x) < 2) {
+      stop("x must have at least 2 observations")
+    }
+    if (length(y) < 2) {
+      stop("y must have at least 2 observations")
+    }
+  }
+  
+  t.test(x, y, ...)
+}
+
+# Test
+safe_t_test(mtcars$mpg[mtcars$am == 0], 
+            mtcars$mpg[mtcars$am == 1])
+```
+</div>
+
+## Error #2: `data are essentially constant` {#constant-data}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-data">📊 DATA</span>
+
+### The Error
+
+```{r error=TRUE}
+# All values the same
+t.test(c(5, 5, 5, 5, 5))
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in t.test.default(c(5, 5, 5, 5, 5)) : 
+  data are essentially constant
+```
+</div>
+
+### What It Means
+
+No variation in data - standard deviation is zero or near-zero.
+
+### Common Causes
+
+```{r error=TRUE}
+# Rounded data with no variation
+t.test(c(10, 10, 10, 10, 10))
+
+# Binary data coded as 0/1 with all same
+t.test(c(1, 1, 1, 1))
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check for Variation**
+
+```{r}
+check_variation <- function(x) {
+  if (sd(x) == 0 || length(unique(x)) == 1) {
+    warning("No variation in data - t-test not appropriate")
+    return(FALSE)
+  }
+  TRUE
+}
+
+# Check before test
+data <- c(10, 10, 10, 10)
+if (check_variation(data)) {
+  t.test(data)
+} else {
+  cat("Data has no variation\n")
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Appropriate Test**
+
+```{r}
+# For proportions, use prop.test
+successes <- c(1, 1, 1, 1)  # All successes
+prop.test(sum(successes), length(successes))
+
+# Or check if variation exists
+data <- mtcars$mpg
+if (sd(data) > 0) {
+  t.test(data, mu = 20)
+} else {
+  cat("Data is constant, mean =", mean(data), "\n")
+}
+```
+</div>
+
+## Formula Interface
+
+<div class="insight-box">
+💡 **Key Insight: Formula vs Vector Interface**
+
+```{r}
+# Vector interface
+group1 <- mtcars$mpg[mtcars$am == 0]
+group2 <- mtcars$mpg[mtcars$am == 1]
+t.test(group1, group2)
+
+# Formula interface (preferred)
+t.test(mpg ~ am, data = mtcars)
+
+# Formula with subset
+t.test(mpg ~ am, data = mtcars, subset = cyl == 4)
+
+# Advantages of formula:
+# - Cleaner code
+# - Automatic labeling
+# - Works with model functions
+# - Subset argument
+```
+</div>
+
+## Error #3: `grouping factor must have 2 levels` {#two-levels}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-data">📊 DATA</span>
+
+### The Error
+
+```{r error=TRUE}
+# Three levels in grouping variable
+t.test(mpg ~ cyl, data = mtcars)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in t.test.formula(mpg ~ cyl, data = mtcars) : 
+  grouping factor must have exactly 2 levels
+```
+</div>
+
+### What It Means
+
+t-test compares exactly 2 groups. Variable has more than 2 levels.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Filter to 2 Groups**
+
+```{r}
+# Compare only 4 vs 6 cylinders
+mtcars_subset <- mtcars[mtcars$cyl %in% c(4, 6), ]
+t.test(mpg ~ cyl, data = mtcars_subset)
+
+# Or use subset argument
+t.test(mpg ~ cyl, data = mtcars, subset = cyl %in% c(4, 6))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use ANOVA for >2 Groups**
+
+```{r}
+# For 3+ groups, use ANOVA
+anova_result <- aov(mpg ~ factor(cyl), data = mtcars)
+summary(anova_result)
+
+# Post-hoc tests
+TukeyHSD(anova_result)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Multiple Comparisons**
+
+```{r}
+# Compare all pairs
+library(dplyr)
+
+# Get unique cylinder values
+cyl_levels <- unique(mtcars$cyl)
+comparisons <- combn(cyl_levels, 2)
+
+# Perform all pairwise tests
+results <- apply(comparisons, 2, function(pair) {
+  subset_data <- mtcars[mtcars$cyl %in% pair, ]
+  test <- t.test(mpg ~ cyl, data = subset_data)
+  
+  data.frame(
+    comparison = paste(pair[1], "vs", pair[2]),
+    p_value = test$p.value,
+    statistic = test$statistic
+  )
+})
+
+do.call(rbind, results)
+```
+</div>
+
+## Assumptions
+
+<div class="insight-box">
+💡 **Key Insight: t-test Assumptions**
+
+```{r}
+# Assumptions:
+# 1. Independence
+# 2. Normality (esp. for small samples)
+# 3. Equal variances (for Student's t-test)
+
+# Check normality
+shapiro.test(mtcars$mpg)
+
+# Visual check
+qqnorm(mtcars$mpg)
+qqline(mtcars$mpg)
+
+# Check equal variances
+var.test(mpg ~ am, data = mtcars)
+
+# If assumptions violated:
+# - Use Welch's t-test (var.equal = FALSE, default)
+# - Use Mann-Whitney U test (non-parametric)
+wilcox.test(mpg ~ am, data = mtcars)
+```
+</div>
+
+## Interpreting Results
+
+<div class="insight-box">
+💡 **Key Insight: Understanding Output**
+
+```{r}
+result <- t.test(mpg ~ am, data = mtcars)
+result
+
+# Extract components
+result$statistic    # t-statistic
+result$parameter    # degrees of freedom
+result$p.value      # p-value
+result$conf.int     # confidence interval
+result$estimate     # group means
+
+# Interpretation
+cat("t-statistic:", round(result$statistic, 3), "\n")
+cat("p-value:", round(result$p.value, 4), "\n")
+cat("95% CI:", round(result$conf.int, 2), "\n")
+cat("Mean difference:", round(diff(result$estimate), 2), "\n")
+
+if (result$p.value < 0.05) {
+  cat("\nSignificant difference between groups (p < 0.05)\n")
+} else {
+  cat("\nNo significant difference between groups (p >= 0.05)\n")
+}
+```
+</div>
+
+## Effect Size
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Report Effect Sizes**
+
+```{r}
+# Cohen's d for effect size
+cohens_d <- function(x, y) {
+  n1 <- length(x)
+  n2 <- length(y)
+  
+  # Pooled standard deviation
+  s_pooled <- sqrt(((n1 - 1) * var(x) + (n2 - 1) * var(y)) / (n1 + n2 - 2))
+  
+  # Cohen's d
+  d <- (mean(x) - mean(y)) / s_pooled
+  
+  # Interpretation
+  interpretation <- if (abs(d) < 0.2) "negligible"
+    else if (abs(d) < 0.5) "small"
+    else if (abs(d) < 0.8) "medium"
+    else "large"
+  
+  list(
+    d = d,
+    interpretation = interpretation
+  )
+}
+
+# Calculate effect size
+auto <- mtcars$mpg[mtcars$am == 0]
+manual <- mtcars$mpg[mtcars$am == 1]
+
+effect <- cohens_d(auto, manual)
+cat("Cohen's d:", round(effect$d, 2), "\n")
+cat("Effect size:", effect$interpretation, "\n")
+```
+</div>
+
+## Paired t-tests
+
+<div class="insight-box">
+💡 **Key Insight: Paired vs Independent**
+
+```{r}
+# Paired: same subjects, two conditions
+before <- c(120, 135, 140, 125, 130, 145, 150)
+after <- c(115, 130, 135, 120, 128, 140, 145)
+
+# Paired t-test
+t.test(before, after, paired = TRUE)
+
+# Calculate differences
+differences <- before - after
+cat("Mean difference:", mean(differences), "\n")
+cat("SD of differences:", sd(differences), "\n")
+
+# One-sample test on differences (equivalent)
+t.test(differences, mu = 0)
+
+# Independent would be WRONG here
+t.test(before, after, paired = FALSE)  # Ignores pairing
+```
+</div>
+
+## Error #4: `'x' and 'y' must have the same length` {#length-mismatch-paired}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-data">📊 DATA</span>
+
+### The Error
+
+```{r error=TRUE}
+before <- c(120, 135, 140, 125)
+after <- c(115, 130, 135)  # Only 3 values
+
+t.test(before, after, paired = TRUE)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in t.test.default(before, after, paired = TRUE) : 
+  'x' and 'y' must have the same length
+```
+</div>
+
+### What It Means
+
+Paired t-test requires same number of observations in each group.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Lengths**
+
+```{r}
+before <- c(120, 135, 140, 125, 130)
+after <- c(115, 130, 135, 120, 128)
+
+if (length(before) != length(after)) {
+  stop("before and after must have same length for paired test")
+}
+
+t.test(before, after, paired = TRUE)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Handle Missing Data**
+
+```{r}
+# Data with NAs
+before <- c(120, 135, NA, 125, 130)
+after <- c(115, 130, 135, 120, NA)
+
+# Remove pairs with any NA
+complete_cases <- complete.cases(before, after)
+before_clean <- before[complete_cases]
+after_clean <- after[complete_cases]
+
+cat("Complete pairs:", sum(complete_cases), "\n")
+
+t.test(before_clean, after_clean, paired = TRUE)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use Data Frame Approach**
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+# Store in data frame
+data <- data.frame(
+  id = 1:5,
+  before = c(120, 135, NA, 125, 130),
+  after = c(115, 130, 135, 120, NA)
+)
+
+# Remove incomplete cases
+data_complete <- data %>%
+  filter(!is.na(before) & !is.na(after))
+
+cat("Complete cases:", nrow(data_complete), "\n")
+
+with(data_complete, t.test(before, after, paired = TRUE))
+```
+</div>
+
+## Power and Sample Size
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Power Analysis**
+
+```{r}
+# Calculate required sample size
+power.t.test(
+  delta = 5,        # Expected difference
+  sd = 10,          # Standard deviation
+  sig.level = 0.05, # Alpha
+  power = 0.80      # Desired power
+)
+
+# Calculate power for given sample size
+power.t.test(
+  n = 20,
+  delta = 5,
+  sd = 10,
+  sig.level = 0.05
+)
+
+# For existing study
+auto <- mtcars$mpg[mtcars$am == 0]
+manual <- mtcars$mpg[mtcars$am == 1]
+
+power.t.test(
+  n = length(auto),
+  delta = abs(mean(auto) - mean(manual)),
+  sd = sd(c(auto, manual)),
+  sig.level = 0.05
+)
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Check sample sizes** - Need at least 2 observations per group
+2. **Check variation** - Data can't be constant
+3. **Exactly 2 groups** - Use ANOVA for 3+
+4. **Paired = same length** - Remove incomplete pairs
+5. **Check assumptions** - Normality, equal variances
+6. **Report effect sizes** - Not just p-values
+7. **Formula interface preferred** - Cleaner code
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| not enough observations | n < 2 | Check sample sizes |
+| data are constant | sd = 0 | Check for variation |
+| must have 2 levels | 3+ groups | Filter or use ANOVA |
+| must have same length | Paired mismatch | Remove incomplete pairs |
+
+**t-test Variations:**
+
+```{r eval=FALSE}
+# One-sample
+t.test(x, mu = 0)
+
+# Two-sample (independent)
+t.test(x, y)
+t.test(y ~ x, data = df)
+
+# Paired
+t.test(x, y, paired = TRUE)
+
+# One-sided
+t.test(x, y, alternative = "greater")
+t.test(x, y, alternative = "less")
+
+# Equal variances
+t.test(x, y, var.equal = TRUE)
+
+# With subset
+t.test(y ~ x, data = df, subset = condition)
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+Check sample sizes first
+Check assumptions (normality, equal variance)
+Use formula interface: t.test(y ~ x, data = df)
+Report effect sizes (Cohen's d)
+Use Welch's t-test (default) for unequal variances
+Check for paired vs independent design
+
+# ❌ Avoid
+Assuming data meets assumptions
+Using t-test for 3+ groups
+Ignoring pairing in data
+Only reporting p-values
+Using with constant data
+Not checking sample sizes
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Basic t-test**
+
+Using mtcars:
+1. Test if mean mpg differs by transmission (am)
+2. Check assumptions
+3. Calculate effect size
+4. Interpret results
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Paired t-test**
+
+Create before/after data and:
+1. Perform paired t-test
+2. Check if order matters
+3. Calculate mean difference
+4. Visualize differences
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Safe t-test Function**
+
+Write `safe_t_test()` that:
+1. Checks sample sizes
+2. Checks for variation
+3. Verifies assumptions
+4. Performs test
+5. Returns formatted results
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Multiple Comparisons**
+
+Using iris dataset:
+1. Compare petal length across species
+2. Perform all pairwise t-tests
+3. Adjust for multiple testing
+4. Report results in table
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+# 1. Test mean mpg by transmission
+result <- t.test(mpg ~ am, data = mtcars)
+result
+
+# 2. Check assumptions
+# Normality
+shapiro.test(mtcars$mpg[mtcars$am == 0])
+shapiro.test(mtcars$mpg[mtcars$am == 1])
+
+# Equal variances
+var.test(mpg ~ am, data = mtcars)
+
+# 3. Effect size
+auto <- mtcars$mpg[mtcars$am == 0]
+manual <- mtcars$mpg[mtcars$am == 1]
+
+cohens_d <- function(x, y) {
+  n1 <- length(x)
+  n2 <- length(y)
+  s_pooled <- sqrt(((n1 - 1) * var(x) + (n2 - 1) * var(y)) / (n1 + n2 - 2))
+  (mean(x) - mean(y)) / s_pooled
+}
+
+d <- cohens_d(auto, manual)
+
+# 4. Interpret
+cat("\n=== Results ===\n")
+cat("t-statistic:", round(result$statistic, 3), "\n")
+cat("p-value:", format.pval(result$p.value, digits = 3), "\n")
+cat("Mean difference:", round(diff(result$estimate), 2), "mpg\n")
+cat("95% CI:", round(result$conf.int, 2), "\n")
+cat("Cohen's d:", round(d, 2), "\n")
+
+if (result$p.value < 0.05) {
+  cat("\nConclusion: Significant difference in mpg between transmission types (p < 0.05)\n")
+  cat("Manual transmission has", round(abs(diff(result$estimate)), 1), 
+      "higher mpg on average.\n")
+}
+```
+
+**Exercise 2:**
+
+```{r}
+# Create data
+set.seed(123)
+before <- c(120, 135, 140, 125, 130, 145, 150, 128, 138, 142)
+after <- before - rnorm(10, mean = 8, sd = 3)
+
+# 1. Paired t-test
+result <- t.test(before, after, paired = TRUE)
+result
+
+# 2. Order doesn't matter for pairing
+t.test(after, before, paired = TRUE)  # Same magnitude, opposite sign
+
+# 3. Mean difference
+differences <- before - after
+cat("\nMean difference:", round(mean(differences), 2), "\n")
+cat("SD of differences:", round(sd(differences), 2), "\n")
+
+# 4. Visualize
+library(ggplot2)
+
+data_df <- data.frame(
+  id = rep(1:10, 2),
+  time = rep(c("Before", "After"), each = 10),
+  value = c(before, after)
+)
+
+ggplot(data_df, aes(x = time, y = value, group = id)) +
+  geom_line(alpha = 0.5) +
+  geom_point(size = 3) +
+  labs(title = "Before vs After Comparison",
+       subtitle = paste("Mean difference:", round(mean(differences), 1)),
+       y = "Value") +
+  theme_minimal()
+
+# Difference plot
+diff_df <- data.frame(
+  id = 1:10,
+  difference = differences
+)
+
+ggplot(diff_df, aes(x = id, y = difference)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_point(size = 3) +
+  geom_segment(aes(xend = id, yend = 0)) +
+  labs(title = "Individual Differences",
+       y = "Before - After") +
+  theme_minimal()
+```
+
+**Exercise 3:**
+
+```{r}
+safe_t_test <- function(x, y = NULL, paired = FALSE, ...) {
+  
+  # Check inputs
+  if (is.null(y)) {
+    # One-sample test
+    if (length(x) < 2) {
+      stop("Need at least 2 observations")
+    }
+    if (sd(x) == 0) {
+      stop("Data has no variation")
+    }
+  } else {
+    # Two-sample test
+    if (length(x) < 2) stop("x needs at least 2 observations")
+    if (length(y) < 2) stop("y needs at least 2 observations")
+    if (sd(x) == 0) stop("x has no variation")
+    if (sd(y) == 0) stop("y has no variation")
+    
+    # Check paired
+    if (paired && length(x) != length(y)) {
+      stop("For paired test, x and y must have same length")
+    }
+  }
+  
+  # Perform test
+  result <- t.test(x, y, paired = paired, ...)
+  
+  # Format output
+  output <- list(
+    test = result,
+    summary = data.frame(
+      statistic = result$statistic,
+      df = result$parameter,
+      p_value = result$p.value,
+      mean_diff = ifelse(is.null(y), 
+                         result$estimate - result$null.value,
+                         diff(result$estimate)),
+      ci_lower = result$conf.int[1],
+      ci_upper = result$conf.int[2]
+    )
+  )
+  
+  # Print summary
+  cat("=== t-test Results ===\n")
+  cat("t =", round(output$summary$statistic, 3), "\n")
+  cat("df =", round(output$summary$df, 1), "\n")
+  cat("p-value =", format.pval(output$summary$p_value, digits = 3), "\n")
+  cat("Mean difference =", round(output$summary$mean_diff, 2), "\n")
+  cat("95% CI: [", round(output$summary$ci_lower, 2), ",",
+      round(output$summary$ci_upper, 2), "]\n")
+  
+  if (output$summary$p_value < 0.05) {
+    cat("\nSignificant at α = 0.05\n")
+  } else {
+    cat("\nNot significant at α = 0.05\n")
+  }
+  
+  invisible(output)
+}
+
+# Test it
+safe_t_test(mtcars$mpg[mtcars$am == 0], mtcars$mpg[mtcars$am == 1])
+```
+
+**Exercise 4:**
+
+```{r}
+library(dplyr)
+
+# 1 & 2. All pairwise comparisons
+species <- levels(iris$Species)
+results_list <- list()
+
+for (i in 1:(length(species) - 1)) {
+  for (j in (i + 1):length(species)) {
+    sp1 <- species[i]
+    sp2 <- species[j]
+    
+    data_subset <- iris %>%
+      filter(Species %in% c(sp1, sp2))
+    
+    test <- t.test(Petal.Length ~ Species, data = data_subset)
+    
+    results_list[[paste(sp1, "vs", sp2)]] <- data.frame(
+      comparison = paste(sp1, "vs", sp2),
+      mean_1 = test$estimate[1],
+      mean_2 = test$estimate[2],
+      mean_diff = diff(test$estimate),
+      t_stat = test$statistic,
+      p_value = test$p.value,
+      ci_lower = test$conf.int[1],
+      ci_upper = test$conf.int[2]
+    )
+  }
+}
+
+results_df <- do.call(rbind, results_list)
+rownames(results_df) <- NULL
+
+# 3. Adjust for multiple testing
+results_df$p_adjusted <- p.adjust(results_df$p_value, method = "bonferroni")
+
+# 4. Display results
+cat("=== Pairwise Comparisons of Petal Length ===\n\n")
+print(results_df, digits = 3)
+
+cat("\n=== Summary ===\n")
+cat("Total comparisons:", nrow(results_df), "\n")
+cat("Significant (unadjusted):", sum(results_df$p_value < 0.05), "\n")
+cat("Significant (Bonferroni):", sum(results_df$p_adjusted < 0.05), "\n")
+```
+</details>

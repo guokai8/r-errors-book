@@ -1,0 +1,22 @@
+# Code Optimization {#optimization}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Vectorization techniques
+- Avoiding copies
+- Efficient data structures
+- Rcpp basics
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Summary
+
+Optimize R code for better performance through vectorization and efficient structures.
+
+**Key Techniques:**
+- Vectorize operations
+- Pre-allocate memory
+- Use appropriate data structures
+- Consider Rcpp for loops

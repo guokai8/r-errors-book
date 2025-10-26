@@ -1,0 +1,70 @@
+# R6 and Reference Classes {#r6-classes}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- R6 encapsulated OOP
+- Reference semantics vs copy-on-modify
+- R6 class definition and methods
+- Common R6 errors
+
+**Key Errors Covered:** 20+ R6 errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## R6 vs S3
+
+**S3:** Functional OOP, copy-on-modify
+**R6:** Encapsulated OOP, reference semantics
+
+```{r eval=FALSE}
+library(R6)
+
+# Define R6 class
+Person <- R6Class("Person",
+  public = list(
+    name = NULL,
+    age = NULL,
+    
+    initialize = function(name, age) {
+      self$name <- name
+      self$age <- age
+    },
+    
+    greet = function() {
+      cat("Hello, I'm", self$name, "\n")
+    }
+  )
+)
+
+# Create instance
+p <- Person$new("Alice", 30)
+p$greet()
+
+# Reference semantics!
+p$age <- 31  # Modifies in place
+```
+
+## Key Features
+
+**Reference semantics:** Objects modified in place
+**Encapsulation:** Public and private members
+**Active bindings:** Computed properties
+**Inheritance:** Superclass methods
+
+## Common R6 Errors
+
+1. Forgot `self$` - use self$field
+2. Modified copy affects original - reference semantics
+3. No initialize method - define one
+4. Private access from outside - use public methods
+5. Infinite loops in active bindings
+
+## Summary
+
+R6 provides encapsulated OOP with:
+- Reference semantics
+- Private/public members
+- Inheritance
+- Active bindings

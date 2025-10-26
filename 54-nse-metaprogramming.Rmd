@@ -1,0 +1,130 @@
+# Non-Standard Evaluation {#nse-metaprogramming}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Non-standard evaluation (NSE)
+- Tidy evaluation
+- Quasiquotation
+- Common metaprogramming errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+NSE allows functions to capture and manipulate code:
+
+```{r message=FALSE}
+library(dplyr)
+library(rlang)
+
+# Standard evaluation
+filter(mtcars, cyl == 4)
+
+# The 'cyl == 4' is captured as an expression
+# Not evaluated immediately
+```
+
+## Tidy Evaluation
+
+<div class="insight-box">
+💡 **Key Insight: Embrace and Inject**
+
+```{r}
+# Problem: variables don't work
+my_filter <- function(df, condition) {
+  filter(df, condition)  # Error!
+}
+
+# Solution: embrace with {{}}
+my_filter <- function(df, condition) {
+  filter(df, {{ condition }})
+}
+
+my_filter(mtcars, cyl == 4)
+
+# For column names
+my_select <- function(df, col) {
+  select(df, {{ col }})
+}
+
+my_select(mtcars, mpg)
+```
+</div>
+
+## Quasiquotation
+
+```{r}
+# Inject values with !!
+threshold <- 20
+mtcars %>%
+  filter(mpg > !!threshold)
+
+# Inject names with :=
+name_col <- "efficiency"
+mtcars %>%
+  mutate(!!name_col := mpg / wt)
+
+# Splice multiple arguments with !!!
+group_vars <- c("cyl", "gear")
+mtcars %>%
+  group_by(!!!syms(group_vars)) %>%
+  summarize(mean_mpg = mean(mpg))
+```
+
+## Common Errors
+
+### Error: object not found
+
+```{r error=TRUE}
+# Problem: forgot to embrace
+my_mutate <- function(df, new_col, expr) {
+  mutate(df, new_col = expr)
+}
+
+my_mutate(mtcars, efficiency, mpg / wt)
+```
+
+**Solution:** Use {{}} and :=
+
+```{r}
+my_mutate <- function(df, new_col, expr) {
+  mutate(df, {{new_col}} := {{expr}})
+}
+
+my_mutate(mtcars, efficiency, mpg / wt)
+```
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **{{}}** - Embrace and inject
+2. **!!** - Unquote single value
+3. **!!!** - Unquote-splice multiple
+4. **:=** - Dynamic names
+5. **NSE** - Enables dplyr's clean syntax
+
+**Quick Reference:**
+
+```{r eval=FALSE}
+# Embrace columns
+function(df, col) {
+  df %>% select({{ col }})
+}
+
+# Inject values
+x <- 5
+filter(df, value > !!x)
+
+# Dynamic names
+name <- "new_col"
+mutate(df, !!name := expression)
+
+# Splice multiple
+cols <- c("a", "b")
+select(df, !!!syms(cols))
+```
+</div>

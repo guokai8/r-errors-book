@@ -1,0 +1,969 @@
+# Scoping & Environments {#scoping-environments}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- How R finds objects
+- Lexical scoping rules
+- Environment hierarchy
+- Common scoping errors
+- Global vs local variables
+
+**Key Errors Covered:** 12+ scoping errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Scoping determines how R finds objects, and it's often surprising:
+
+```{r}
+x <- 10
+
+my_func <- function() {
+  x  # Where does this x come from?
+}
+
+my_func()  # Returns 10!
+```
+
+Let's understand scoping to avoid confusion.
+
+## Environment Basics
+
+<div class="insight-box">
+💡 **Key Insight: Environments Are Like Named Lists**
+
+```{r}
+# Create an environment
+my_env <- new.env()
+
+# Add objects
+my_env$x <- 10
+my_env$y <- 20
+
+# Access objects
+my_env$x
+
+# List contents
+ls(my_env)
+
+# Every function has an environment
+f <- function() {
+  x <- 5
+  environment()
+}
+
+f_env <- f()
+ls(f_env)
+
+# Current environment
+environment()  # Usually global environment
+
+# Parent environment
+parent.env(my_env)
+```
+
+**Key points:**
+- Environments contain named objects
+- Every function creates a new environment
+- Environments have parents
+- R searches up the chain
+</div>
+
+## Error #1: `object not found` (scoping) {#object-not-found-scope}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-scope">🔍 SCOPE</span>
+
+### The Error
+
+```{r error=TRUE}
+my_func <- function() {
+  y <- 20
+}
+
+my_func()
+
+y  # Where is y?
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in eval(expr, envir, enclos) : object 'y' not found
+```
+</div>
+
+### What It Means
+
+The object was created in a function's environment and isn't accessible outside.
+
+### Understanding Scope
+
+```{r}
+# Global scope
+x <- 10
+
+func1 <- function() {
+  # Function scope
+  y <- 20
+  
+  # Can see global x
+  cat("x:", x, "\n")
+  
+  # Can see local y
+  cat("y:", y, "\n")
+}
+
+func1()
+
+# x exists globally
+x
+
+# y doesn't (was in function scope)
+exists("y")  # FALSE
+
+# Example 2: Nested functions
+outer_func <- function() {
+  z <- 30
+  
+  inner_func <- function() {
+    # Can see z from parent environment
+    z
+  }
+  
+  inner_func()
+}
+
+outer_func()
+
+# z doesn't exist here
+exists("z")  # FALSE
+```
+
+### Common Causes
+
+#### Cause 1: Expecting Function to Modify Global
+
+```{r}
+x <- 10
+
+# This doesn't modify global x!
+add_ten <- function() {
+  x <- x + 10
+  x  # Returns 20
+}
+
+add_ten()  # Returns 20
+x          # Still 10!
+```
+
+#### Cause 2: Variables Only Exist in Loop Scope
+
+```{r error=TRUE}
+for (i in 1:5) {
+  temp <- i * 2
+}
+
+# temp still exists (for loop doesn't create new scope in R)
+temp
+
+# But function scope is different
+func <- function() {
+  for (i in 1:5) {
+    temp2 <- i * 2
+  }
+}
+func()
+
+temp2  # Doesn't exist
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Return Values**
+
+```{r}
+x <- 10
+
+# Return the new value
+add_ten <- function(val) {
+  val + 10
+}
+
+# Assign result
+x <- add_ten(x)
+x  # Now 20
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use <<- for Global Assignment (Caution!)**
+
+```{r}
+x <- 10
+
+# Modifies global x
+add_ten_global <- function() {
+  x <<- x + 10
+}
+
+add_ten_global()
+x  # Now 20
+
+# ⚠️ Use sparingly! Can cause confusion
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Pass and Return Explicitly**
+
+```{r}
+# Best practice: explicit in and out
+process_data <- function(data, operation) {
+  # Do something
+  result <- data * operation
+  
+  # Return explicitly
+  return(result)
+}
+
+my_data <- 100
+my_data <- process_data(my_data, 2)
+my_data
+```
+</div>
+
+## Lexical Scoping
+
+<div class="insight-box">
+💡 **Key Insight: Lexical Scoping**
+
+R uses lexical (static) scoping: where a function was **defined** matters, not where it's **called**.
+
+```{r}
+x <- 10
+
+func1 <- function() {
+  x  # Uses x from where function was defined
+}
+
+func2 <- function() {
+  x <- 20  # Different x
+  func1()  # What does this return?
+}
+
+func2()  # Returns 10 (not 20!)
+
+# Why? func1 looks for x where it was defined (global env)
+# Not where it was called (inside func2)
+
+# Example 2: Function factories
+make_multiplier <- function(n) {
+  function(x) {
+    x * n  # n from make_multiplier's environment
+  }
+}
+
+times_3 <- make_multiplier(3)
+times_5 <- make_multiplier(5)
+
+times_3(10)  # 30
+times_5(10)  # 50
+
+# Each function remembers its own n!
+```
+
+**Key rule:** R looks for variables in:
+1. Current environment
+2. Parent environment (where function was defined)
+3. Parent's parent, etc.
+4. Eventually global environment
+5. Loaded packages
+</div>
+
+## Error #2: Unexpected Value from Outer Scope
+
+<span class="difficulty-advanced">⭐⭐⭐ ADVANCED</span> <span class="category-badge cat-scope">🔍 SCOPE</span>
+
+### The Problem
+
+```{r}
+x <- 999  # Global x
+
+calculate <- function(a, b) {
+  # Forgot to define x, uses global!
+  a + b + x
+}
+
+calculate(1, 2)  # Returns 1002 (not 3!)
+```
+
+### What Happened
+
+The function used a global variable unintentionally.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Explicit Parameters**
+
+```{r}
+# Make all inputs explicit
+calculate <- function(a, b, x = 0) {
+  a + b + x
+}
+
+calculate(1, 2)      # Uses default x = 0
+calculate(1, 2, 10)  # Uses provided x
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check for Undefined Variables**
+
+```{r}
+# Development tool
+check_function_variables <- function(func) {
+  # Get function body
+  body_expr <- body(func)
+  
+  # Get all variable names (simplified)
+  all_vars <- all.names(body_expr)
+  
+  # Get formal arguments
+  args <- names(formals(func))
+  
+  # Find variables not in arguments
+  external <- setdiff(all_vars, c(args, "function", "{", "+", "-", "*", "/"))
+  
+  if (length(external) > 0) {
+    message("Potentially external variables: ", 
+            paste(external, collapse = ", "))
+  }
+}
+
+x <- 999
+calculate <- function(a, b) {
+  a + b + x
+}
+
+check_function_variables(calculate)  # Warns about x
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use Local Functions**
+
+```{r}
+# Keep related functions together
+calculator <- local({
+  # Private variable
+  default_offset <- 0
+  
+  # Public functions
+  list(
+    add = function(a, b) a + b + default_offset,
+    set_offset = function(value) default_offset <<- value
+  )
+})
+
+calculator$add(5, 10)
+calculator$set_offset(100)
+calculator$add(5, 10)
+```
+</div>
+
+## Global Assignment: <<-
+
+<div class="pitfall-box">
+⚠️ **Pitfall: Global Assignment**
+
+```{r}
+counter <- 0
+
+# Bad: modifies global
+increment_bad <- function() {
+  counter <<- counter + 1
+}
+
+increment_bad()
+counter  # 1
+
+increment_bad()
+counter  # 2
+
+# Problem: Hard to track where changes happen
+# Can cause bugs in large programs
+
+# Better: Use closures
+make_counter <- function() {
+  count <- 0
+  
+  list(
+    increment = function() {
+      count <<- count + 1  # OK here (modifying enclosing env)
+      count
+    },
+    get = function() count,
+    reset = function() count <<- 0
+  )
+}
+
+counter_obj <- make_counter()
+counter_obj$increment()
+counter_obj$increment()
+counter_obj$get()
+counter_obj$reset()
+counter_obj$get()
+```
+
+**When to use <<-:**
+- Inside closures/function factories
+- For memoization
+- When you truly need state
+
+**When NOT to use <<-:**
+- In regular functions (use return values instead)
+- When you can pass arguments
+- In package functions (very rarely appropriate)
+</div>
+
+## Environments in Functions
+
+<div class="insight-box">
+💡 **Key Insight: Function Environments**
+
+```{r}
+# Each function call creates new environment
+create_accumulator <- function() {
+  sum <- 0
+  
+  function(x) {
+    sum <<- sum + x
+    sum
+  }
+}
+
+# Create two independent accumulators
+acc1 <- create_accumulator()
+acc2 <- create_accumulator()
+
+# Each has its own sum!
+acc1(5)   # 5
+acc1(10)  # 15
+acc2(3)   # 3
+acc2(7)   # 10
+
+acc1(0)   # 15 (independent)
+acc2(0)   # 10 (independent)
+
+# Inspect environments
+environment(acc1)
+environment(acc2)
+# Different!
+
+# Get value from environment
+get("sum", environment(acc1))
+get("sum", environment(acc2))
+```
+</div>
+
+## Common Scoping Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Scoping Patterns**
+
+```{r}
+# 1. Function factories
+make_power <- function(n) {
+  function(x) {
+    x ^ n
+  }
+}
+
+square <- make_power(2)
+cube <- make_power(3)
+
+square(5)
+cube(5)
+
+# 2. Memoization (caching results)
+fib_memo <- local({
+  cache <- list()
+  
+  function(n) {
+    if (n <= 1) return(n)
+    
+    # Check cache
+    key <- as.character(n)
+    if (!is.null(cache[[key]])) {
+      return(cache[[key]])
+    }
+    
+    # Calculate and cache
+    result <- fib_memo(n - 1) + fib_memo(n - 2)
+    cache[[key]] <<- result
+    result
+  }
+})
+
+system.time(fib_memo(30))
+system.time(fib_memo(30))  # Much faster (cached)
+
+# 3. Private variables
+create_account <- function(initial_balance = 0) {
+  balance <- initial_balance  # Private
+  
+  list(
+    deposit = function(amount) {
+      if (amount <= 0) stop("Amount must be positive")
+      balance <<- balance + amount
+      invisible(balance)
+    },
+    
+    withdraw = function(amount) {
+      if (amount > balance) stop("Insufficient funds")
+      balance <<- balance - amount
+      invisible(balance)
+    },
+    
+    get_balance = function() {
+      balance
+    }
+  )
+}
+
+account <- create_account(100)
+account$deposit(50)
+account$withdraw(30)
+account$get_balance()
+
+# Can't access balance directly
+# account$balance  # NULL (not accessible)
+
+# 4. Package-like namespacing
+my_package <- local({
+  # Private function
+  helper <- function(x) {
+    x * 2
+  }
+  
+  # Public functions
+  list(
+    public_func1 = function(x) {
+      helper(x) + 1
+    },
+    
+    public_func2 = function(x) {
+      helper(x) - 1
+    }
+  )
+})
+
+my_package$public_func1(5)  # Works
+# my_package$helper(5)       # NULL (private)
+```
+</div>
+
+## Search Path
+
+<div class="insight-box">
+💡 **Key Insight: Search Path**
+
+```{r}
+# Where R looks for objects
+search()
+
+# Order matters!
+# 1. Global environment
+# 2. Loaded packages (in order)
+# 3. Base packages
+
+# Example: name conflicts
+library(dplyr)
+
+# Both have filter()
+# Which one gets used?
+filter  # Shows dplyr::filter
+
+# Use package::function to be explicit
+stats::filter  # Base R version
+dplyr::filter  # dplyr version
+
+# Check where function comes from
+find("filter")
+```
+</div>
+
+## Debugging Scope Issues
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Debug Scoping**
+
+```{r}
+# 1. Check where you are
+debug_env <- function() {
+  cat("Current environment:\n")
+  print(environment())
+  
+  cat("\nParent environment:\n")
+  print(parent.env(environment()))
+  
+  cat("\nObjects in current env:\n")
+  print(ls())
+}
+
+my_func <- function(x) {
+  y <- 10
+  debug_env()
+}
+
+my_func(5)
+
+# 2. Trace variable lookups
+where_is <- function(name) {
+  env <- parent.frame()
+  
+  while (!identical(env, emptyenv())) {
+    if (exists(name, envir = env, inherits = FALSE)) {
+      return(environmentName(env))
+    }
+    env <- parent.env(env)
+  }
+  
+  "Not found"
+}
+
+x <- 10
+
+test_func <- function() {
+  where_is("x")
+}
+
+test_func()
+
+# 3. List all variables in scope
+ls.all <- function() {
+  # Get all environments in search path
+  envs <- search()
+  
+  for (env_name in envs) {
+    env <- as.environment(env_name)
+    objs <- ls(env)
+    if (length(objs) > 0) {
+      cat("\n", env_name, ":\n", sep = "")
+      cat("  ", paste(head(objs, 10), collapse = ", "), "\n")
+      if (length(objs) > 10) {
+        cat("  ... and", length(objs) - 10, "more\n")
+      }
+    }
+  }
+}
+
+# ls.all()  # Lists everything
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Lexical scoping** - Functions use variables from where they're defined
+2. **Function environments** - Each call creates new environment
+3. **Search path** - R looks up through parent environments
+4. **Local before global** - Local variables shadow global ones
+5. **<<- for parent environment** - Use cautiously
+6. **Return values preferred** - Better than global modification
+7. **Closures retain environment** - Function factories work because of this
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| object not found | Variable in wrong scope | Return from function or use <<- |
+| Unexpected value | Using unintended global | Make parameters explicit |
+| Function modifies global | Using <<- unintentionally | Use return values |
+| Name conflicts | Same name in multiple packages | Use package::function |
+
+**Scoping Rules:**
+
+```{r eval=FALSE}
+# R looks for variables in order:
+1. Current environment
+2. Parent environment (where defined, not called)
+3. Parent's parent
+4. ... up to global environment
+5. Loaded packages
+6. Base package
+
+# Assignment
+x <- value    # Creates in current environment
+x <<- value   # Creates in first parent with x, or global
+
+# Accessing
+x             # Searches up environments
+get("x")      # Same as above
+exists("x")   # Check if exists
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+function(x, y) { x + y }         # Explicit parameters
+result <- my_func(data)          # Return and assign
+make_counter <- function() { }   # Closures for state
+
+# ❌ Avoid
+function() { global_var + 5 }    # Implicit global use
+my_func <- function() { x <<- 5 } # Modifying global
+Assuming variable exists          # Check with exists()
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Scope Exploration**
+
+Predict the output:
+```{r eval=FALSE}
+x <- 10
+
+func1 <- function() {
+  x <- 20
+  func2()
+}
+
+func2 <- function() {
+  x
+}
+
+func1()  # What does this return?
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Counter Implementation**
+
+Create a counter using closures:
+1. `increment()` - adds 1
+2. `decrement()` - subtracts 1
+3. `get()` - returns current value
+4. `reset()` - sets to 0
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Function Factory**
+
+Write `make_scaler(center, scale)` that returns a function that:
+1. Subtracts center from input
+2. Divides by scale
+3. Use with built-in datasets
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Environment Inspector**
+
+Write `inspect_scope()` that:
+1. Shows current environment
+2. Lists parent environments
+3. Shows variables at each level
+4. Identifies potential conflicts
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+x <- 10
+
+func1 <- function() {
+  x <- 20  # Local x in func1
+  func2()
+}
+
+func2 <- function() {
+  x  # Looks for x where func2 was defined (global)
+}
+
+func1()  # Returns 10 (not 20!)
+
+# Why? Lexical scoping:
+# func2 was defined in global environment
+# So it looks for x in global environment (x = 10)
+# NOT where it was called (inside func1 with x = 20)
+```
+
+**Exercise 2:**
+
+```{r}
+make_counter <- function(initial = 0) {
+  count <- initial
+  
+  list(
+    increment = function() {
+      count <<- count + 1
+      invisible(count)
+    },
+    
+    decrement = function() {
+      count <<- count - 1
+      invisible(count)
+    },
+    
+    get = function() {
+      count
+    },
+    
+    reset = function() {
+      count <<- initial
+      invisible(count)
+    }
+  )
+}
+
+# Test
+counter <- make_counter(10)
+counter$increment()
+counter$increment()
+counter$get()          # 12
+
+counter$decrement()
+counter$get()          # 11
+
+counter$reset()
+counter$get()          # 10
+
+# Create multiple independent counters
+counter1 <- make_counter(0)
+counter2 <- make_counter(100)
+
+counter1$increment()
+counter2$decrement()
+
+counter1$get()  # 1
+counter2$get()  # 99
+```
+
+**Exercise 3:**
+
+```{r}
+make_scaler <- function(center = 0, scale = 1) {
+  # Validate inputs
+  if (!is.numeric(center) || length(center) != 1) {
+    stop("center must be a single numeric value")
+  }
+  if (!is.numeric(scale) || length(scale) != 1 || scale == 0) {
+    stop("scale must be a single non-zero numeric value")
+  }
+  
+  # Return scaling function
+  function(x) {
+    if (!is.numeric(x)) {
+      stop("x must be numeric")
+    }
+    (x - center) / scale
+  }
+}
+
+# Test with mtcars
+mpg_mean <- mean(mtcars$mpg)
+mpg_sd <- sd(mtcars$mpg)
+
+standardize_mpg <- make_scaler(mpg_mean, mpg_sd)
+
+# Standardize mpg
+mpg_scaled <- standardize_mpg(mtcars$mpg)
+
+# Check: should have mean ≈ 0, sd ≈ 1
+mean(mpg_scaled)
+sd(mpg_scaled)
+
+# Create different scalers
+scale_0_1 <- make_scaler(
+  center = min(mtcars$hp),
+  scale = max(mtcars$hp) - min(mtcars$hp)
+)
+
+hp_scaled <- scale_0_1(mtcars$hp)
+range(hp_scaled)  # Should be 0 to 1
+```
+
+**Exercise 4:**
+
+```{r}
+inspect_scope <- function() {
+  # Get calling environment
+  env <- parent.frame()
+  
+  cat("=== Environment Inspection ===\n\n")
+  
+  level <- 0
+  while (!identical(env, emptyenv())) {
+    # Environment name
+    env_name <- environmentName(env)
+    if (env_name == "") {
+      env_name <- paste0("<anonymous ", level, ">")
+    }
+    
+    cat("Level", level, ":", env_name, "\n")
+    
+    # List objects
+    objs <- ls(env, all.names = FALSE)
+    if (length(objs) > 0) {
+      cat("  Objects:", paste(head(objs, 5), collapse = ", "))
+      if (length(objs) > 5) {
+        cat(" ... +", length(objs) - 5, "more")
+      }
+      cat("\n")
+      
+      # Check for conflicts with parent
+      parent_env <- parent.env(env)
+      if (!identical(parent_env, emptyenv())) {
+        parent_objs <- ls(parent_env, all.names = FALSE)
+        conflicts <- intersect(objs, parent_objs)
+        if (length(conflicts) > 0) {
+          cat("  ⚠ Shadows parent objects:", 
+              paste(conflicts, collapse = ", "), "\n")
+        }
+      }
+    } else {
+      cat("  (empty)\n")
+    }
+    
+    cat("\n")
+    
+    # Move to parent
+    env <- parent.env(env)
+    level <- level + 1
+    
+    # Stop at global or after reasonable depth
+    if (level > 10) {
+      cat("... (stopping after 10 levels)\n")
+      break
+    }
+  }
+}
+
+# Test
+test_function <- function() {
+  local_var <- 123
+  x <- "local x"  # Shadows global x if it exists
+  
+  inspect_scope()
+}
+
+x <- "global x"
+test_function()
+```
+</details>

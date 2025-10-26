@@ -1,0 +1,1025 @@
+# $ and [[ Operator Errors {#dollar-double-bracket}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Differences between $, [[]], and []
+- When each operator works (and fails)
+- Recursive indexing in lists
+- Partial matching pitfalls
+- Atomic vector vs list extraction
+
+**Key Errors Covered:** 12+ operator-specific errors
+
+**Difficulty:** ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+R has three main extraction operators that confuse everyone:
+
+```{r}
+my_list <- list(name = "Alice", age = 25, scores = c(85, 90, 95))
+
+# Three ways to get the same thing:
+my_list$name
+my_list[["name"]]
+my_list["name"]  # Wait, this is different!
+```
+
+```{r}
+# Check the types
+class(my_list$name)        # "character"
+class(my_list[["name"]])   # "character"
+class(my_list["name"])     # "list" - different!
+```
+
+Understanding these differences prevents endless frustration.
+
+<div class="insight-box">
+💡 **Key Insight: The Three Operators**
+
+```{r}
+lst <- list(x = 1:3, y = "text", z = list(a = 10))
+
+# $ - Extract by name (partial matching!)
+lst$x        # c(1, 2, 3)
+lst$x        # Same as lst[["x"]]
+
+# [[ ]] - Extract single element (no partial matching)
+lst[["x"]]   # c(1, 2, 3)
+lst[[1]]     # Can use position too
+
+# [ ] - Extract sub-list (keeps structure)
+lst["x"]     # list(x = 1:3)
+lst[1]       # list(x = 1:3)
+lst[1:2]     # list(x = 1:3, y = "text")
+```
+
+**Rule of thumb:**
+- **$** : Quick named access (interactive use)
+- **[[]]** : Safe programmatic access
+- **[]** : When you need to keep list structure
+</div>
+
+## Error #1: `$ operator is invalid for atomic vectors` {#dollar-atomic-vector}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+x <- c(a = 1, b = 2, c = 3)  # Named vector
+x$a  # $ doesn't work on vectors!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in x$a : $ operator is invalid for atomic vectors
+```
+</div>
+
+### What It Means
+
+The `$` operator only works on recursive objects (lists, data frames, environments). It doesn't work on atomic vectors.
+
+### Understanding the Difference
+
+```{r}
+# Atomic vector (1D, all same type)
+vec <- c(a = 1, b = 2, c = 3)
+is.atomic(vec)     # TRUE
+is.recursive(vec)  # FALSE
+
+# Use names indexing instead
+vec["a"]
+vec[["a"]]
+
+# List (recursive)
+lst <- list(a = 1, b = 2, c = 3)
+is.atomic(lst)     # FALSE
+is.recursive(lst)  # TRUE
+
+# $ works here
+lst$a
+```
+
+### Common Causes
+
+#### Cause 1: Confusion Between Vector and List
+
+```{r error=TRUE}
+# Created a vector
+values <- c(x = 10, y = 20)
+
+# Treating it like a list
+values$x  # Error!
+```
+
+#### Cause 2: After Extracting from Data Frame
+
+```{r error=TRUE}
+df <- data.frame(x = 1:3, y = 4:6)
+
+# Extract column (becomes vector!)
+col <- df$x
+class(col)  # "integer" (atomic vector)
+
+# Can't use $ on result
+col$something  # Error!
+```
+
+#### Cause 3: Function Returns Vector
+
+```{r error=TRUE}
+get_values <- function() {
+  c(a = 1, b = 2)  # Returns atomic vector
+}
+
+result <- get_values()
+result$a  # Error!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use Correct Indexing for Vectors**
+
+```{r}
+vec <- c(a = 1, b = 2, c = 3)
+
+# Right way for vectors:
+vec["a"]     # Single bracket
+vec[["a"]]   # Double bracket
+
+# Get multiple elements
+vec[c("a", "c")]
+
+# All names
+names(vec)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Convert to List if Needed**
+
+```{r}
+vec <- c(a = 1, b = 2, c = 3)
+
+# Convert to list
+lst <- as.list(vec)
+
+# Now $ works
+lst$a
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Check Object Type First**
+
+```{r}
+safe_dollar <- function(x, name) {
+  if (is.atomic(x) && !is.null(names(x))) {
+    message("Using [[ ]] for atomic vector")
+    return(x[[name]])
+  } else if (is.recursive(x)) {
+    return(x[[name]])
+  } else {
+    stop("Cannot extract '", name, "' from ", class(x)[1])
+  }
+}
+
+# Test
+vec <- c(a = 1, b = 2)
+safe_dollar(vec, "a")
+
+lst <- list(a = 1, b = 2)
+safe_dollar(lst, "a")
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Data Frame Columns**
+
+```{r}
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
+
+# Extracting a column
+col <- df$x         # Vector (atomic)
+col$something       # Error!
+
+# Selecting columns keeps data frame
+subset <- df["x"]   # Data frame (recursive)
+subset$x            # Works!
+
+# Rule: Single column with $ or [[ ]] → vector
+#       One or more columns with [ ] → data frame
+```
+</div>
+
+## Error #2: `recursive indexing failed at level X` {#recursive-indexing-failed}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+my_list <- list(a = list(b = 1))
+my_list[[c("a", "b", "c")]]  # Too deep!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in my_list[[c("a", "b", "c")]] : 
+  recursive indexing failed at level 3
+```
+</div>
+
+### What It Means
+
+You're trying to index deeper into a nested list than it actually goes.
+
+### Recursive Indexing
+
+```{r}
+# Nested list
+nested <- list(
+  a = list(
+    b = list(
+      c = 42
+    )
+  )
+)
+
+# Recursive indexing with vector
+nested[[c("a", "b", "c")]]
+
+# Equivalent to:
+nested[["a"]][["b"]][["c"]]
+
+# But this fails (only 3 levels deep):
+```
+
+```{r error=TRUE}
+nested[[c("a", "b", "c", "d")]]  # Level 4 doesn't exist!
+```
+
+### Common Causes
+
+#### Cause 1: Wrong Path
+
+```{r error=TRUE}
+data <- list(
+  user = list(
+    name = "Alice",
+    age = 25
+  )
+)
+
+# Typo in path
+data[[c("user", "email")]]  # "email" doesn't exist
+```
+
+#### Cause 2: Mixed Types
+
+```{r error=TRUE}
+data <- list(
+  values = c(10, 20, 30)  # Atomic vector, not list!
+)
+
+# Can't recurse into atomic vector
+data[[c("values", "1")]]  # Error at level 2
+```
+
+#### Cause 3: Dynamic Path Too Long
+
+```{r error=TRUE}
+data <- list(a = list(b = 1))
+path <- c("a", "b", "c")  # Path too long
+
+data[[path]]  # Error
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Path Exists**
+
+```{r}
+nested <- list(a = list(b = list(c = 42)))
+
+safe_deep_extract <- function(x, path) {
+  for (i in seq_along(path)) {
+    if (!is.list(x) && !is.environment(x)) {
+      stop("Cannot recurse at level ", i, 
+           ": object is ", class(x)[1], ", not list")
+    }
+    
+    if (!path[i] %in% names(x)) {
+      stop("Name '", path[i], "' not found at level ", i)
+    }
+    
+    x <- x[[path[i]]]
+  }
+  return(x)
+}
+
+# Test
+safe_deep_extract(nested, c("a", "b", "c"))  # Works
+```
+
+```{r error=TRUE}
+safe_deep_extract(nested, c("a", "b", "c", "d"))  # Informative error
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use purrr::pluck()**
+
+```{r}
+library(purrr)
+
+nested <- list(a = list(b = list(c = 42)))
+
+# Safe extraction with default
+pluck(nested, "a", "b", "c")
+pluck(nested, "a", "b", "c", "d")  # Returns NULL, not error
+pluck(nested, "a", "b", "c", "d", .default = NA)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Step-by-Step Extraction**
+
+```{r}
+nested <- list(a = list(b = list(c = 42)))
+path <- c("a", "b", "c")
+
+# Extract step by step with checking
+result <- nested
+for (step in path) {
+  if (is.null(result)) {
+    message("Path ended at NULL")
+    break
+  }
+  
+  if (!step %in% names(result)) {
+    message("'", step, "' not found")
+    result <- NULL
+    break
+  }
+  
+  result <- result[[step]]
+}
+
+result
+```
+</div>
+
+## Error #3: `attempt to select less than one element` {#select-less-than-one}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+my_list <- list(a = 1, b = 2)
+my_list[[integer(0)]]  # Empty index!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in my_list[[integer(0)]] : 
+  attempt to select less than one element in integerOneIndex
+```
+</div>
+
+### What It Means
+
+`[[]]` must select exactly one element, but you provided an empty index.
+
+### Common Causes
+
+#### Cause 1: Empty Which() Result
+
+```{r error=TRUE}
+my_list <- list(a = 1, b = 2, c = 3)
+
+# Find elements meeting condition
+indices <- which(sapply(my_list, function(x) x > 10))
+length(indices)  # 0
+
+# Try to extract
+my_list[[indices]]  # Error!
+```
+
+#### Cause 2: Filtered Index
+
+```{r error=TRUE}
+values <- list(a = 5, b = 10, c = 15)
+
+# Filter for values > 20
+big_ones <- which(sapply(values, function(x) x > 20))
+
+# Try to get first
+values[[big_ones[1]]]  # NA[1] → error!
+```
+
+#### Cause 3: Off-by-One with Subtraction
+
+```{r error=TRUE}
+my_list <- list(a = 1, b = 2)
+index <- 1 - 1  # 0
+
+my_list[[index]]  # Can't select 0th element
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Before Extracting**
+
+```{r}
+my_list <- list(a = 1, b = 2, c = 3)
+indices <- which(sapply(my_list, function(x) x > 10))
+
+# Check first
+if (length(indices) > 0) {
+  my_list[[indices[1]]]
+} else {
+  message("No elements found")
+  NULL
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use [ ] for Multiple/Zero Elements**
+
+```{r}
+my_list <- list(a = 1, b = 2, c = 3)
+indices <- which(sapply(my_list, function(x) x > 10))
+
+# [ ] handles empty gracefully
+my_list[indices]  # Returns empty list
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Safe Extraction Function**
+
+```{r}
+safe_extract_one <- function(x, i, default = NULL) {
+  if (length(i) == 0) {
+    message("No index provided")
+    return(default)
+  }
+  
+  if (is.na(i)) {
+    message("Index is NA")
+    return(default)
+  }
+  
+  if (i < 1 || i > length(x)) {
+    message("Index out of bounds: ", i)
+    return(default)
+  }
+  
+  return(x[[i]])
+}
+
+# Test
+my_list <- list(a = 1, b = 2)
+safe_extract_one(my_list, integer(0))
+safe_extract_one(my_list, 1)
+safe_extract_one(my_list, 10)
+```
+</div>
+
+## Error #4: `attempt to select more than one element` {#select-more-than-one}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+my_list <- list(a = 1, b = 2, c = 3)
+my_list[[c(1, 2)]]  # Multiple indices!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in my_list[[c(1, 2)]] : 
+  attempt to select more than one element in integerOneIndex
+```
+</div>
+
+### What It Means
+
+`[[]]` extracts exactly one element. For multiple elements, use `[]`.
+
+### Single vs Multiple Selection
+
+```{r}
+my_list <- list(a = 1, b = 2, c = 3)
+
+# [[ ]] - One element
+my_list[[1]]      # Element 1
+my_list[["a"]]    # By name
+
+# [ ] - Multiple elements (returns list)
+my_list[1]        # List with element 1
+my_list[1:2]      # List with elements 1 and 2
+my_list[c("a", "c")]  # By names
+```
+
+### Common Causes
+
+#### Cause 1: Meant to Use [ ]
+
+```{r error=TRUE}
+data <- list(x = 1:5, y = 6:10, z = 11:15)
+
+# Want first two elements
+data[[1:2]]  # Error!
+```
+
+```{r}
+# Use [ ] instead
+data[1:2]
+```
+
+#### Cause 2: Vector of Names
+
+```{r error=TRUE}
+data <- list(name = "Alice", age = 25, city = "NYC")
+
+# Try to get multiple by name
+cols <- c("name", "age")
+data[[cols]]  # Error!
+```
+
+```{r}
+# Use [ ] for multiple
+data[cols]
+
+# Or extract separately
+lapply(cols, function(col) data[[col]])
+```
+
+#### Cause 3: Recursive Indexing Confusion
+
+```{r}
+nested <- list(a = list(b = 1, c = 2))
+
+# This works (recursive indexing)
+nested[[c("a", "b")]]  # Goes to nested$a$b
+
+# But not multiple at one level
+```
+
+```{r error=TRUE}
+nested[[c("a"), c("b", "c")]]  # Error!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use [ ] for Multiple Elements**
+
+```{r}
+my_list <- list(a = 1, b = 2, c = 3, d = 4)
+
+# Multiple elements - use single bracket
+my_list[c(1, 3)]
+my_list[c("a", "c")]
+
+# Single element - use double bracket
+my_list[[1]]
+my_list[["a"]]
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Loop or Apply for Multiple**
+
+```{r}
+data <- list(x = 1:3, y = 4:6, z = 7:9)
+elements_wanted <- c("x", "z")
+
+# Extract each separately
+result <- lapply(elements_wanted, function(name) data[[name]])
+names(result) <- elements_wanted
+result
+
+# Or use [ ] and unlist if needed
+data[elements_wanted]
+```
+</div>
+
+## Partial Matching with $
+
+<div class="pitfall-box">
+⚠️ **Dangerous Pitfall: Partial Matching**
+
+The `$` operator does **partial matching** by default:
+
+```{r}
+my_list <- list(name = "Alice", age = 25)
+
+# Exact match
+my_list$name
+
+# Partial match (DANGEROUS!)
+my_list$n     # Matches "name"
+my_list$na    # Matches "name"
+my_list$nam   # Matches "name"
+
+# Ambiguous partial match returns NULL
+my_list$a     # Could be "age" - but only one letter, returns NULL
+
+# [[ ]] does NOT partial match (SAFER)
+my_list[["n"]]      # NULL
+my_list[["name"]]   # Works
+```
+
+**Best Practice:** Use `[[]]` in production code to avoid partial matching surprises.
+
+```{r}
+# Instead of:
+# data$col
+
+# Use:
+data[["col"]]  # Exact match required
+```
+</div>
+
+## Comparing Operators
+
+<div class="insight-box">
+💡 **Key Insight: Complete Comparison**
+
+```{r}
+lst <- list(x = 1:3, y = "text", z = list(a = 10, b = 20))
+
+# Extraction comparison
+lst$x           # c(1, 2, 3) - vector
+lst[["x"]]      # c(1, 2, 3) - vector
+lst["x"]        # list(x = c(1, 2, 3)) - list
+
+# Type returned
+class(lst$x)      # "integer"
+class(lst[["x"]]) # "integer"
+class(lst["x"])   # "list"
+
+# Multiple elements
+# lst$c("x", "y")     # Can't do this
+# lst[[c("x", "y")]]  # Error
+lst[c("x", "y")]      # Works - returns list
+
+# Nested access
+# lst$z$a            # 10
+lst[["z"]]$a         # 10
+lst[["z"]][["a"]]    # 10
+lst[[c("z", "a")]]   # 10 (recursive indexing)
+# lst[c("z", "a")]   # list with both z and a (different!)
+```
+
+**Decision Tree:**
+
+```
+Need to extract from list/data frame?
+├─ One element?
+│  ├─ Known name, interactive? → use $
+│  ├─ Programmatic, exact name? → use [[]]
+│  └─ By position? → use [[]]
+└─ Multiple elements?
+   └─ Use []
+```
+</div>
+
+## Data Frame Special Cases
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Data Frame Extraction**
+
+```{r}
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
+
+# Column extraction
+df$x              # Vector (drops to 1D)
+df[["x"]]         # Vector (drops to 1D)
+df["x"]           # Data frame (keeps 2D)
+df[, "x"]         # Vector (drops by default)
+df[, "x", drop = FALSE]  # Data frame (preserved)
+
+# Multiple columns
+# df$c("x", "y")  # Can't do
+# df[[c("x", "y")]]  # Error
+df[c("x", "y")]    # Data frame with 2 columns
+df[, c("x", "y")]  # Data frame with 2 columns
+
+# With dplyr (clearest!)
+library(dplyr)
+df %>% pull(x)       # Vector
+df %>% select(x)     # Data frame
+df %>% select(x, y)  # Data frame
+```
+
+**Rule:**
+- `$` and `[[]]` → Drop to vector (single column)
+- `[]` → Keep as data frame
+- `[, , drop = FALSE]` → Force data frame
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **$ only works on lists/data frames** - Not atomic vectors
+2. **[[ ]] requires exact names** - No partial matching
+3. **[[ ]] extracts one element** - Use [] for multiple
+4. **Recursive indexing** - [[c("a", "b")]] goes deep
+5. **$ does partial matching** - Dangerous, use [[ ]] in code
+6. **[] keeps structure** - Returns list/data frame
+7. **[[ ]] and $ simplify** - Return element itself
+
+**Quick Reference:**
+
+| Operator | Structure | Elements | Partial Match | Use Case |
+|----------|-----------|----------|---------------|----------|
+| `$` | List/DF | One | Yes | Interactive |
+| `[[]]` | Any | One | No | Programmatic |
+| `[]` | Any | Multiple | No | Subsetting |
+
+**Common Errors:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| $ invalid for atomic vectors | Used $ on vector | Use [[ ]] or [] |
+| recursive indexing failed | Path too deep | Check structure |
+| select less than one | Empty index in [[ ]] | Check length first |
+| select more than one | Multiple indices in [[ ]] | Use [] instead |
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+data[["column"]]           # Exact, no partial matching
+data[c("col1", "col2")]    # Multiple columns
+if (length(idx) > 0) data[[idx]]  # Check before [[]]
+
+# ❌ Avoid in production
+data$col                   # Partial matching risk
+data[[multiple_indices]]   # Will error
+data[[empty_vector]]       # Will error
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Operator Selection**
+
+Which operator(s) work for each scenario?
+
+```{r eval=FALSE}
+vec <- c(a = 1, b = 2)
+lst <- list(a = 1, b = 2)
+df <- data.frame(a = 1:3, b = 4:6)
+
+# A: Get element "a" from vec
+# B: Get element "a" from lst
+# C: Get column "a" from df as vector
+# D: Get column "a" from df as data frame
+# E: Get elements "a" and "b" from lst
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Debug the Extraction**
+
+Fix these extraction errors:
+
+```{r eval=FALSE}
+# Problem 1
+numbers <- c(x = 10, y = 20, z = 30)
+result <- numbers$x
+
+# Problem 2
+data <- list(values = c(1, 2, 3))
+item <- data[[c("values", "1")]]
+
+# Problem 3
+my_list <- list(a = 1, b = 2, c = 3)
+subset <- my_list[[c(1, 3)]]
+
+# Problem 4
+nested <- list(level1 = list(level2 = 10))
+value <- nested$level1$level2$level3
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Safe Accessor**
+
+Write `safe_get(x, path, default = NULL)` that:
+1. Works with nested lists
+2. Handles missing names gracefully
+3. Returns default if path doesn't exist
+4. Works with both character names and numeric indices
+5. Provides helpful error messages
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Extraction Comparison**
+
+For this structure, show what each extraction returns:
+
+```{r eval=FALSE}
+data <- list(
+  user = list(
+    name = "Alice",
+    scores = c(85, 90, 95)
+  )
+)
+
+# What does each return? (value and type)
+data$user
+data[["user"]]
+data["user"]
+data$user$name
+data[[c("user", "name")]]
+data[["user"]][["scores"]][[2]]
+```
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+vec <- c(a = 1, b = 2)
+lst <- list(a = 1, b = 2)
+df <- data.frame(a = 1:3, b = 4:6)
+
+# A: Get "a" from vector
+vec["a"]      # ✅ Works
+vec[["a"]]    # ✅ Works
+# vec$a       # ❌ Error (atomic vector)
+
+# B: Get "a" from list
+lst$a         # ✅ Works
+lst[["a"]]    # ✅ Works
+lst["a"]      # ✅ Works (but returns list)
+
+# C: Get column "a" as vector
+df$a          # ✅ Works
+df[["a"]]     # ✅ Works
+df[, "a"]     # ✅ Works
+# df["a"]     # ❌ Returns data frame, not vector
+
+# D: Get column "a" as data frame
+df["a"]       # ✅ Works
+df[, "a", drop = FALSE]  # ✅ Works
+# df$a        # ❌ Returns vector
+# df[["a"]]   # ❌ Returns vector
+
+# E: Get multiple elements from list
+lst[c("a", "b")]  # ✅ Only this works
+# lst$c("a", "b")  # ❌ Syntax error
+# lst[[c("a", "b")]]  # ❌ Error
+```
+
+**Exercise 2:**
+
+```{r}
+# Problem 1 - $ on atomic vector
+numbers <- c(x = 10, y = 20, z = 30)
+result <- numbers[["x"]]  # or numbers["x"]
+
+# Problem 2 - Can't recurse into atomic vector
+data <- list(values = c(1, 2, 3))
+item <- data[["values"]][1]  # or data$values[1]
+
+# Problem 3 - Multiple indices in [[]]
+my_list <- list(a = 1, b = 2, c = 3)
+subset <- my_list[c(1, 3)]  # Use single bracket
+
+# Problem 4 - Path doesn't exist
+nested <- list(level1 = list(level2 = 10))
+# Check if exists first
+if (!is.null(nested$level1$level2)) {
+  value <- nested$level1$level2
+} else {
+  value <- NA
+}
+# Or just:
+value <- nested$level1$level2  # This is 10
+# nested$level1$level2$level3 would be NULL
+```
+
+**Exercise 3:**
+
+```{r}
+safe_get <- function(x, path, default = NULL) {
+  # Handle empty path
+  if (length(path) == 0) {
+    return(x)
+  }
+  
+  # Iterate through path
+  current <- x
+  for (i in seq_along(path)) {
+    step <- path[i]
+    
+    # Check if current is indexable
+    if (!is.list(current) && !is.environment(current)) {
+      message("Cannot index into ", class(current)[1], " at step ", i)
+      return(default)
+    }
+    
+    # Check if step exists
+    if (is.character(step)) {
+      if (!step %in% names(current)) {
+        message("Name '", step, "' not found at step ", i)
+        return(default)
+      }
+      current <- current[[step]]
+    } else if (is.numeric(step)) {
+      if (step < 1 || step > length(current)) {
+        message("Index ", step, " out of bounds at step ", i)
+        return(default)
+      }
+      current <- current[[step]]
+    } else {
+      stop("Path element must be character or numeric")
+    }
+  }
+  
+  return(current)
+}
+
+# Test
+nested <- list(a = list(b = list(c = 42)))
+safe_get(nested, c("a", "b", "c"))        # 42
+safe_get(nested, c("a", "b", "c", "d"))   # NULL
+safe_get(nested, c("a", "x"), default = NA)  # NA
+safe_get(nested, c(1, 1, 1))              # 42 (by index)
+```
+
+**Exercise 4:**
+
+```{r}
+data <- list(
+  user = list(
+    name = "Alice",
+    scores = c(85, 90, 95)
+  )
+)
+
+# data$user
+# Returns: list(name = "Alice", scores = c(85, 90, 95))
+# Type: list
+
+# data[["user"]]
+# Returns: list(name = "Alice", scores = c(85, 90, 95))
+# Type: list
+
+# data["user"]
+# Returns: list(user = list(name = "Alice", scores = c(85, 90, 95)))
+# Type: list (wrapped in another list!)
+
+# data$user$name
+# Returns: "Alice"
+# Type: character
+
+# data[[c("user", "name")]]
+# Returns: "Alice"
+# Type: character
+
+# data[["user"]][["scores"]][[2]]
+# Returns: 90
+# Type: numeric
+
+# Show them
+data$user
+data[["user"]]
+data["user"]
+data$user$name
+data[[c("user", "name")]]
+data[["user"]][["scores"]][[2]]
+```
+</details>

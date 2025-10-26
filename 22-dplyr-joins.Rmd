@@ -1,0 +1,1023 @@
+# Joins & Merging {#dplyr-joins}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Types of joins (inner, left, right, full)
+- Join keys and matching
+- Common join errors
+- Multiple key joins
+- Handling duplicates
+- Anti and semi joins
+
+**Key Errors Covered:** 20+ join errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Joining combines data from multiple sources:
+
+```{r message=FALSE}
+library(dplyr)
+
+# Two related datasets
+customers <- tibble(
+  id = 1:3,
+  name = c("Alice", "Bob", "Charlie")
+)
+
+orders <- tibble(
+  order_id = 1:4,
+  customer_id = c(1, 1, 2, 4),
+  amount = c(100, 150, 200, 75)
+)
+
+# Join them
+customers %>%
+  left_join(orders, by = c("id" = "customer_id"))
+```
+
+But joins have many pitfalls. Let's master them!
+
+## Join Types
+
+<div class="insight-box">
+💡 **Key Insight: Four Main Join Types**
+
+```{r}
+# Sample data
+band_members
+band_instruments
+
+# inner_join: Only matching rows
+band_members %>%
+  inner_join(band_instruments, by = "name")
+
+# left_join: All from left, matching from right
+band_members %>%
+  left_join(band_instruments, by = "name")
+
+# right_join: All from right, matching from left
+band_members %>%
+  right_join(band_instruments, by = "name")
+
+# full_join: All rows from both
+band_members %>%
+  full_join(band_instruments, by = "name")
+```
+
+**Visual representation:**
+- `inner_join`: ∩ (intersection)
+- `left_join`: ← (left + intersection)
+- `right_join`: → (right + intersection)
+- `full_join`: ∪ (union, all rows)
+</div>
+
+## Error #1: `by must be supplied` {#join-by-missing}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-args">📋 ARGS</span>
+
+### The Error
+
+```{r error=TRUE}
+df1 <- tibble(id = 1:3, x = c("a", "b", "c"))
+df2 <- tibble(identifier = 1:3, y = c("d", "e", "f"))
+
+df1 %>%
+  left_join(df2)
+```
+
+<div class="error-box">
+🔴 **ERROR** (dplyr >= 1.1.0)
+
+```
+Error in left_join():
+! `by` must be supplied when `x` and `y` have no common variables.
+```
+</div>
+
+### What It Means
+
+The two datasets have no columns with the same name, so dplyr doesn't know how to join them.
+
+### Common Causes
+
+```{r error=TRUE}
+# Different column names for same concept
+customers <- tibble(customer_id = 1:3, name = c("A", "B", "C"))
+orders <- tibble(cust_id = c(1, 1, 2), amount = c(100, 150, 200))
+
+customers %>%
+  left_join(orders)  # No common columns!
+
+# Typo in column name
+df1 <- tibble(id = 1:3, x = "a")
+df2 <- tibble(ID = 1:3, y = "b")  # Different case!
+
+df1 %>%
+  left_join(df2)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Specify Join Keys**
+
+```{r}
+# Use by argument with named vector
+customers <- tibble(customer_id = 1:3, name = c("A", "B", "C"))
+orders <- tibble(cust_id = c(1, 1, 2), amount = c(100, 150, 200))
+
+customers %>%
+  left_join(orders, by = c("customer_id" = "cust_id"))
+
+# Multiple keys
+df1 <- tibble(id = 1:3, type = "A", x = 1:3)
+df2 <- tibble(id = 1:3, type = "A", y = 4:6)
+
+df1 %>%
+  left_join(df2, by = c("id", "type"))
+
+# Or with different names
+df1 <- tibble(id1 = 1:3, type1 = "A", x = 1:3)
+df2 <- tibble(id2 = 1:3, type2 = "A", y = 4:6)
+
+df1 %>%
+  left_join(df2, by = c("id1" = "id2", "type1" = "type2"))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Rename Columns First**
+
+```{r}
+customers <- tibble(customer_id = 1:3, name = c("A", "B", "C"))
+orders <- tibble(cust_id = c(1, 1, 2), amount = c(100, 150, 200))
+
+# Rename to match
+orders_renamed <- orders %>%
+  rename(customer_id = cust_id)
+
+customers %>%
+  left_join(orders_renamed, by = "customer_id")
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use join_by() (dplyr >= 1.1.0)**
+
+```{r}
+# Modern syntax (if available)
+if (packageVersion("dplyr") >= "1.1.0") {
+  customers %>%
+    left_join(orders, join_by(customer_id == cust_id))
+}
+```
+</div>
+
+## Error #2: Duplicate keys creating many rows {#join-duplicates}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-logic">🧠 LOGIC</span>
+
+### The Problem
+
+```{r}
+# Data with duplicates
+customers <- tibble(
+  id = c(1, 1, 2),  # Duplicate id 1!
+  name = c("Alice", "Alice", "Bob")
+)
+
+orders <- tibble(
+  customer_id = c(1, 1, 2),  # Duplicate id 1!
+  amount = c(100, 150, 200)
+)
+
+# Join creates cartesian product
+result <- customers %>%
+  left_join(orders, by = c("id" = "customer_id"))
+
+result
+nrow(result)  # 5 rows from 3 + 3!
+```
+
+### What Happened
+
+When both tables have duplicate keys, you get all combinations (cartesian product).
+
+### Common Causes
+
+```{r}
+# Many-to-many relationship
+students <- tibble(
+  student_id = c(1, 1, 2, 2),
+  course = c("Math", "English", "Math", "Science")
+)
+
+grades <- tibble(
+  student_id = c(1, 1, 2, 2),
+  grade = c("A", "B", "A", "B")
+)
+
+# Which grade goes with which course?
+students %>%
+  left_join(grades, by = "student_id")  # Ambiguous!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Remove Duplicates Before Join**
+
+```{r}
+customers <- tibble(
+  id = c(1, 1, 2),
+  name = c("Alice", "Alice", "Bob")
+)
+
+# Keep unique customers
+customers_unique <- customers %>%
+  distinct(id, .keep_all = TRUE)
+
+customers_unique %>%
+  left_join(orders, by = c("id" = "customer_id"))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check for Duplicates**
+
+```{r}
+check_join_keys <- function(data, key_cols) {
+  dups <- data %>%
+    group_by(across(all_of(key_cols))) %>%
+    filter(n() > 1) %>%
+    ungroup()
+  
+  if (nrow(dups) > 0) {
+    warning("Duplicate keys found:\n")
+    print(dups)
+    return(FALSE)
+  }
+  
+  message("No duplicate keys")
+  return(TRUE)
+}
+
+check_join_keys(customers, "id")
+check_join_keys(customers_unique, "id")
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Aggregate Before Join**
+
+```{r}
+# If duplicates make sense (e.g., multiple orders)
+orders_summary <- orders %>%
+  group_by(customer_id) %>%
+  summarize(
+    total_orders = n(),
+    total_amount = sum(amount),
+    .groups = "drop"
+  )
+
+customers_unique %>%
+  left_join(orders_summary, by = c("id" = "customer_id"))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 4: Use relationship argument (dplyr >= 1.1.0)**
+
+```{r}
+# Specify expected relationship
+if (packageVersion("dplyr") >= "1.1.0") {
+  # This will error if relationship is wrong
+  # customers %>%
+  #   left_join(orders, 
+  #            by = c("id" = "customer_id"),
+  #            relationship = "one-to-one")
+  
+  # Specify many-to-one
+  customers %>%
+    left_join(orders, 
+             by = c("id" = "customer_id"),
+             relationship = "many-to-one")
+}
+```
+</div>
+
+## Multiple Key Joins
+
+<div class="insight-box">
+💡 **Key Insight: Joining on Multiple Columns**
+
+```{r}
+# Data with composite keys
+sales <- tibble(
+  store = c("A", "A", "B", "B"),
+  product = c("X", "Y", "X", "Y"),
+  quantity = c(10, 20, 15, 25)
+)
+
+prices <- tibble(
+  store = c("A", "A", "B", "B"),
+  product = c("X", "Y", "X", "Y"),
+  price = c(5.00, 7.50, 4.50, 8.00)
+)
+
+# Join on both store and product
+sales %>%
+  left_join(prices, by = c("store", "product")) %>%
+  mutate(revenue = quantity * price)
+
+# With different names
+prices2 <- tibble(
+  location = c("A", "A", "B", "B"),
+  item = c("X", "Y", "X", "Y"),
+  price = c(5.00, 7.50, 4.50, 8.00)
+)
+
+sales %>%
+  left_join(prices2, by = c("store" = "location", "product" = "item"))
+```
+</div>
+
+## Error #3: Unexpected NA values after join {#join-unexpected-na}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-logic">🧠 LOGIC</span>
+
+### The Problem
+
+```{r}
+customers <- tibble(
+  id = 1:4,
+  name = c("Alice", "Bob", "Charlie", "David")
+)
+
+orders <- tibble(
+  customer_id = c(1, 1, 2, 5),  # Customer 5 doesn't exist!
+  amount = c(100, 150, 200, 75)
+)
+
+# Left join
+result <- customers %>%
+  left_join(orders, by = c("id" = "customer_id"))
+
+result
+# Charlie and David have no orders (NA in amount)
+```
+
+### What Happened
+
+Left join keeps all rows from left table. Unmatched rows get NA in right table columns.
+
+### Understanding NA Sources
+
+```{r}
+# Right join - unmatched from right get NA in left columns
+result_right <- customers %>%
+  right_join(orders, by = c("id" = "customer_id"))
+
+result_right
+# Customer 5 order has NA in name
+
+# Inner join - no NAs (only matching rows)
+result_inner <- customers %>%
+  inner_join(orders, by = c("id" = "customer_id"))
+
+result_inner
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Choose Right Join Type**
+
+```{r}
+# If you want only matching rows
+customers %>%
+  inner_join(orders, by = c("id" = "customer_id"))
+
+# If you want all customers (even without orders)
+customers %>%
+  left_join(orders, by = c("id" = "customer_id"))
+
+# If you want all orders (even with unknown customers)
+customers %>%
+  right_join(orders, by = c("id" = "customer_id"))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Fill NAs After Join**
+
+```{r}
+customers %>%
+  left_join(orders, by = c("id" = "customer_id")) %>%
+  mutate(
+    amount = replace_na(amount, 0),
+    order_count = if_else(is.na(amount), 0L, 1L)
+  )
+
+# Or with tidyr
+library(tidyr)
+customers %>%
+  left_join(orders, by = c("id" = "customer_id")) %>%
+  replace_na(list(amount = 0))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Check for Unmatched Rows**
+
+```{r}
+# Find unmatched customers
+customers %>%
+  anti_join(orders, by = c("id" = "customer_id"))
+
+# Find unmatched orders
+orders %>%
+  anti_join(customers, by = c("customer_id" = "id"))
+```
+</div>
+
+## Filtering Joins
+
+<div class="insight-box">
+💡 **Key Insight: semi_join() and anti_join()**
+
+```{r}
+# semi_join: Keep rows in x that have match in y
+# Like inner_join but doesn't add columns from y
+band_members %>%
+  semi_join(band_instruments, by = "name")
+
+# anti_join: Keep rows in x that DON'T have match in y
+band_members %>%
+  anti_join(band_instruments, by = "name")
+
+# Practical use: find missing data
+customers <- tibble(id = 1:5, name = letters[1:5])
+orders <- tibble(customer_id = c(1, 2, 2, 3), amount = c(100, 150, 200, 75))
+
+# Customers with no orders
+customers %>%
+  anti_join(orders, by = c("id" = "customer_id"))
+
+# Customers with orders
+customers %>%
+  semi_join(orders, by = c("id" = "customer_id"))
+```
+</div>
+
+## Error #4: Column name conflicts {#join-name-conflicts}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-naming">🏷️ NAMING</span>
+
+### The Problem
+
+```{r}
+df1 <- tibble(
+  id = 1:3,
+  value = c(10, 20, 30)
+)
+
+df2 <- tibble(
+  id = 1:3,
+  value = c(100, 200, 300)
+)
+
+# Both have 'value' column
+result <- df1 %>%
+  left_join(df2, by = "id")
+
+result
+# Creates value.x and value.y
+```
+
+### What Happened
+
+Columns with same name (not in join key) get suffixes.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use suffix argument**
+
+```{r}
+df1 %>%
+  left_join(df2, by = "id", suffix = c("_left", "_right"))
+
+# Or more descriptive
+df1 %>%
+  left_join(df2, by = "id", suffix = c("_original", "_new"))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Rename Before Join**
+
+```{r}
+df1 %>%
+  rename(value1 = value) %>%
+  left_join(
+    df2 %>% rename(value2 = value),
+    by = "id"
+  )
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Select Columns First**
+
+```{r}
+# Only keep needed columns from each
+df1 %>%
+  left_join(
+    df2 %>% select(id, value2 = value),
+    by = "id"
+  )
+```
+</div>
+
+## Common Join Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Common Join Patterns**
+
+```{r}
+# 1. Lookup table (add descriptions)
+products <- tibble(
+  product_id = 1:3,
+  quantity = c(10, 20, 15)
+)
+
+product_info <- tibble(
+  product_id = 1:3,
+  name = c("Widget", "Gadget", "Doohickey"),
+  price = c(9.99, 19.99, 14.99)
+)
+
+products %>%
+  left_join(product_info, by = "product_id")
+
+# 2. Aggregate then join
+orders <- tibble(
+  customer_id = c(1, 1, 2, 2, 3),
+  amount = c(100, 150, 200, 75, 300)
+)
+
+customers <- tibble(
+  id = 1:3,
+  name = c("Alice", "Bob", "Charlie")
+)
+
+order_summary <- orders %>%
+  group_by(customer_id) %>%
+  summarize(
+    total_orders = n(),
+    total_spent = sum(amount),
+    avg_order = mean(amount),
+    .groups = "drop"
+  )
+
+customers %>%
+  left_join(order_summary, by = c("id" = "customer_id"))
+
+# 3. Multiple joins
+students <- tibble(id = 1:3, name = c("A", "B", "C"))
+math_grades <- tibble(student_id = 1:3, math = c(85, 90, 78))
+english_grades <- tibble(student_id = 1:3, english = c(88, 92, 85))
+
+students %>%
+  left_join(math_grades, by = c("id" = "student_id")) %>%
+  left_join(english_grades, by = c("id" = "student_id"))
+
+# 4. Self join
+employees <- tibble(
+  id = 1:4,
+  name = c("Alice", "Bob", "Charlie", "David"),
+  manager_id = c(NA, 1, 1, 2)
+)
+
+employees %>%
+  left_join(
+    employees %>% select(id, manager_name = name),
+    by = c("manager_id" = "id")
+  )
+
+# 5. Rolling join (closest match)
+events <- tibble(
+  time = c(1, 3, 5, 7),
+  event = c("A", "B", "C", "D")
+)
+
+measurements <- tibble(
+  time = c(0, 2, 4, 6, 8),
+  value = c(10, 20, 30, 40, 50)
+)
+
+# Nearest match (simplified example)
+events %>%
+  left_join(measurements, by = "time")  # Only exact matches
+```
+</div>
+
+## Checking Join Results
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Validate Joins**
+
+```{r}
+validate_join <- function(original, joined, join_type = "left") {
+  cat("=== Join Validation ===\n\n")
+  
+  # Row count check
+  cat("Original rows:", nrow(original), "\n")
+  cat("Joined rows:", nrow(joined), "\n")
+  
+  if (join_type == "inner") {
+    if (nrow(joined) > nrow(original)) {
+      warning("Inner join resulted in MORE rows - duplicates in join key?")
+    }
+  } else if (join_type == "left") {
+    if (nrow(joined) < nrow(original)) {
+      warning("Left join resulted in FEWER rows - this shouldn't happen!")
+    } else if (nrow(joined) > nrow(original)) {
+      warning("Left join resulted in MORE rows - duplicates in right table?")
+    }
+  }
+  
+  # NA check
+  na_cols <- names(joined)[colSums(is.na(joined)) > 0]
+  if (length(na_cols) > 0) {
+    cat("\nColumns with NAs:\n")
+    for (col in na_cols) {
+      n_na <- sum(is.na(joined[[col]]))
+      cat("  ", col, ":", n_na, "NAs\n")
+    }
+  }
+  
+  # Duplicate check in key columns
+  cat("\n")
+}
+
+# Test
+customers <- tibble(id = 1:3, name = c("A", "B", "C"))
+orders <- tibble(customer_id = c(1, 1, 2, 4), amount = c(100, 150, 200, 75))
+
+result <- customers %>%
+  left_join(orders, by = c("id" = "customer_id"))
+
+validate_join(customers, result, "left")
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Four main joins** - inner, left, right, full
+2. **Specify by argument** - When column names differ
+3. **Watch for duplicates** - Can create many rows
+4. **Left join creates NAs** - For unmatched rows
+5. **Use filtering joins** - semi_join(), anti_join()
+6. **Check join results** - Validate row counts and NAs
+7. **Name conflicts** - Use suffix or rename
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| by must be supplied | No common columns | Use `by = c("x" = "y")` |
+| Too many rows | Duplicate keys | Check for duplicates, aggregate |
+| Unexpected NAs | Unmatched rows | Use right join type, fill NAs |
+| Column conflicts | Same name, not in key | Use suffix argument |
+
+**Join Types:**
+
+```{r eval=FALSE}
+# Mutating joins (add columns)
+inner_join(x, y, by = "key")  # Only matching
+left_join(x, y, by = "key")   # All x, matching y
+right_join(x, y, by = "key")  # Matching x, all y
+full_join(x, y, by = "key")   # All rows
+
+# Filtering joins (filter rows)
+semi_join(x, y, by = "key")   # x rows that match y
+anti_join(x, y, by = "key")   # x rows that don't match y
+
+# Different column names
+left_join(x, y, by = c("x_id" = "y_id"))
+
+# Multiple keys
+left_join(x, y, by = c("id", "type"))
+
+# Handle name conflicts
+left_join(x, y, by = "id", suffix = c("_x", "_y"))
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+left_join(x, y, by = "key")              # Explicit by
+Check for duplicates before join          # Avoid cartesian
+Validate row counts after join            # Catch issues
+Use appropriate join type                 # inner vs left vs full
+
+# ❌ Avoid
+left_join(x, y)  # No by (relies on names)
+Join without checking duplicates          # Surprise row explosion
+Ignore NAs after join                     # May indicate issues
+Always use left_join                      # Sometimes inner is right
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Basic Joins**
+
+Given:
+```{r eval=FALSE}
+products <- tibble(id = 1:5, name = c("A", "B", "C", "D", "E"))
+sales <- tibble(product_id = c(1, 2, 2, 3, 6), amount = c(100, 150, 200, 75, 50))
+```
+
+1. Inner join - only products with sales
+2. Left join - all products, add sales
+3. Find products with no sales
+4. Find sales for unknown products
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Duplicate Handling**
+
+Given data with duplicates:
+```{r eval=FALSE}
+customers <- tibble(id = c(1, 1, 2, 3), name = c("A", "A", "B", "C"))
+orders <- tibble(cust_id = c(1, 2, 2, 3), amount = c(100, 150, 200, 75))
+```
+
+1. Identify the duplicates
+2. Remove them appropriately
+3. Perform safe join
+4. Validate result
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Safe Join Function**
+
+Write `safe_join(x, y, by, type)` that:
+1. Checks for duplicate keys
+2. Validates join will work
+3. Performs join
+4. Checks result makes sense
+5. Returns result with metadata
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Multiple Table Join**
+
+Join three tables efficiently:
+```{r eval=FALSE}
+students <- tibble(id = 1:3, name = c("A", "B", "C"))
+courses <- tibble(student_id = c(1, 1, 2, 3), course = c("Math", "Eng", "Math", "Sci"))
+grades <- tibble(student_id = c(1, 1, 2, 3), course = c("Math", "Eng", "Math", "Sci"), 
+                grade = c(85, 90, 78, 92))
+```
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+products <- tibble(id = 1:5, name = c("A", "B", "C", "D", "E"))
+sales <- tibble(product_id = c(1, 2, 2, 3, 6), amount = c(100, 150, 200, 75, 50))
+
+# 1. Inner join - only products with sales
+products_with_sales <- products %>%
+  inner_join(sales, by = c("id" = "product_id"))
+products_with_sales
+
+# 2. Left join - all products, add sales
+all_products <- products %>%
+  left_join(sales, by = c("id" = "product_id"))
+all_products
+
+# 3. Find products with no sales
+no_sales <- products %>%
+  anti_join(sales, by = c("id" = "product_id"))
+no_sales
+
+# 4. Find sales for unknown products
+unknown_products <- sales %>%
+  anti_join(products, by = c("product_id" = "id"))
+unknown_products
+```
+
+**Exercise 2:**
+
+```{r}
+customers <- tibble(id = c(1, 1, 2, 3), name = c("A", "A", "B", "C"))
+orders <- tibble(cust_id = c(1, 2, 2, 3), amount = c(100, 150, 200, 75))
+
+# 1. Identify duplicates
+cat("Duplicate customers:\n")
+customers %>%
+  group_by(id) %>%
+  filter(n() > 1)
+
+cat("\nDuplicate orders:\n")
+orders %>%
+  group_by(cust_id) %>%
+  filter(n() > 1)
+
+# 2. Remove duplicates
+customers_unique <- customers %>%
+  distinct(id, .keep_all = TRUE)
+
+# Orders: multiple per customer is expected, so aggregate
+orders_summary <- orders %>%
+  group_by(cust_id) %>%
+  summarize(
+    n_orders = n(),
+    total_amount = sum(amount),
+    avg_amount = mean(amount),
+    .groups = "drop"
+  )
+
+# 3. Perform safe join
+result <- customers_unique %>%
+  left_join(orders_summary, by = c("id" = "cust_id"))
+
+# 4. Validate
+cat("\nValidation:\n")
+cat("Original customers:", nrow(customers_unique), "\n")
+cat("Result rows:", nrow(result), "\n")
+cat("Should be equal:", nrow(customers_unique) == nrow(result), "\n")
+
+result
+```
+
+**Exercise 3:**
+
+```{r}
+safe_join <- function(x, y, by, type = "left") {
+  # Validate inputs
+  if (!type %in% c("inner", "left", "right", "full")) {
+    stop("type must be inner, left, right, or full")
+  }
+  
+  # Extract key columns
+  if (is.character(by)) {
+    x_keys <- if (is.null(names(by))) by else names(by)
+    y_keys <- if (is.null(names(by))) by else unname(by)
+  } else {
+    stop("by must be a character vector")
+  }
+  
+  # Check keys exist
+  if (!all(x_keys %in% names(x))) {
+    stop("Some keys not found in x: ", 
+         paste(setdiff(x_keys, names(x)), collapse = ", "))
+  }
+  if (!all(y_keys %in% names(y))) {
+    stop("Some keys not found in y: ", 
+         paste(setdiff(y_keys, names(y)), collapse = ", "))
+  }
+  
+  # Check for duplicates
+  x_dups <- x %>%
+    group_by(across(all_of(x_keys))) %>%
+    filter(n() > 1) %>%
+    nrow()
+  
+  y_dups <- y %>%
+    group_by(across(all_of(y_keys))) %>%
+    filter(n() > 1) %>%
+    nrow()
+  
+  if (x_dups > 0) {
+    warning("x has ", x_dups, " duplicate key rows")
+  }
+  if (y_dups > 0) {
+    warning("y has ", y_dups, " duplicate key rows")
+  }
+  
+  # Perform join
+  result <- switch(type,
+    inner = inner_join(x, y, by = by),
+    left = left_join(x, y, by = by),
+    right = right_join(x, y, by = by),
+    full = full_join(x, y, by = by)
+  )
+  
+  # Validate result
+  metadata <- list(
+    type = type,
+    x_rows = nrow(x),
+    y_rows = nrow(y),
+    result_rows = nrow(result),
+    x_duplicates = x_dups,
+    y_duplicates = y_dups,
+    na_columns = names(result)[colSums(is.na(result)) > 0]
+  )
+  
+  # Check expectations
+  if (type == "left" && nrow(result) < nrow(x)) {
+    warning("Left join resulted in fewer rows than x!")
+  }
+  
+  if (type == "inner" && nrow(result) > min(nrow(x), nrow(y))) {
+    warning("Inner join resulted in more rows than either input - check for duplicates")
+  }
+  
+  # Return with metadata
+  attr(result, "join_metadata") <- metadata
+  result
+}
+
+# Test
+customers <- tibble(id = 1:3, name = c("A", "B", "C"))
+orders <- tibble(customer_id = c(1, 1, 2, 4), amount = c(100, 150, 200, 75))
+
+result <- safe_join(customers, orders, by = c("id" = "customer_id"), type = "left")
+result
+attr(result, "join_metadata")
+```
+
+**Exercise 4:**
+
+```{r}
+students <- tibble(id = 1:3, name = c("A", "B", "C"))
+courses <- tibble(
+  student_id = c(1, 1, 2, 3), 
+  course = c("Math", "Eng", "Math", "Sci")
+)
+grades <- tibble(
+  student_id = c(1, 1, 2, 3), 
+  course = c("Math", "Eng", "Math", "Sci"), 
+  grade = c(85, 90, 78, 92)
+)
+
+# Method 1: Chain joins
+result1 <- students %>%
+  left_join(courses, by = c("id" = "student_id")) %>%
+  left_join(grades, by = c("id" = "student_id", "course" = "course"))
+result1
+
+# Method 2: Join courses and grades first
+result2 <- students %>%
+  left_join(
+    courses %>%
+      left_join(grades, by = c("student_id", "course")),
+    by = c("id" = "student_id")
+  )
+result2
+
+# Method 3: Using reduce (for many tables)
+library(purrr)
+
+tables <- list(
+  students,
+  courses,
+  grades
+)
+
+keys <- list(
+  c("id" = "student_id"),
+  c("id" = "student_id", "course" = "course")
+)
+
+# This is complex - usually method 1 or 2 is better
+# Showing for completeness
+
+# Summary by student
+summary_result <- students %>%
+  left_join(
+    courses %>%
+      left_join(grades, by = c("student_id", "course")) %>%
+      group_by(student_id) %>%
+      summarize(
+        n_courses = n(),
+        avg_grade = mean(grade, na.rm = TRUE),
+        courses = paste(course, collapse = ", "),
+        .groups = "drop"
+      ),
+    by = c("id" = "student_id")
+  )
+
+summary_result
+```
+</details>

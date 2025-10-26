@@ -1,0 +1,23 @@
+# Part XV: Performance {-}
+
+# Performance Profiling {#profiling}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- profvis for profiling
+- Identifying bottlenecks
+- Memory profiling
+- Benchmarking
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Summary
+
+Profile R code to identify performance bottlenecks using profvis and bench.
+
+**Key Tools:**
+- `profvis()` - Visual profiler
+- `bench::mark()` - Benchmarking
+- `Rprof()` - Base R profiling

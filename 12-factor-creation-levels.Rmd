@@ -1,0 +1,1082 @@
+# Part V: Factors {-}
+
+# Factor Creation & Levels {#factor-creation-levels}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- What factors are and why they exist
+- Creating factors correctly
+- Understanding levels and labels
+- Ordered vs unordered factors
+- Common factor creation pitfalls
+
+**Key Errors Covered:** 15+ factor errors
+
+**Difficulty:** ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+Factors are R's way of representing categorical data, but they're confusing:
+
+```{r error=TRUE}
+# This looks like it should work...
+grades <- factor(c("A", "B", "C"))
+grades[1] <- "D"
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Warning message:
+In `[<-.factor`(`*tmp*`, 1, value = "D") :
+  invalid factor level, NA generated
+```
+</div>
+
+```{r}
+grades  # First element became NA!
+```
+
+Let's understand factors to avoid these surprises.
+
+## What Are Factors?
+
+<div class="insight-box">
+💡 **Key Insight: Factors Are Integers in Disguise**
+
+```{r}
+# Create a factor
+colors <- factor(c("red", "blue", "red", "green"))
+colors
+
+# But underneath, it's integers!
+typeof(colors)    # "integer"
+as.integer(colors)  # 3 1 3 2
+
+# The labels are stored separately
+levels(colors)
+
+# Structure revealed
+str(colors)
+```
+
+**Key points:**
+- Factors store data as integers (1, 2, 3, ...)
+- Each integer maps to a level (label)
+- Levels are stored once, data stores references
+- More memory-efficient for repeated values
+- Used extensively in statistical modeling
+
+**Why factors exist:**
+1. Memory efficiency (repeated strings)
+2. Statistical modeling (R knows it's categorical)
+3. Ordering (can be ordered or unordered)
+4. Validation (only valid levels allowed)
+</div>
+
+## Factor vs Character
+
+<div class="insight-box">
+💡 **Factor vs Character Comparison**
+
+```{r}
+# Character vector
+char_vec <- c("red", "blue", "red", "green")
+typeof(char_vec)
+class(char_vec)
+
+# Factor
+fac_vec <- factor(char_vec)
+typeof(fac_vec)
+class(fac_vec)
+
+# Memory difference (with many repetitions)
+x_char <- rep(c("Category A", "Category B"), 10000)
+x_fac <- factor(x_char)
+
+object.size(x_char)
+object.size(x_fac)  # Much smaller!
+
+# Statistical modeling difference
+df <- data.frame(
+  group = factor(c("A", "B", "A", "B")),
+  value = c(10, 20, 15, 25)
+)
+
+# R knows 'group' is categorical
+lm(value ~ group, data = df)
+```
+
+**When to use each:**
+- **Character:** Text data, unique values, will manipulate as strings
+- **Factor:** Categories, repeated values, for modeling/plotting
+</div>
+
+## Error #1: `invalid factor level, NA generated` {#invalid-factor-level}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r}
+sizes <- factor(c("small", "medium", "large"))
+sizes[1] <- "extra-large"  # Not in levels!
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Warning message:
+In `[<-.factor`(`*tmp*`, 1, value = "extra-large") :
+  invalid factor level, NA generated
+```
+</div>
+
+```{r}
+sizes  # Became NA!
+```
+
+### What It Means
+
+You're trying to assign a value that's not in the factor's levels. R converts it to NA instead.
+
+### Why This Happens
+
+```{r}
+sizes <- factor(c("small", "medium", "large"))
+
+# Only these levels exist
+levels(sizes)
+
+# Can only assign existing levels
+sizes[1] <- "medium"  # OK
+sizes
+
+# New levels not allowed
+sizes[2] <- "tiny"    # Warning, becomes NA
+sizes
+```
+
+### Common Causes
+
+#### Cause 1: Typo in Assignment
+
+```{r}
+colors <- factor(c("red", "blue", "green"))
+levels(colors)
+
+# Typo: "blu" instead of "blue"
+colors[2] <- "blu"
+colors  # NA!
+```
+
+#### Cause 2: Case Mismatch
+
+```{r}
+sizes <- factor(c("small", "medium", "large"))
+
+# Wrong case
+sizes[1] <- "Small"  # "Small" != "small"
+sizes
+```
+
+#### Cause 3: Adding New Categories
+
+```{r}
+responses <- factor(c("yes", "no", "yes"))
+
+# Try to add new response
+responses[4] <- "maybe"  # "maybe" not in original levels
+responses
+```
+
+#### Cause 4: Data Merge Issues
+
+```{r}
+# Original data
+df1 <- data.frame(
+  group = factor(c("A", "B", "C"))
+)
+
+# New data with different level
+df2 <- data.frame(
+  group = factor(c("D", "E"))
+)
+
+# Combine
+combined <- rbind(df1, df2)
+combined$group  # D and E became NA!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Add New Level First**
+
+```{r}
+sizes <- factor(c("small", "medium", "large"))
+
+# Add new level
+levels(sizes) <- c(levels(sizes), "extra-large")
+levels(sizes)
+
+# Now assignment works
+sizes[1] <- "extra-large"
+sizes
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Convert to Character, Modify, Convert Back**
+
+```{r}
+sizes <- factor(c("small", "medium", "large"))
+
+# Convert to character
+sizes_char <- as.character(sizes)
+
+# Modify freely
+sizes_char[1] <- "extra-large"
+sizes_char[4] <- "tiny"
+
+# Convert back to factor
+sizes_new <- factor(sizes_char)
+sizes_new
+levels(sizes_new)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Specify All Levels Upfront**
+
+```{r}
+# Specify all possible levels when creating
+sizes <- factor(
+  c("small", "medium", "large"),
+  levels = c("tiny", "small", "medium", "large", "extra-large")
+)
+
+levels(sizes)
+
+# Now any level can be assigned
+sizes[1] <- "extra-large"
+sizes[4] <- "tiny"
+sizes
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 4: Use forcats Package (Tidyverse)**
+
+```{r}
+library(forcats)
+
+sizes <- factor(c("small", "medium", "large"))
+
+# Add level dynamically
+sizes <- fct_expand(sizes, "extra-large", "tiny")
+levels(sizes)
+
+sizes[1] <- "extra-large"
+sizes
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Silent NA Creation**
+
+```{r}
+# Create factor
+status <- factor(c("active", "inactive", "active"))
+
+# Update many values
+new_values <- c("active", "paused", "inactive")
+status <- new_values  # Coerces to character!
+
+class(status)  # Not a factor anymore!
+
+# Or if forcing to stay factor:
+status <- factor(c("active", "inactive", "active"))
+status[] <- new_values  # "paused" becomes NA silently!
+status
+```
+
+**Always check for NAs after factor assignment:**
+```{r}
+if (any(is.na(status))) {
+  warning("Some values became NA - check factor levels")
+}
+```
+</div>
+
+## Error #2: `number of levels differs` {#number-levels-differs}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+f1 <- factor(c("a", "b", "c"))
+f2 <- factor(c("a", "b"))
+
+c(f1, f2)  # Try to combine
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Warning message:
+In c.factor(f1, f2) : number of levels differs
+```
+</div>
+
+```{r}
+# Result loses factor structure
+result <- c(f1, f2)
+class(result)  # "integer" not "factor"!
+```
+
+### What It Means
+
+Combining factors with different levels produces unexpected results.
+
+### The Problem
+
+```{r}
+f1 <- factor(c("red", "blue"))
+f2 <- factor(c("green", "yellow"))
+
+levels(f1)
+levels(f2)
+
+# Combine - loses factor structure!
+combined <- c(f1, f2)
+combined  # Just integers!
+class(combined)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Convert to Character First**
+
+```{r}
+f1 <- factor(c("red", "blue"))
+f2 <- factor(c("green", "yellow"))
+
+# Convert both to character
+combined <- c(as.character(f1), as.character(f2))
+combined
+
+# Convert back to factor
+combined <- factor(combined)
+combined
+levels(combined)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Same Levels for Both**
+
+```{r}
+# Define all levels upfront
+all_levels <- c("red", "blue", "green", "yellow")
+
+f1 <- factor(c("red", "blue"), levels = all_levels)
+f2 <- factor(c("green", "yellow"), levels = all_levels)
+
+# Now same levels
+identical(levels(f1), levels(f2))
+
+# Combine works better
+combined <- c(f1, f2)
+combined <- factor(combined, levels = all_levels)
+combined
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use forcats::fct_c()**
+
+```{r}
+library(forcats)
+
+f1 <- factor(c("red", "blue"))
+f2 <- factor(c("green", "yellow"))
+
+# Smart concatenation
+combined <- fct_c(f1, f2)
+combined
+levels(combined)
+```
+</div>
+
+## Error #3: `contrasts can be applied only to factors with 2 or more levels` {#contrasts-levels}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-math">🧮 MATH</span>
+
+### The Error
+
+```{r error=TRUE}
+# Factor with only one level
+single_level <- factor(c("A", "A", "A", "A"))
+levels(single_level)
+
+# Try to use in model
+df <- data.frame(
+  group = single_level,
+  value = c(10, 20, 15, 25)
+)
+
+lm(value ~ group, data = df)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in `contrasts<-`(`*tmp*`, value = contr.treatment(2)) : 
+  contrasts can be applied only to factors with 2 or more levels
+```
+</div>
+
+### What It Means
+
+Statistical models need at least 2 levels to compare. A single-level factor can't be used as a predictor.
+
+### Common Causes
+
+#### Cause 1: Accidental Filtering
+
+```{r error=TRUE}
+df <- data.frame(
+  treatment = factor(c("A", "B", "A", "B", "C")),
+  outcome = rnorm(5)
+)
+
+# Filter to subset
+df_filtered <- df[df$treatment == "A", ]
+df_filtered$treatment  # Still a factor, but only one level used
+
+# Try to model
+lm(outcome ~ treatment, data = df_filtered)
+```
+
+#### Cause 2: Data Preparation Gone Wrong
+
+```{r error=TRUE}
+# Read data
+responses <- factor(c("yes", "no", "maybe", "yes"))
+
+# Remove certain responses
+clean_responses <- responses[responses != "no" & responses != "maybe"]
+clean_responses  # Only "yes" left
+
+df <- data.frame(
+  response = clean_responses,
+  score = c(80, 90)
+)
+
+lm(score ~ response, data = df)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Drop Unused Levels**
+
+```{r}
+df <- data.frame(
+  treatment = factor(c("A", "B", "A", "B", "C")),
+  outcome = rnorm(5)
+)
+
+# Filter
+df_filtered <- df[df$treatment == "A", ]
+
+# Drop unused levels
+df_filtered$treatment <- droplevels(df_filtered$treatment)
+levels(df_filtered$treatment)  # Only "A" now
+
+# Model will error (only 1 level)
+# But at least levels match reality
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check Before Modeling**
+
+```{r}
+check_factor_for_modeling <- function(f) {
+  # Check if factor
+  if (!is.factor(f)) {
+    stop("Input is not a factor")
+  }
+  
+  # Count levels with data
+  level_counts <- table(f)
+  levels_with_data <- sum(level_counts > 0)
+  
+  if (levels_with_data < 2) {
+    stop("Factor has only ", levels_with_data, 
+         " level(s) with data. Need at least 2 for modeling.")
+  }
+  
+  # Check for unused levels
+  if (nlevels(f) > levels_with_data) {
+    message("Factor has ", nlevels(f) - levels_with_data, 
+            " unused level(s). Consider droplevels().")
+  }
+  
+  return(TRUE)
+}
+
+# Test
+single <- factor(c("A", "A"))
+```
+
+```{r error=TRUE}
+check_factor_for_modeling(single)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Convert to Character If Needed**
+
+```{r}
+df <- data.frame(
+  treatment = factor(c("A", "B", "A", "B", "C")),
+  outcome = rnorm(5)
+)
+
+df_filtered <- df[df$treatment == "A", ]
+
+# If you don't need it as a factor, convert
+df_filtered$treatment <- as.character(df_filtered$treatment)
+
+# Or remove from model
+lm(outcome ~ 1, data = df_filtered)  # Intercept-only model
+```
+</div>
+
+## Creating Factors Correctly
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Factor Creation**
+
+```{r}
+# Method 1: Basic factor
+sizes <- factor(c("S", "M", "L", "M", "S"))
+sizes
+
+# Method 2: Specify levels explicitly
+sizes <- factor(
+  c("S", "M", "L"),
+  levels = c("XS", "S", "M", "L", "XL")
+)
+sizes
+levels(sizes)  # All levels present
+
+# Method 3: With labels (different from levels)
+sizes <- factor(
+  c(1, 2, 3, 2, 1),
+  levels = 1:5,
+  labels = c("XS", "S", "M", "L", "XL")
+)
+sizes
+
+# Method 4: Ordered factor
+sizes <- factor(
+  c("S", "M", "L", "M", "S"),
+  levels = c("XS", "S", "M", "L", "XL"),
+  ordered = TRUE
+)
+sizes
+class(sizes)  # "ordered" "factor"
+
+# Can now compare
+sizes[1] < sizes[3]  # TRUE (S < L)
+
+# Method 5: From numeric
+ages_binned <- cut(
+  c(15, 25, 35, 45, 55),
+  breaks = c(0, 18, 30, 50, 100),
+  labels = c("Youth", "Young Adult", "Middle Age", "Senior")
+)
+ages_binned
+```
+</div>
+
+## Levels vs Labels
+
+<div class="insight-box">
+💡 **Key Insight: Levels vs Labels**
+
+```{r}
+# Levels: What you have in the data
+# Labels: What you want to display
+
+# Example: Survey responses coded as numbers
+responses <- c(1, 2, 3, 2, 1, 3)
+
+# Wrong: Just convert to factor
+bad <- factor(responses)
+bad  # Shows 1, 2, 3
+
+# Right: Provide labels
+good <- factor(
+  responses,
+  levels = 1:3,
+  labels = c("Disagree", "Neutral", "Agree")
+)
+good  # Shows actual meanings
+
+# The underlying data is still integers
+as.integer(good)
+
+# But displays with labels
+print(good)
+levels(good)
+```
+
+**Key difference:**
+- **levels**: Values in your data (what it IS)
+- **labels**: Display names (what you WANT TO SHOW)
+</div>
+
+## Ordered Factors
+
+<div class="insight-box">
+💡 **Ordered vs Unordered Factors**
+
+```{r}
+# Unordered (nominal)
+colors <- factor(c("red", "blue", "green"))
+colors
+class(colors)
+
+# Can't compare
+colors[1] < colors[2]  # Not meaningful
+
+# Ordered (ordinal)
+sizes <- ordered(c("S", "M", "L", "M", "S"),
+                levels = c("S", "M", "L"))
+sizes
+class(sizes)
+
+# Can compare
+sizes[1] < sizes[3]  # TRUE
+
+# Or use factor with ordered = TRUE
+grades <- factor(
+  c("B", "A", "C", "A"),
+  levels = c("F", "D", "C", "B", "A"),
+  ordered = TRUE
+)
+grades
+grades[1] < grades[2]  # TRUE (B < A)
+```
+
+**When to use ordered:**
+- Size (S < M < L)
+- Grade (F < D < C < B < A)
+- Likert scales (Strongly Disagree < ... < Strongly Agree)
+- Any natural ordering
+
+**When NOT to use ordered:**
+- Colors (no natural order)
+- Categories (no natural order)
+- Nominal data
+</div>
+
+## Checking and Modifying Levels
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Working with Levels**
+
+```{r}
+sizes <- factor(c("S", "M", "L", "M", "S"))
+
+# Check levels
+levels(sizes)
+nlevels(sizes)
+
+# Check for specific level
+"XL" %in% levels(sizes)
+
+# Add levels
+levels(sizes) <- c(levels(sizes), "XS", "XL")
+levels(sizes)
+
+# Rename levels
+sizes <- factor(c("S", "M", "L"))
+levels(sizes) <- c("Small", "Medium", "Large")
+sizes
+
+# Reorder levels
+sizes <- factor(c("L", "S", "M"))
+sizes <- factor(sizes, levels = c("S", "M", "L"))
+sizes
+
+# Drop unused levels
+sizes <- factor(c("S", "M", "L"), levels = c("XS", "S", "M", "L", "XL"))
+levels(sizes)  # All 5 levels
+
+sizes <- sizes[sizes != "L"]  # Remove L observations
+levels(sizes)  # Still shows L!
+
+sizes <- droplevels(sizes)
+levels(sizes)  # Now only S and M
+
+# Collapse levels
+sizes <- factor(c("XS", "S", "M", "L", "XL"))
+sizes_collapsed <- fct_collapse(sizes,
+  Small = c("XS", "S"),
+  Medium = "M",
+  Large = c("L", "XL")
+)
+sizes_collapsed
+```
+</div>
+
+## Common Factor Mistakes
+
+<div class="pitfall-box">
+⚠️ **Pitfall 1: Converting Factor to Numeric**
+
+```{r}
+# Factor with numeric-looking levels
+scores <- factor(c("90", "85", "95", "88"))
+scores
+
+# WRONG: Direct conversion
+as.numeric(scores)  # Gives 4 2 5 3 (factor codes!)
+
+# RIGHT: Convert through character
+as.numeric(as.character(scores))  # 90 85 95 88
+
+# Or use levels
+as.numeric(levels(scores))[scores]  # 90 85 95 88
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Pitfall 2: Unexpected Coercion**
+
+```{r}
+# Combining factor and character
+fac <- factor(c("a", "b"))
+char <- c("c", "d")
+
+combined <- c(fac, char)
+class(combined)  # "character" (lost factor)
+combined
+
+# Arithmetic with factors
+fac <- factor(c("1", "2", "3"))
+```
+
+```{r error=TRUE}
+fac + 10  # Error!
+```
+
+```{r}
+# Convert first
+as.numeric(as.character(fac)) + 10
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Pitfall 3: Factor Subsetting Keeps All Levels**
+
+```{r}
+sizes <- factor(c("S", "M", "L", "XL"))
+levels(sizes)
+
+# Subset to only S and M
+sizes_small <- sizes[sizes %in% c("S", "M")]
+sizes_small
+
+# But levels still show L and XL!
+levels(sizes_small)
+
+# Drop unused levels
+sizes_small <- droplevels(sizes_small)
+levels(sizes_small)
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Factors are integers with labels** - Understanding this prevents confusion
+2. **Can only assign existing levels** - Add level first or convert to character
+3. **Combining factors is tricky** - Use forcats or convert to character
+4. **Drop unused levels** after subsetting with `droplevels()`
+5. **Specify levels explicitly** when creating factors
+6. **Ordered factors** for data with natural ordering
+7. **Convert through character** when converting factor to numeric
+
+**Quick Reference:**
+
+| Error/Warning | Cause | Fix |
+|---------------|-------|-----|
+| invalid factor level, NA | Assigning non-existent level | Add level first or use character |
+| number of levels differs | Combining different factors | Use fct_c() or same levels |
+| contrasts need 2+ levels | Single-level factor in model | Check levels before modeling |
+| Wrong numeric conversion | as.numeric(factor) | as.numeric(as.character(factor)) |
+
+**Factor Operations:**
+
+```{r eval=FALSE}
+# Creation
+factor(x)
+factor(x, levels = ...)
+factor(x, levels = ..., labels = ...)
+ordered(x, levels = ...)
+
+# Inspection
+levels(f)
+nlevels(f)
+is.factor(f)
+is.ordered(f)
+
+# Modification
+levels(f) <- new_levels
+f <- droplevels(f)
+f <- factor(f, levels = new_order)
+
+# Conversion
+as.character(f)
+as.numeric(as.character(f))  # If numeric-like
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+factor(x, levels = all_possible_levels)  # Explicit levels
+as.character(f) %>% modify() %>% factor() # Modify as character
+droplevels(f)                             # After subsetting
+fct_c(f1, f2)                            # Combine factors
+
+# ❌ Avoid
+as.numeric(factor_with_numbers)          # Wrong conversion
+c(factor1, factor2)                      # Loses factor structure
+factor(x)                                # Without explicit levels
+f[f %in% subset] without droplevels()    # Unused levels remain
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Factor Conversion**
+
+You have:
+```{r eval=FALSE}
+scores <- factor(c("85", "90", "95", "88", "92"))
+```
+
+1. Convert to proper numeric values
+2. Bin into letter grades (A: 90-100, B: 80-89, etc.)
+3. Create ordered factor of letter grades
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Combining Factors**
+
+You have survey data from two sources:
+```{r eval=FALSE}
+survey1 <- factor(c("Agree", "Disagree", "Neutral"))
+survey2 <- factor(c("Strongly Agree", "Agree", "Disagree"))
+```
+
+Combine them into one factor with all response levels.
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Factor Validation**
+
+Write `validate_factor(f)` that checks:
+1. If input is a factor
+2. If it has at least 2 levels
+3. If it has unused levels
+4. Returns report of issues found
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Safe Factor Assignment**
+
+Write `safe_assign_level(f, index, value)` that:
+1. Checks if value is in levels
+2. Adds level if not present
+3. Assigns the value
+4. Returns modified factor
+5. Warns about any changes made
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+scores <- factor(c("85", "90", "95", "88", "92"))
+
+# 1. Convert to numeric
+scores_num <- as.numeric(as.character(scores))
+scores_num
+
+# 2. Bin into letter grades
+letter_grades <- cut(
+  scores_num,
+  breaks = c(0, 60, 70, 80, 90, 100),
+  labels = c("F", "D", "C", "B", "A"),
+  include.lowest = TRUE
+)
+letter_grades
+
+# 3. Create ordered factor
+letter_grades_ordered <- ordered(
+  letter_grades,
+  levels = c("F", "D", "C", "B", "A")
+)
+letter_grades_ordered
+
+# Can now compare
+letter_grades_ordered[1] < letter_grades_ordered[3]
+```
+
+**Exercise 2:**
+
+```{r}
+library(forcats)
+
+survey1 <- factor(c("Agree", "Disagree", "Neutral"))
+survey2 <- factor(c("Strongly Agree", "Agree", "Disagree"))
+
+# Define all possible levels
+all_levels <- c("Strongly Disagree", "Disagree", "Neutral", 
+                "Agree", "Strongly Agree")
+
+# Recreate with same levels
+survey1 <- factor(survey1, levels = all_levels)
+survey2 <- factor(survey2, levels = all_levels)
+
+# Combine
+combined <- fct_c(survey1, survey2)
+combined
+levels(combined)
+
+# Alternative: convert to character first
+survey1 <- factor(c("Agree", "Disagree", "Neutral"))
+survey2 <- factor(c("Strongly Agree", "Agree", "Disagree"))
+
+combined <- c(as.character(survey1), as.character(survey2))
+combined <- factor(combined, levels = all_levels)
+combined
+```
+
+**Exercise 3:**
+
+```{r}
+validate_factor <- function(f) {
+  issues <- list()
+  
+  # Check if factor
+  if (!is.factor(f)) {
+    issues$not_factor <- paste("Input is", class(f)[1], "not factor")
+    return(issues)
+  }
+  
+  # Check number of levels
+  n_levels <- nlevels(f)
+  if (n_levels < 2) {
+    issues$too_few_levels <- paste("Only", n_levels, "level(s). Need at least 2 for most analyses.")
+  }
+  
+  # Check for unused levels
+  used_levels <- unique(as.character(f))
+  all_levels <- levels(f)
+  unused <- setdiff(all_levels, used_levels)
+  
+  if (length(unused) > 0) {
+    issues$unused_levels <- paste("Unused levels:", 
+                                  paste(unused, collapse = ", "))
+  }
+  
+  # Report
+  if (length(issues) == 0) {
+    message("✓ Factor validation passed")
+    return(invisible(NULL))
+  } else {
+    message("Factor validation issues found:")
+    for (name in names(issues)) {
+      message("  - ", issues[[name]])
+    }
+    return(invisible(issues))
+  }
+}
+
+# Test
+good <- factor(c("A", "B", "A", "B"))
+validate_factor(good)
+
+bad <- factor(c("A", "A", "A"), levels = c("A", "B", "C"))
+validate_factor(bad)
+```
+
+**Exercise 4:**
+
+```{r}
+safe_assign_level <- function(f, index, value) {
+  # Validate input
+  if (!is.factor(f)) {
+    stop("Input must be a factor")
+  }
+  
+  if (index < 1 || index > length(f)) {
+    stop("Index out of bounds")
+  }
+  
+  # Check if value is in levels
+  if (!value %in% levels(f)) {
+    message("Adding new level: '", value, "'")
+    levels(f) <- c(levels(f), value)
+  }
+  
+  # Assign
+  old_value <- as.character(f[index])
+  f[index] <- value
+  
+  if (old_value != value) {
+    message("Changed position ", index, " from '", old_value, 
+            "' to '", value, "'")
+  }
+  
+  return(f)
+}
+
+# Test
+sizes <- factor(c("S", "M", "L"))
+
+# Existing level
+sizes <- safe_assign_level(sizes, 1, "M")
+sizes
+
+# New level
+sizes <- safe_assign_level(sizes, 2, "XL")
+sizes
+levels(sizes)
+```
+</details>

@@ -1,0 +1,23 @@
+# Part XVI: Advanced Topics {-}
+
+# Parallel Processing {#parallel}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- parallel package
+- future package
+- Common pitfalls
+- When to parallelize
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Summary
+
+Use parallel processing in R with parallel and future packages.
+
+**Key Functions:**
+- `mclapply()` - Parallel lapply (Unix)
+- `parLapply()` - Parallel lapply (cross-platform)
+- `future_map()` - Modern parallel mapping

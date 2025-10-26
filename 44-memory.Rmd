@@ -1,0 +1,22 @@
+# Memory Management {#memory}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Memory profiling
+- Garbage collection
+- Large data strategies
+- Memory-efficient coding
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Summary
+
+Manage memory effectively in R for large datasets.
+
+**Key Concepts:**
+- Monitor memory usage
+- Understand gc()
+- Use data.table for large data
+- Clean up objects

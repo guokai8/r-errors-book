@@ -1,0 +1,22 @@
+# Production R Code {#production}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Production best practices
+- Error handling
+- Logging
+- Monitoring
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Summary
+
+Write production-ready R code with proper error handling and logging.
+
+**Key Principles:**
+- Robust error handling
+- Comprehensive logging
+- Input validation
+- Graceful failures

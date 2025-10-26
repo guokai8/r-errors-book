@@ -1,0 +1,687 @@
+# (APPENDIX) Appendix {-}
+
+# Complete Error Dictionary (A-Z) {#error-dictionary}
+
+This appendix provides an alphabetical quick reference of all errors covered in the book. Each entry includes:
+
+- Error message
+- Chapter reference
+- Quick fix
+- Difficulty level
+
+Use Ctrl+F (Cmd+F on Mac) to search for specific error text.
+
+---
+
+## A
+
+### `All aesthetics have length 1, but data has X rows`
+
+**Package:** ggplot2  
+**Chapter:** \@ref(ggplot2-basics)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Pass a data frame to ggplot(), not individual vectors  
+**Example:**
+```{r eval=FALSE}
+# Wrong:
+ggplot() + geom_point(aes(x = 1:10, y = 1:10))
+
+# Right:
+df <- data.frame(x = 1:10, y = 1:10)
+ggplot(df) + geom_point(aes(x, y))
+```
+
+### `argument "x" is missing, with no default`
+
+**Package:** base  
+**Chapter:** \@ref(function-definition)  
+**Difficulty:** ⭐  
+**Quick Fix:** Provide the required argument or set a default value  
+**Example:**
+```{r eval=FALSE}
+# Function needs argument:
+my_func <- function(x) { x + 1 }
+my_func()  # Error!
+
+# Fix: provide it:
+my_func(5)
+
+# Or give it a default:
+my_func <- function(x = 0) { x + 1 }
+```
+
+### `argument is not interpretable as logical`
+
+**Package:** base  
+**Chapter:** \@ref(control-flow)  
+**Difficulty:** ⭐  
+**Quick Fix:** Ensure condition evaluates to TRUE/FALSE  
+**Example:**
+```{r eval=FALSE}
+# Wrong:
+if ("yes") { }  # Character not logical
+
+# Right:
+if (TRUE) { }
+```
+
+### `argument is of length zero`
+
+**Package:** base  
+**Chapter:** \@ref(control-flow)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Check for empty vectors before using in if()  
+**Example:**
+```{r eval=FALSE}
+x <- numeric(0)
+if (x > 5) { }  # Error!
+
+# Fix:
+if (length(x) > 0 && x > 5) { }
+```
+
+### `arguments imply differing number of rows: X, Y`
+
+**Package:** base  
+**Chapter:** \@ref(dataframe-construction)  
+**Difficulty:** ⭐  
+**Quick Fix:** Ensure all columns have same length or use recycling explicitly  
+**Example:**
+```{r eval=FALSE}
+# Wrong:
+data.frame(a = 1:5, b = 1:3)  # Error!
+
+# Right:
+data.frame(a = 1:5, b = rep(1:3, length.out = 5))
+```
+
+---
+
+## B
+
+### `bytecode version mismatch`
+
+**Package:** base  
+**Chapter:** \@ref(package-loading)  
+**Difficulty:** ⭐⭐⭐  
+**Quick Fix:** Reinstall packages after R update  
+
+### `by must specify column(s) as numbers, names or logical`
+
+**Package:** base  
+**Chapter:** \@ref(base-manipulation)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Check merge/aggregate by argument format  
+
+---
+
+## C
+
+### `Can't combine <type1> and <type2>`
+
+**Package:** dplyr  
+**Chapter:** \@ref(dplyr)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Convert columns to compatible types before combining  
+**Example:**
+```{r eval=FALSE}
+# If binding rows with incompatible types:
+df1 <- data.frame(x = 1:5)
+df2 <- data.frame(x = letters[1:5])
+bind_rows(df1, df2)  # Error!
+
+# Fix: make types consistent
+df2$x <- as.character(df2$x)
+```
+
+### `Can't rename columns that don't exist`
+
+**Package:** dplyr  
+**Chapter:** \@ref(dplyr)  
+**Difficulty:** ⭐  
+**Quick Fix:** Check column name spelling  
+
+### `Can't subset columns that don't exist`
+
+**Package:** dplyr  
+**Chapter:** \@ref(dplyr)  
+**Difficulty:** ⭐  
+**Quick Fix:** Verify column names with `names()` or `colnames()`  
+
+### `cannot allocate vector of size X`
+
+**Package:** base  
+**Chapter:** \@ref(memory-errors)  
+**Difficulty:** ⭐⭐⭐  
+**Quick Fix:** Reduce data size, use data.table, or add RAM  
+**See also:** Memory management techniques in Chapter \@ref(memory-errors)
+
+### `cannot change value of locked binding for 'X'`
+
+**Package:** base  
+**Chapter:** \@ref(objects-variables)  
+**Difficulty:** ⭐  
+**Quick Fix:** Don't try to reassign T, F, or other protected objects  
+
+### `cannot change working directory`
+
+**Package:** base  
+**Chapter:** \@ref(working-directory-paths)  
+**Difficulty:** ⭐  
+**Quick Fix:** Check path exists and you have permission  
+
+### `cannot coerce class "X" to a data.frame`
+
+**Package:** base  
+**Chapter:** \@ref(type-mismatch)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Convert object to appropriate type first  
+
+### `cannot open file 'X': No such file or directory`
+
+**Package:** base  
+**Chapter:** \@ref(working-directory-paths)  
+**Difficulty:** ⭐  
+**Quick Fix:** Check file path and working directory with `getwd()`  
+**See also:** File path best practices in Chapter \@ref(working-directory-paths)
+
+### `cannot open the connection`
+
+**Package:** base  
+**Chapter:** \@ref(working-directory-paths)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Close file in other programs, check file path  
+
+### `character string is not in a standard unambiguous format`
+
+**Package:** base  
+**Chapter:** \@ref(datetime-parsing)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Specify date format explicitly with `format` argument  
+
+### `column 'X' not found`
+
+**Package:** various  
+**Chapter:** \@ref(column-manipulation)  
+**Difficulty:** ⭐  
+**Quick Fix:** Check spelling and use `names(data)` to verify  
+
+### `contexts stack overflow`
+
+**Package:** base  
+**Chapter:** \@ref(scoping-environment)  
+**Difficulty:** ⭐⭐⭐  
+**Quick Fix:** Check for infinite recursion  
+
+### `contrasts can be applied only to factors with 2 or more levels`
+
+**Package:** stats  
+**Chapter:** \@ref(model-fitting)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Check factor has multiple levels or convert to numeric  
+
+### `could not find function "X"`
+
+**Package:** base  
+**Chapter:** \@ref(objects-variables)  
+**Difficulty:** ⭐  
+**Quick Fix:** Load required package with `library()` or use `package::function()`  
+**See also:** Package management in Chapter \@ref(package-loading)
+
+---
+
+## D
+
+### `do not know how to convert 'X' to class "Date"`
+
+**Package:** base  
+**Chapter:** \@ref(datetime-parsing)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Use proper date parsing function like `as.Date()` with format  
+
+### `duplicate row.names are not allowed`
+
+**Package:** base  
+**Chapter:** \@ref(dataframe-construction)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Ensure row names are unique or use `row.names = FALSE`  
+
+---
+
+## E
+
+### `embedded nul in string`
+
+**Package:** base  
+**Chapter:** \@ref(working-directory-paths)  
+**Difficulty:** ⭐⭐⭐  
+**Quick Fix:** File is corrupted or binary; re-download or clean data  
+
+### `ERROR: dependency 'X' is not available`
+
+**Package:** utils  
+**Chapter:** \@ref(installation-environment)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Install with `dependencies = TRUE` or install dependency first  
+
+### `Error in library(X) : there is no package called 'X'`
+
+**Package:** base  
+**Chapter:** \@ref(installation-environment)  
+**Difficulty:** ⭐  
+**Quick Fix:** Install package first: `install.packages("X")`  
+
+### `evaluation nested too deeply`
+
+**Package:** base  
+**Chapter:** \@ref(scoping-environment)  
+**Difficulty:** ⭐⭐⭐  
+**Quick Fix:** Increase `options(expressions = ...)` or fix infinite recursion  
+
+---
+
+## F
+
+### `Faceting variables must have at least one value`
+
+**Package:** ggplot2  
+**Chapter:** \@ref(ggplot2-advanced)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Remove empty factor levels or NA values  
+
+### `figure margins too large`
+
+**Package:** graphics  
+**Chapter:** \@ref(base-graphics)  
+**Difficulty:** ⭐  
+**Quick Fix:** Increase plot window size or adjust `par(mar = ...)`  
+
+### `formal argument "X" matched by multiple actual arguments`
+
+**Package:** base  
+**Chapter:** \@ref(function-definition)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Don't provide same argument twice (by name and position)  
+
+---
+
+## G
+
+### `geom_X requires the following missing aesthetics: Y`
+
+**Package:** ggplot2  
+**Chapter:** \@ref(ggplot2-basics)  
+**Difficulty:** ⭐  
+**Quick Fix:** Provide required aesthetic mapping  
+
+### `glm.fit: algorithm did not converge`
+
+**Package:** stats  
+**Chapter:** \@ref(model-fitting)  
+**Difficulty:** ⭐⭐⭐  
+**Quick Fix:** Increase iterations, check data scaling, simplify model  
+
+---
+
+## I
+
+### `incomplete final line found`
+
+**Package:** base  
+**Chapter:** \@ref(working-directory-paths)  
+**Difficulty:** ⭐  
+**Quick Fix:** Usually harmless; add newline to file or use readr  
+
+### `incorrect number of dimensions`
+
+**Package:** base  
+**Chapter:** \@ref(subscript-dimension)  
+**Difficulty:** ⭐  
+**Quick Fix:** Check object dimensions with `dim()` or `str()`  
+
+### `incorrect number of subscripts on matrix`
+
+**Package:** base  
+**Chapter:** \@ref(subscript-dimension)  
+**Difficulty:** ⭐  
+**Quick Fix:** Use correct number of indices [row, col]  
+
+### `installation of package 'X' had non-zero exit status`
+
+**Package:** utils  
+**Chapter:** \@ref(installation-environment)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Check error details, ensure dependencies installed  
+
+### `invalid factor level, NA generated`
+
+**Package:** base  
+**Chapter:** \@ref(factor-creation)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Add new levels to factor before assigning  
+
+### `invalid multibyte string`
+
+**Package:** base  
+**Chapter:** \@ref(working-directory-paths)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Specify file encoding: `fileEncoding = "UTF-8"`  
+
+---
+
+## L
+
+### `lazy-load database 'X' is corrupt`
+
+**Package:** base  
+**Chapter:** \@ref(installation-environment)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Reinstall the package  
+
+### `longer object length is not a multiple of shorter object length`
+
+**Package:** base  
+**Chapter:** \@ref(vectors-recycling)  
+**Difficulty:** ⭐  
+**Quick Fix:** Ensure vectors have compatible lengths  
+
+---
+
+## M
+
+### `missing value where TRUE/FALSE needed`
+
+**Package:** base  
+**Chapter:** \@ref(na-null-nan-inf)  
+**Difficulty:** ⭐  
+**Quick Fix:** Handle NA values before using in if() or logic  
+
+### `more columns than column names`
+
+**Package:** base  
+**Chapter:** \@ref(reading-data)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Check CSV delimiter, specify `sep` argument  
+
+---
+
+## N
+
+### `NAs introduced by coercion`
+
+**Package:** base  
+**Chapter:** \@ref(type-mismatch)  
+**Difficulty:** ⭐  
+**Quick Fix:** Check data before converting; can't convert "abc" to number  
+
+### `need finite 'xlim' values`
+
+**Package:** graphics  
+**Chapter:** \@ref(base-graphics)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Remove infinite or NA values from data  
+
+### `no applicable method for 'X' applied to an object of class "Y"`
+
+**Package:** base  
+**Chapter:** \@ref(s3-s4-methods)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Object type doesn't work with that function; convert or use different function  
+
+### `non-conformable arrays`
+
+**Package:** base  
+**Chapter:** \@ref(matrix-operations)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Ensure matrix dimensions match for operation  
+
+### `non-numeric argument to binary operator`
+
+**Package:** base  
+**Chapter:** \@ref(type-mismatch)  
+**Difficulty:** ⭐  
+**Quick Fix:** Convert character to numeric before math operations  
+
+---
+
+## O
+
+### `object 'X' not found`
+
+**Package:** base  
+**Chapter:** \@ref(objects-variables)  
+**Difficulty:** ⭐  
+**Quick Fix:** Check spelling, ensure object created, load package if needed  
+**Most Common Error:** See Chapter \@ref(objects-variables) for comprehensive guide
+
+### `object of type 'closure' is not subsettable`
+
+**Package:** base  
+**Chapter:** \@ref(objects-variables)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Add () to call function, or you referenced function name instead of object  
+
+---
+
+## P
+
+### `package 'X' is not available for R version Y`
+
+**Package:** utils  
+**Chapter:** \@ref(installation-environment)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Update R or install from archive  
+
+### `package 'X' was built before R 4.0.0`
+
+**Package:** base  
+**Chapter:** \@ref(package-loading)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Reinstall package  
+
+### `pandoc document conversion failed`
+
+**Package:** rmarkdown  
+**Chapter:** \@ref(rmarkdown-quarto)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Check pandoc installation, update RStudio  
+
+### `plot.new has not been called yet`
+
+**Package:** graphics  
+**Chapter:** \@ref(base-graphics)  
+**Difficulty:** ⭐  
+**Quick Fix:** Create plot before adding elements  
+
+### `promise already under evaluation`
+
+**Package:** base  
+**Chapter:** \@ref(scoping-environment)  
+**Difficulty:** ⭐⭐⭐  
+**Quick Fix:** Circular dependency in default arguments; break the cycle  
+
+### `protect(): protection stack overflow`
+
+**Package:** base  
+**Chapter:** \@ref(memory-errors)  
+**Difficulty:** ⭐⭐⭐  
+**Quick Fix:** Simplify code, reduce nested calls, restart R  
+
+---
+
+## R
+
+### `rank-deficient fit may be misleading`
+
+**Package:** stats  
+**Chapter:** \@ref(model-fitting)  
+**Difficulty:** ⭐⭐⭐  
+**Quick Fix:** Remove collinear predictors, check for perfect correlation  
+
+### `recursive indexing failed at level X`
+
+**Package:** base  
+**Chapter:** \@ref(dollar-double-bracket)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** List element doesn't exist or check index depth  
+
+### `Removed X rows containing missing values`
+
+**Package:** ggplot2  
+**Chapter:** \@ref(ggplot2-basics)  
+**Difficulty:** ⭐  
+**Quick Fix:** Handle NA values or acknowledge they're being dropped  
+
+### `replacement has X rows, data has Y`
+
+**Package:** base  
+**Chapter:** \@ref(subscript-dimension)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Ensure replacement vector matches subset size  
+
+### `Rtools is required to build R packages but is not currently installed`
+
+**Package:** utils  
+**Chapter:** \@ref(installation-environment)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Install Rtools (Windows) or use binary packages  
+
+---
+
+## S
+
+### `stat_count() must not be used with a y aesthetic`
+
+**Package:** ggplot2  
+**Chapter:** \@ref(ggplot2-basics)  
+**Difficulty:** ⭐  
+**Quick Fix:** Use `geom_col()` instead of `geom_bar()` when providing y values  
+
+### `subscript out of bounds`
+
+**Package:** base  
+**Chapter:** \@ref(subscript-dimension)  
+**Difficulty:** ⭐  
+**Quick Fix:** Index is too large; check object length/dimensions  
+
+### `system is computationally singular`
+
+**Package:** base  
+**Chapter:** \@ref(matrix-operations)  
+**Difficulty:** ⭐⭐⭐  
+**Quick Fix:** Matrix not invertible; check for zero determinant  
+
+---
+
+## T
+
+### `the condition has length > 1`
+
+**Package:** base  
+**Chapter:** \@ref(control-flow)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Use `any()` or `all()`, or use `&&` instead of `&`  
+
+### `there is no package called 'X'`
+
+**Package:** base  
+**Chapter:** \@ref(installation-environment)  
+**Difficulty:** ⭐  
+**Quick Fix:** Install package first  
+
+---
+
+## U
+
+### `unable to access index for repository`
+
+**Package:** utils  
+**Chapter:** \@ref(installation-environment)  
+**Difficulty:** ⭐  
+**Quick Fix:** Check internet connection, try different CRAN mirror  
+
+### `undefined columns selected`
+
+**Package:** base  
+**Chapter:** \@ref(column-manipulation)  
+**Difficulty:** ⭐  
+**Quick Fix:** Check column name spelling  
+
+### `unexpected '=' in "X"`
+
+**Package:** base  
+**Chapter:** \@ref(objects-variables)  
+**Difficulty:** ⭐  
+**Quick Fix:** Use `<-` for assignment or `==` for comparison  
+
+### `unexpected symbol in "X"`
+
+**Package:** base  
+**Chapter:** \@ref(objects-variables)  
+**Difficulty:** ⭐  
+**Quick Fix:** Remove spaces from variable names, add missing operators  
+
+### `unused argument (X = Y)`
+
+**Package:** base  
+**Chapter:** \@ref(function-definition)  
+**Difficulty:** ⭐  
+**Quick Fix:** Remove incorrect argument or check function documentation  
+
+---
+
+## V
+
+### `variable 'X' has no visible binding`
+
+**Package:** base  
+**Chapter:** \@ref(scoping-environment)  
+**Difficulty:** ⭐⭐⭐  
+**Quick Fix:** R CMD check issue; use `.data$` pronoun or declare global  
+
+### `variable lengths differ`
+
+**Package:** stats  
+**Chapter:** \@ref(model-fitting)  
+**Difficulty:** ⭐⭐  
+**Quick Fix:** Ensure all variables in formula have same length  
+
+---
+
+## W
+
+### `Warning in install.packages : unable to access index`
+
+**Package:** utils  
+**Chapter:** \@ref(installation-environment)  
+**Difficulty:** ⭐  
+**Quick Fix:** Check internet, try different mirror  
+
+---
+
+## X-Z
+
+[Additional errors as needed]
+
+---
+
+## Notes on Using This Dictionary
+
+1. **Error text matching**: Some errors have variables (like 'X', 'Y') that will show actual values
+2. **Package column**: Indicates which package generates the error
+3. **Difficulty**: ⭐ = Common beginner, ⭐⭐⭐ = Advanced/rare
+4. **Quick Fix**: First thing to try; full details in referenced chapter
+5. **See also**: Links to related errors and concepts
+
+## Can't Find Your Error?
+
+1. Use the index at the beginning of book
+2. Search within relevant chapter (e.g., all ggplot errors in ggplot chapter)
+3. Check Appendix D for package-specific errors
+4. Search complete book text (Ctrl+F in HTML version)
+5. Post on Stack Overflow with `[r]` tag
+6. Ask on RStudio Community
+
+## Contributing Error Definitions
+
+Found an error not listed? Submit it via GitHub issues at [repo-link]

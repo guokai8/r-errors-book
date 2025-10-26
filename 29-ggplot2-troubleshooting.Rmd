@@ -1,0 +1,393 @@
+# ggplot2 Troubleshooting {#ggplot2-troubleshooting}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Common pitfalls
+- Debugging strategies
+- Performance tips
+- Best practices
+- Publication-ready plots
+
+**Key Errors Covered:** 12+ workflow errors
+
+**Difficulty:** ⭐⭐ Intermediate to ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Mastering ggplot2 troubleshooting saves time:
+
+```{r message=FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+## Common Pitfalls
+
+<div class="pitfall-box">
+⚠️ **Common ggplot2 Mistakes**
+
+```{r error=TRUE}
+# Pitfall 1: Using %>% instead of +
+# mtcars %>%
+#   ggplot(aes(x = mpg, y = hp)) %>%
+#   geom_point()
+
+# Pitfall 2: Variable outside aes
+# ggplot(mtcars) +
+#   geom_point(aes(x = mpg, y = hp), color = cyl)
+
+# Pitfall 3: Wrong geom for data
+# ggplot(mtcars, aes(x = factor(cyl))) +
+#   geom_histogram()
+
+# Pitfall 4: Modifying after ggsave
+p <- ggplot(mtcars, aes(x = mpg, y = hp)) + geom_point()
+ggsave("plot.png", p, width = 6, height = 4)
+# p + theme_minimal()  # Won't affect saved plot
+```
+</div>
+
+## Debugging Strategies
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Debug Plots**
+
+```{r}
+# Build incrementally
+p <- ggplot(mtcars, aes(x = mpg, y = hp))
+p  # Check data and aesthetics
+
+p <- p + geom_point()
+p  # Check geom
+
+p <- p + theme_minimal()
+p  # Check theme
+
+# Check data
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  labs(title = paste("N =", nrow(mtcars)))
+
+# Verify aesthetics
+p <- ggplot(mtcars, aes(x = mpg, y = hp, color = factor(cyl)))
+p$mapping  # See mappings
+```
+</div>
+
+## Performance Tips
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Optimize Performance**
+
+```{r}
+# For large data: sample first
+# large_data %>%
+#   sample_n(1000) %>%
+#   ggplot(aes(x = x, y = y)) +
+#   geom_point(alpha = 0.5)
+
+# Use geom_hex for many points
+ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_hex() +
+  scale_fill_viridis_c()
+
+# Avoid unnecessary calculations
+# Bad: calculate in aes
+# ggplot(mtcars, aes(x = mpg, y = hp / wt)) + geom_point()
+
+# Good: calculate first
+mtcars %>%
+  mutate(hp_per_wt = hp / wt) %>%
+  ggplot(aes(x = mpg, y = hp_per_wt)) +
+  geom_point()
+```
+</div>
+
+## Publication-Ready Plots
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Publication Quality**
+
+```{r}
+publication_plot <- function(data, x, y, color = NULL) {
+  ggplot(data, aes(x = {{x}}, y = {{y}}, color = {{color}})) +
+    geom_point(size = 3, alpha = 0.7) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", size = 14),
+      axis.title = element_text(size = 12, face = "bold"),
+      axis.text = element_text(size = 10),
+      legend.position = "right",
+      legend.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank(),
+      panel.border = element_rect(color = "black", fill = NA)
+    ) +
+    scale_color_viridis_d(option = "plasma")
+}
+
+publication_plot(mtcars, mpg, hp, factor(cyl)) +
+  labs(
+    title = "Fuel Efficiency vs Horsepower",
+    subtitle = "Motor Trend Car Road Tests",
+    x = "Miles per Gallon",
+    y = "Horsepower",
+    color = "Cylinders",
+    caption = "Source: mtcars dataset"
+  )
+```
+</div>
+
+## Saving Plots
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Save High-Quality Plots**
+
+```{r eval=FALSE}
+# High-resolution PNG
+ggsave("plot.png", width = 8, height = 6, dpi = 300)
+
+# Vector format
+ggsave("plot.pdf", width = 8, height = 6)
+ggsave("plot.svg", width = 8, height = 6)
+
+# Specify plot object
+p <- ggplot(mtcars, aes(x = mpg, y = hp)) + geom_point()
+ggsave("my_plot.png", plot = p, width = 10, height = 8, dpi = 300)
+
+# Different devices
+ggsave("plot.jpg", device = "jpeg", quality = 95)
+ggsave("plot.tiff", device = "tiff", compression = "lzw")
+```
+</div>
+
+## Error Checklist
+
+<div class="bestpractice-box">
+🎯 **Debugging Checklist**
+
+When a plot fails, check:
+
+1. **Column names** - Do they exist in data?
+```{r eval=FALSE}
+names(data)
+```
+
+2. **Data types** - Numeric vs factor?
+```{r eval=FALSE}
+str(data)
+```
+
+3. **Missing values** - NAs present?
+```{r eval=FALSE}
+summary(data)
+colSums(is.na(data))
+```
+
+4. **Operators** - Using + not %>%?
+
+5. **Aesthetics** - Variables in aes()?
+
+6. **Geom compatibility** - Right geom for data?
+
+7. **Scale compatibility** - Match data type?
+</div>
+
+## Common Error Solutions
+
+<div class="solution-box">
+✅ **Quick Fixes**
+
+```{r}
+# object not found → Check column names
+names(mtcars)
+
+# + vs %>% → Use + for ggplot layers
+mtcars %>%
+  filter(cyl == 4) %>%
+  ggplot(aes(x = mpg, y = hp)) +  # Use +
+  geom_point()
+
+# Discrete/continuous mismatch → Check data type
+ggplot(mtcars, aes(x = mpg, y = hp, color = factor(cyl))) +
+  geom_point() +
+  scale_color_manual(values = c("4" = "red", "6" = "blue", "8" = "green"))
+
+# stat_count requires x or y → Use geom_col for heights
+data.frame(x = c("A", "B", "C"), y = c(10, 20, 15)) %>%
+  ggplot(aes(x = x, y = y)) +
+  geom_col()
+
+# Histogram needs numeric → Use geom_bar for categorical
+ggplot(mtcars, aes(x = factor(cyl))) +
+  geom_bar()
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Use + not %>%** - For ggplot layers
+2. **Build incrementally** - Test each step
+3. **Check data first** - Verify structure
+4. **Variables in aes()** - Fixed values outside
+5. **Match scales** - To data types
+6. **Save properly** - High resolution for publication
+7. **Follow checklist** - When debugging
+
+**Quick Reference:**
+
+```{r eval=FALSE}
+# Basic structure
+ggplot(data, aes(x = var1, y = var2)) +
+  geom_point() +
+  theme_minimal()
+
+# With preprocessing
+data %>%
+  filter(condition) %>%
+  ggplot(aes(x = var1, y = var2)) +  # + not %>%
+  geom_point()
+
+# Save plot
+ggsave("plot.png", width = 8, height = 6, dpi = 300)
+
+# Debug checklist
+names(data)              # Column names
+str(data)                # Data types
+summary(data)            # Check NAs
+p$mapping                # Check aesthetics
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+Build plots incrementally
+Check data structure first
+Use appropriate geom for data type
+Match scales to data
+Save at high resolution
+Document complex plots
+
+# ❌ Avoid
+Using %>% for ggplot layers
+Variables outside aes()
+Ignoring warnings
+Low-resolution saves
+Complex one-liners without testing
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Fix Errors**
+
+Fix these common errors:
+```{r eval=FALSE}
+# Error 1
+mtcars %>%
+  ggplot(aes(x = mpg, y = hp)) %>%
+  geom_point()
+
+# Error 2  
+ggplot(mtcars) +
+  geom_point(aes(x = mpg, y = hp), color = cyl)
+
+# Error 3
+ggplot(mtcars, aes(x = factor(cyl))) +
+  geom_histogram()
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Publication Plot**
+
+Create a publication-ready plot with:
+- Custom theme
+- Proper labels
+- High-quality aesthetics
+- Save at 300 DPI
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+# Error 1: Use + not %>%
+mtcars %>%
+  ggplot(aes(x = mpg, y = hp)) +
+  geom_point()
+
+# Error 2: Put variable in aes()
+ggplot(mtcars) +
+  geom_point(aes(x = mpg, y = hp, color = factor(cyl)))
+
+# Error 3: Use geom_bar() for categorical
+ggplot(mtcars, aes(x = factor(cyl))) +
+  geom_bar()
+```
+
+**Exercise 2:**
+
+```{r eval=FALSE}
+p <- mtcars %>%
+  ggplot(aes(x = mpg, y = hp, color = factor(cyl), size = wt)) +
+  geom_point(alpha = 0.7) +
+  scale_color_manual(
+    values = c("4" = "#1f77b4", "6" = "#ff7f0e", "8" = "#2ca02c"),
+    name = "Cylinders"
+  ) +
+  scale_size_continuous(name = "Weight (1000 lbs)", range = c(2, 6)) +
+  labs(
+    title = "Fuel Efficiency vs Horsepower",
+    subtitle = "Motor Trend Car Road Tests (1974)",
+    x = "Miles per Gallon",
+    y = "Horsepower",
+    caption = "Source: Henderson and Velleman (1981), mtcars dataset"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0),
+    plot.subtitle = element_text(size = 12, color = "gray40"),
+    axis.title = element_text(size = 12, face = "bold"),
+    axis.text = element_text(size = 10),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", size = 11),
+    legend.text = element_text(size = 10),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5),
+    plot.caption = element_text(hjust = 0, size = 8, color = "gray50")
+  )
+
+# Save high-resolution
+ggsave("publication_plot.png", plot = p, 
+       width = 10, height = 7, dpi = 300, bg = "white")
+
+# Also save vector version
+ggsave("publication_plot.pdf", plot = p,
+       width = 10, height = 7)
+```
+</details>
+
+## Completion
+
+<div class="chapter-summary">
+**Part IX Complete!**
+
+You've mastered:
+- ggplot2 basics and structure
+- Advanced customization
+- Extensions and special plots
+- Troubleshooting and best practices
+
+**Ready for:** Part X (Statistical Operations) or other topics!
+</div>

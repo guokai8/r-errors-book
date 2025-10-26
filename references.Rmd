@@ -1,0 +1,40 @@
+# References {-}
+
+This section contains all references cited throughout the book.
+
+## Core R Documentation
+
+- R Core Team (2024). R: A Language and Environment for Statistical Computing. R Foundation for Statistical Computing, Vienna, Austria. URL https://www.R-project.org/.
+
+## Package Documentation
+
+[Auto-generated from packages.bib]
+
+## Online Resources
+
+- Stack Overflow R Questions: https://stackoverflow.com/questions/tagged/r
+- RStudio Community: https://community.rstudio.com/
+- R-help Mailing List: https://stat.ethz.ch/mailman/listinfo/r-help
+- CRAN Task Views: https://cran.r-project.org/web/views/
+
+## Books
+
+- Wickham, H. (2019). Advanced R, Second Edition. Chapman and Hall/CRC.
+- Wickham, H., & Grolemund, G. (2017). R for Data Science. O'Reilly Media.
+- Chambers, J. M. (2016). Extending R. Chapman and Hall/CRC.
+- Venables, W. N., & Ripley, B. D. (2002). Modern Applied Statistics with S. Springer.
+
+## Style Guides
+
+- Tidyverse Style Guide: https://style.tidyverse.org/
+- Google's R Style Guide: https://google.github.io/styleguide/Rguide.html
+
+## Debugging Resources
+
+- RStudio Debugging Documentation: https://support.rstudio.com/hc/en-us/articles/205612627-Debugging-with-RStudio
+- R-bloggers Debugging Articles: https://www.r-bloggers.com/tag/debugging/
+
+## Error Message Databases
+
+- Stack Overflow Common R Errors: https://stackoverflow.com/questions/tagged/r+error-handling
+- R FAQ: https://cran.r-project.org/doc/FAQ/R-FAQ.html

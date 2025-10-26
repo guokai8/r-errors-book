@@ -1,0 +1,22 @@
+# Shiny Basics {#shiny}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Shiny app structure
+- Reactive programming
+- Common Shiny errors
+- Deployment
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Summary
+
+Build interactive web applications with Shiny.
+
+**Key Concepts:**
+- UI and server
+- Reactive expressions
+- render* functions
+- Deploy to shinyapps.io

@@ -1,0 +1,190 @@
+# Documentation & Testing {#package-documentation-testing}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- roxygen2 documentation
+- testthat framework
+- Unit testing best practices
+- Code coverage
+- Vignettes
+
+**Key Errors Covered:** 15+ testing errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Documentation and testing ensure package quality:
+
+```{r eval=FALSE}
+library(testthat)
+library(devtools)
+
+# Document
+document()
+
+# Test
+test()
+```
+
+## roxygen2 Documentation
+
+<div class="insight-box">
+💡 **Key Insight: Complete Function Documentation**
+
+```{r eval=FALSE}
+#' Add Two Numbers
+#'
+#' This function adds two numbers together.
+#' It handles NA values appropriately.
+#'
+#' @param x A numeric value
+#' @param y A numeric value
+#' @param na.rm Logical; should NA values be removed?
+#'
+#' @return The sum of x and y
+#' @export
+#'
+#' @examples
+#' add_numbers(2, 3)
+#' add_numbers(2, NA, na.rm = TRUE)
+#'
+#' @seealso \code{\link{sum}}
+add_numbers <- function(x, y, na.rm = FALSE) {
+  if (na.rm) {
+    x <- ifelse(is.na(x), 0, x)
+    y <- ifelse(is.na(y), 0, y)
+  }
+  x + y
+}
+```
+
+**Key Tags:**
+- `@param` - Parameter description
+- `@return` - What function returns
+- `@export` - Make function available
+- `@examples` - Usage examples
+- `@seealso` - Related functions
+- `@importFrom` - Import external functions
+</div>
+
+## testthat Framework
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Comprehensive Testing**
+
+```{r eval=FALSE}
+# Set up testing
+use_testthat()
+
+# Create test file
+use_test("add_numbers")
+
+# In tests/testthat/test-add_numbers.R:
+test_that("add_numbers works correctly", {
+  expect_equal(add_numbers(2, 3), 5)
+  expect_equal(add_numbers(0, 0), 0)
+  expect_equal(add_numbers(-1, 1), 0)
+})
+
+test_that("add_numbers handles NA", {
+  expect_true(is.na(add_numbers(2, NA)))
+  expect_equal(add_numbers(2, NA, na.rm = TRUE), 2)
+})
+
+test_that("add_numbers validates input", {
+  expect_error(add_numbers("a", 2))
+  expect_error(add_numbers(2, "b"))
+})
+
+# Run tests
+test()
+```
+
+**Common Expectations:**
+- `expect_equal(x, y)` - Values are equal
+- `expect_true(x)` - x is TRUE
+- `expect_false(x)` - x is FALSE
+- `expect_error(code)` - Code produces error
+- `expect_warning(code)` - Code produces warning
+- `expect_message(code)` - Code produces message
+- `expect_length(x, n)` - x has length n
+- `expect_type(x, type)` - x is of type
+</div>
+
+## Code Coverage
+
+<div class="insight-box">
+💡 **Key Insight: Measure Test Coverage**
+
+```{r eval=FALSE}
+# Install covr
+install.packages("covr")
+
+# Check coverage
+library(covr)
+coverage <- package_coverage()
+coverage
+
+# View in browser
+report(coverage)
+
+# Target: >80% coverage
+```
+</div>
+
+## Vignettes
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Write Vignettes**
+
+```{r eval=FALSE}
+# Create vignette
+use_vignette("introduction")
+
+# In vignettes/introduction.Rmd:
+---
+title: "Introduction to mypackage"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to mypackage}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Build vignettes
+devtools::build_vignettes()
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Document completely** - All parameters, returns, examples
+2. **Test thoroughly** - Cover all cases
+3. **Use expectations** - Clear, specific tests
+4. **Check coverage** - Aim for >80%
+5. **Write vignettes** - Long-form documentation
+
+**Quick Reference:**
+
+```{r eval=FALSE}
+# Documentation
+devtools::document()
+
+# Testing
+usethis::use_testthat()
+usethis::use_test("function")
+devtools::test()
+
+# Coverage
+covr::package_coverage()
+
+# Vignettes
+usethis::use_vignette("name")
+```
+</div>

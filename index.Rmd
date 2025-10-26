@@ -1,0 +1,234 @@
+---
+title: "Mastering R Through Errors and Warnings"
+subtitle: "A Comprehensive Guide to Learning R by Understanding What Goes Wrong"
+author: "Kai Guo"
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+documentclass: book
+bibliography: [book.bib, packages.bib]
+biblio-style: apalike
+link-citations: yes
+description: "Learn R by understanding errors and warnings. This comprehensive guide organizes R learning around the errors you'll encounter, helping you not just fix them, but truly understand R's behavior."
+url: 'https://guokai8.github.io/r-errors-book'
+github-repo: guokai8/r-errors-book
+cover-image: images/cover.png
+---
+
+# Welcome {-}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  error = TRUE,  # Allow errors to be shown
+  warning = TRUE,
+  message = TRUE,
+  comment = "#>",
+  collapse = TRUE,
+  cache = FALSE,
+  out.width = "100%",
+  fig.align = "center",
+  fig.width = 7,
+  fig.asp = 0.618,  # Golden ratio
+  fig.show = "hold"
+)
+
+# Set options for error display
+options(
+  width = 80,
+  max.print = 100,
+  warnPartialMatchArgs = TRUE,
+  warnPartialMatchAttr = TRUE,
+  warnPartialMatchDollar = TRUE
+)
+
+# Custom error/warning/message styling functions
+error_box <- function(text) {
+  cat(paste0('<div class="error-box">🔴 **ERROR**\n\n```\n', text, '\n```\n</div>'))
+}
+
+warning_box <- function(text) {
+  cat(paste0('<div class="warning-box">🟡 **WARNING**\n\n```\n', text, '\n```\n</div>'))
+}
+
+message_box <- function(text) {
+  cat(paste0('<div class="message-box">🔵 **MESSAGE**\n\n```\n', text, '\n```\n</div>'))
+}
+
+solution_box <- function(text) {
+  cat(paste0('<div class="solution-box">✅ **SOLUTION**\n\n', text, '\n</div>'))
+}
+```
+
+## Why This Book Exists {-}
+
+**You will make errors in R. Lots of them.**
+
+That's not a prediction—it's a promise. And it's exactly how learning works.
+
+Most R books teach you how to do things *right*. This book teaches you what happens when things go *wrong*, because:
+
+1. **You learn more from errors than successes** - Each error is a teaching moment
+2. **Errors reveal R's internal logic** - Understanding why something fails helps you understand how R thinks
+3. **You'll spend more time debugging than writing new code** - Better to learn it systematically
+4. **Error messages are often cryptic** - But they follow patterns once you know what to look for
+
+## How This Book Works {-}
+
+### The Error-First Approach {-}
+
+Each chapter follows this structure:
+
+1. **Show the error/warning** - You'll see it in a red/yellow box
+2. **Explain what causes it** - The underlying R behavior
+3. **Demonstrate the solution** - Multiple approaches when applicable
+4. **Provide practice problems** - Intentionally broken code for you to fix
+
+### Organization System {-}
+
+We use visual indicators throughout:
+
+- 🔴 **ERROR**: Stops execution completely
+- 🟡 **WARNING**: Continues but alerts you to potential issues
+- 🔵 **MESSAGE**: Informational only
+- ✅ **SOLUTION**: The fix
+
+**Difficulty Levels:**
+
+- ⭐ Beginner - Everyone encounters these
+- ⭐⭐ Intermediate - Common with experience
+- ⭐⭐⭐ Advanced - Edge cases and complex scenarios
+
+**Error Categories:**
+
+- 🔤 Syntax/Typo
+- 📦 Package Issue
+- 🔢 Type Mismatch
+- 📏 Dimension/Length
+- 💾 File/Path
+- 🧮 Mathematical
+- 🔗 Scoping/Environment
+
+## Who This Book Is For {-}
+
+- **Complete beginners** who want to understand R deeply from the start
+- **Self-taught R users** who've been "googling errors" and want systematic knowledge
+- **Python/MATLAB/SAS users** transitioning to R and confused by its quirks
+- **Data scientists** who use R daily but want to master debugging
+- **Teachers** looking for a new pedagogical approach
+
+## What You'll Need {-}
+
+- R (version 4.0 or higher recommended)
+- RStudio (latest version)
+- Patience and curiosity
+- Willingness to intentionally break things
+
+## Book Structure {-}
+
+This book is organized into 16 parts:
+
+**Part I: Foundation & Environment** - Installation, paths, basic objects
+
+**Part II: Data Types & Coercion** - Understanding R's type system through errors
+
+**Part III: Indexing & Subsetting** - The most common source of errors
+
+**Part IV: Data Frames & Matrices** - Rectangular data structures
+
+**Part V: Factors** - R's most misunderstood data type
+
+**Part VI: Strings & Characters** - Text manipulation errors
+
+**Part VII: Functions & Programming** - Control flow and function errors
+
+**Part VIII: Data Manipulation** - base R, tidyverse, and data.table
+
+**Part IX: Graphics** - Base graphics and ggplot2 errors
+
+**Part X: Statistical Operations** - Math and modeling errors
+
+**Part XI: File I/O** - Reading and writing data
+
+**Part XII: Packages & Namespaces** - Installation and loading issues
+
+**Part XIII: Memory & Performance** - Resource limitations
+
+**Part XIV: Date/Time** - Temporal data challenges
+
+**Part XV: Advanced Topics** - OOP, parallel processing, Shiny, etc.
+
+**Part XVI: Debugging & Best Practices** - Tools and strategies
+
+## Conventions Used {-}
+
+### Code Blocks {-}
+
+Code that produces an error:
+
+```{r eval=FALSE}
+# This will error
+x <- c(1, 2, 3)
+x[5]  # Subscript out of bounds? No! It returns NA
+```
+
+Expected output or error:
+
+```
+#> [1] NA
+```
+
+### Icons and Symbols {-}
+
+- `💡` Key insight
+- `⚠️` Common pitfall
+- `🎯` Best practice
+- `🔍` Deep dive
+- `📝` Exercise
+- `🚀` Performance tip
+
+## Companion Materials {-}
+
+All code is available at: [github.com/guokai8/r-errors-book](https://github.com/guokai8/r-errors-book)
+
+- Practice datasets
+- Additional exercises
+- Error reference cards
+- Community forum for questions
+
+## How to Read This Book {-}
+
+### For Beginners {-}
+
+Read sequentially. Part I and II are foundational. Don't skip ahead—the errors build on each other.
+
+### For Intermediate Users {-}
+
+Use the error index (Appendix A) to find specific errors, but read the related chapters for context.
+
+### For Advanced Users {-}
+
+Focus on Parts VIII-XV for package-specific and advanced errors. The appendices are your quick reference.
+
+### For Teachers {-}
+
+Each chapter has exercises at the end. The "Try It Yourself" sections contain intentionally broken code for students to fix.
+
+## Acknowledgments {-}
+
+This book wouldn't exist without the thousands of confused R users who've posted their errors on Stack Overflow, the R-help mailing list, and various forums. Every error message in this book has frustrated someone—probably multiple people. This is for all of us.
+
+## Feedback {-}
+
+Find an error in the book about errors? See an error we haven't covered? Open an issue on GitHub or email [guokai8@gmail.com](mailto:guokai8@gmail.com).
+
+---
+
+**Now, let's start breaking things...**
+
+```{r include=FALSE}
+# Automatically create a bib database for R packages used
+knitr::write_bib(c(
+  .packages(), 'bookdown', 'knitr', 'rmarkdown', 'tidyverse', 
+  'data.table', 'ggplot2', 'dplyr', 'readr'
+), 'packages.bib')
+```

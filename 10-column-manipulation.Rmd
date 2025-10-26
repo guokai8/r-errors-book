@@ -1,0 +1,1004 @@
+# Column Manipulation {#column-manipulation}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Adding and removing columns safely
+- Column name handling
+- Type preservation during operations
+- Renaming strategies
+- Common manipulation pitfalls
+
+**Key Errors Covered:** 12+ column manipulation errors
+
+**Difficulty:** ⭐ Beginner to ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+Working with data frame columns is a daily task, but it's full of traps:
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5, y = 6:10)
+df[, "z"]  # Typo in column name
+```
+
+```{r error=TRUE}
+# Or this:
+df$new_column <- 1:3  # Wrong length!
+```
+
+Let's master column manipulation to avoid these common errors.
+
+## Column Basics
+
+<div class="insight-box">
+💡 **Key Insight: Data Frame is a List**
+
+Understanding this is key to column operations:
+
+```{r}
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
+
+# Data frame is a special list
+is.list(df)
+length(df)  # Number of columns!
+
+# Each column is a list element
+df[[1]]     # First column (vector)
+df[1]       # First column (data frame)
+
+# Three ways to access columns:
+df$x        # Dollar sign
+df[["x"]]   # Double bracket
+df["x"]     # Single bracket (returns data frame)
+
+# Column names
+names(df)
+colnames(df)
+```
+</div>
+
+## Error #1: `undefined columns selected` {#undefined-columns-select}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+df <- data.frame(age = c(25, 30, 35), name = c("Alice", "Bob", "Charlie"))
+df[, "salary"]  # Column doesn't exist
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in `[.data.frame`(df, , "salary") : undefined columns selected
+```
+</div>
+
+### What It Means
+
+You're trying to select a column that doesn't exist in the data frame.
+
+### Common Causes
+
+#### Cause 1: Typo
+
+```{r error=TRUE}
+df <- data.frame(temperature = c(20, 25, 30))
+
+# Typo
+df[, "tempurature"]
+```
+
+#### Cause 2: Case Sensitivity
+
+```{r error=TRUE}
+df <- data.frame(Name = c("Alice", "Bob"))
+
+# Wrong case
+df[, "name"]  # It's "Name" not "name"
+```
+
+#### Cause 3: Column Doesn't Exist Yet
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5)
+
+# Trying to select before creating
+df[, c("x", "y")]  # "y" doesn't exist
+```
+
+#### Cause 4: After Transformation
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5, y = 6:10, z = 11:15)
+
+# Select some columns
+df_subset <- df[, c("x", "y")]
+
+# Try to access original column
+df_subset[, "z"]  # No longer exists
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Column Exists**
+
+```{r}
+df <- data.frame(age = c(25, 30, 35), name = c("Alice", "Bob", "Charlie"))
+
+# Check before accessing
+if ("salary" %in% names(df)) {
+  df[, "salary"]
+} else {
+  message("Column 'salary' not found")
+  NULL
+}
+
+# Or for multiple columns
+cols_wanted <- c("age", "salary", "name")
+cols_available <- cols_wanted[cols_wanted %in% names(df)]
+df[, cols_available]
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use dplyr's select() with Helpers**
+
+```{r}
+library(dplyr)
+
+df <- data.frame(age = c(25, 30, 35), name = c("Alice", "Bob", "Charlie"))
+
+# Select only existing columns
+df %>% select(any_of(c("age", "salary", "name")))
+
+# Or with error on missing
+```
+
+```{r error=TRUE}
+df %>% select(all_of(c("age", "salary")))  # Errors on missing
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Safe Column Selection Function**
+
+```{r}
+safe_select <- function(df, cols, warn = TRUE) {
+  existing <- cols[cols %in% names(df)]
+  missing <- cols[!cols %in% names(df)]
+  
+  if (length(missing) > 0 && warn) {
+    warning("Columns not found: ", paste(missing, collapse = ", "))
+  }
+  
+  if (length(existing) == 0) {
+    return(data.frame())  # Empty data frame
+  }
+  
+  return(df[, existing, drop = FALSE])
+}
+
+# Test
+df <- data.frame(x = 1:5, y = 6:10)
+safe_select(df, c("x", "z", "y"))
+```
+</div>
+
+## Error #2: `replacement has X rows, data has Y` {#replacement-rows-column}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5, y = 6:10)
+df$z <- 1:3  # Wrong length!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in `$<-.data.frame`(`*tmp*`, z, value = 1:3) : 
+  replacement has 3 rows, data has 5
+```
+</div>
+
+### What It Means
+
+When adding/replacing a column, the new values must match the number of rows (or be length 1).
+
+### The Recycling Rule for Columns
+
+```{r}
+df <- data.frame(x = 1:5)
+
+# Length 1: recycles
+df$y <- 10
+df
+
+# Same length: works
+df$z <- 11:15
+df
+```
+
+```{r error=TRUE}
+# Wrong length: errors
+df$w <- 1:3
+```
+
+### Common Causes
+
+#### Cause 1: Calculation Resulted in Wrong Length
+
+```{r error=TRUE}
+df <- data.frame(id = 1:10, value = rnorm(10))
+
+# Filter creates shorter vector
+high_values <- df$value[df$value > 0]  # Maybe 6 elements
+
+# Try to add back
+df$high <- high_values  # Error! 6 vs 10
+```
+
+#### Cause 2: Using Summary on Column
+
+```{r error=TRUE}
+df <- data.frame(
+  group = rep(c("A", "B"), each = 5),
+  value = 1:10
+)
+
+# Calculate group means (2 values)
+group_means <- tapply(df$value, df$group, mean)
+
+# Try to add as column
+df$mean <- group_means  # Error! 2 vs 10
+```
+
+#### Cause 3: After Subsetting
+
+```{r error=TRUE}
+df <- data.frame(x = 1:10, y = 11:20)
+
+# Subset rows
+df_sub <- df[1:5, ]
+
+# Create column for full df
+new_col <- 1:5
+
+# Try to add to original
+df$new <- new_col  # Error! 5 vs 10
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Match Lengths**
+
+```{r}
+df <- data.frame(id = 1:10, value = rnorm(10))
+high_values <- df$value[df$value > 0]
+
+# Option A: Use NA for missing
+df$high <- NA
+df$high[df$value > 0] <- high_values
+df
+
+# Option B: Use ifelse
+df$high <- ifelse(df$value > 0, df$value, NA)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Merge for Aggregates**
+
+```{r}
+df <- data.frame(
+  group = rep(c("A", "B"), each = 5),
+  value = 1:10
+)
+
+# Calculate group means
+group_summary <- aggregate(value ~ group, df, mean)
+names(group_summary)[2] <- "group_mean"
+
+# Merge back
+df <- merge(df, group_summary, by = "group")
+df
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use dplyr (Cleaner)**
+
+```{r}
+library(dplyr)
+
+df <- data.frame(
+  group = rep(c("A", "B"), each = 5),
+  value = 1:10
+)
+
+# Add group mean to each row
+df <- df %>%
+  group_by(group) %>%
+  mutate(group_mean = mean(value)) %>%
+  ungroup()
+
+df
+```
+</div>
+
+## Error #3: `duplicate column names` {#duplicate-columns}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-syntax">🔤 SYNTAX</span>
+
+### The Warning/Problem
+
+```{r}
+df <- data.frame(x = 1:3, x = 4:6, check.names = FALSE)
+names(df)
+```
+
+R allows duplicate column names (with warning), but it causes problems:
+
+```{r}
+# Which x?
+df$x  # Gets first one
+
+# Confusion!
+df[, "x"]  # Gets first one
+```
+
+### Why It's Dangerous
+
+```{r}
+# Create with duplicates
+df <- data.frame(value = 1:3, value = 4:6, check.names = FALSE)
+
+# Operations become unpredictable
+df$value <- df$value * 2  # Which one gets modified?
+df
+
+# Selection is confusing
+df[, c("value", "value")]  # Gets same column twice
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Let R Fix Names**
+
+```{r}
+# Default: R makes names unique
+df <- data.frame(x = 1:3, x = 4:6)  # check.names = TRUE by default
+names(df)  # "x" and "x.1"
+
+# Or manually
+names_original <- c("value", "value", "score")
+names_fixed <- make.names(names_original, unique = TRUE)
+names_fixed
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check and Fix Names**
+
+```{r}
+fix_duplicate_names <- function(df) {
+  col_names <- names(df)
+  
+  if (anyDuplicated(col_names)) {
+    dupes <- col_names[duplicated(col_names)]
+    warning("Duplicate column names found: ", 
+            paste(unique(dupes), collapse = ", "))
+    names(df) <- make.names(col_names, unique = TRUE)
+  }
+  
+  return(df)
+}
+
+# Test
+df <- data.frame(x = 1:3, x = 4:6, check.names = FALSE)
+df <- fix_duplicate_names(df)
+names(df)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Prevent Duplicates**
+
+```{r}
+safe_add_column <- function(df, name, values) {
+  if (name %in% names(df)) {
+    stop("Column '", name, "' already exists. ",
+         "Use a different name or remove the existing column first.")
+  }
+  
+  df[[name]] <- values
+  return(df)
+}
+
+# Test
+df <- data.frame(x = 1:3)
+df <- safe_add_column(df, "y", 4:6)  # Works
+```
+
+```{r error=TRUE}
+df <- safe_add_column(df, "x", 7:9)  # Errors
+```
+</div>
+
+## Error #4: `names attribute must be same length as vector` {#names-length-mismatch}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5, y = 6:10, z = 11:15)
+names(df) <- c("a", "b")  # Only 2 names for 3 columns!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in names(df) <- c("a", "b") : 
+  'names' attribute must be the same length as the vector (3)
+```
+</div>
+
+### What It Means
+
+When setting column names, you must provide exactly one name per column.
+
+### Common Causes
+
+#### Cause 1: Wrong Count
+
+```{r error=TRUE}
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
+
+# Too few
+names(df) <- c("first", "second")
+
+# Too many
+names(df) <- c("first", "second", "third", "fourth")
+```
+
+#### Cause 2: After Adding Columns
+
+```{r error=TRUE}
+df <- data.frame(x = 1:3, y = 4:6)
+new_names <- c("a", "b")
+
+# Add a column
+df$z <- 7:9
+
+# Try to use old names
+names(df) <- new_names  # Error! Now 3 columns
+```
+
+#### Cause 3: From External Source
+
+```{r error=TRUE}
+df <- data.frame(matrix(1:12, nrow = 3, ncol = 4))
+column_labels <- c("ID", "Value")  # Wrong number
+
+names(df) <- column_labels
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Match Number of Names**
+
+```{r}
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
+
+# Provide all names
+names(df) <- c("first", "second", "third")
+
+# Or rename specific columns
+names(df)[1] <- "id"
+names(df)[3] <- "score"
+names(df)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Named Vector for Partial Rename**
+
+```{r}
+library(dplyr)
+
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
+
+# Rename specific columns
+df <- df %>% rename(id = x, score = z)
+names(df)
+
+# Or base R
+names(df)[names(df) == "y"] <- "value"
+names(df)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Safe Rename Function**
+
+```{r}
+safe_rename <- function(df, ...) {
+  name_mapping <- list(...)
+  
+  for (old_name in names(name_mapping)) {
+    new_name <- name_mapping[[old_name]]
+    
+    if (!old_name %in% names(df)) {
+      warning("Column '", old_name, "' not found, skipping")
+      next
+    }
+    
+    if (new_name %in% names(df) && new_name != old_name) {
+      warning("Column '", new_name, "' already exists, skipping")
+      next
+    }
+    
+    names(df)[names(df) == old_name] <- new_name
+  }
+  
+  return(df)
+}
+
+# Test
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
+df <- safe_rename(df, x = "id", z = "score", w = "missing")
+names(df)
+```
+</div>
+
+## Removing Columns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Removing Columns**
+
+```{r}
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
+
+# Method 1: Set to NULL
+df$y <- NULL
+df
+
+# Method 2: Subset (keep what you want)
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
+df <- df[, c("x", "z")]
+df
+
+# Method 3: Subset (exclude what you don't want)
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
+df <- df[, !names(df) %in% c("y")]
+df
+
+# Method 4: dplyr select with minus
+library(dplyr)
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
+df <- df %>% select(-y)
+df
+
+# Method 5: Remove multiple
+df <- data.frame(x = 1:3, y = 4:6, z = 7:9, w = 10:12)
+df <- df %>% select(-c(y, w))
+df
+```
+
+**Never do this:**
+```{r eval=FALSE}
+# ❌ Bad: modifies in place
+df[, "y"] <- NULL  # Doesn't work as expected!
+
+# ✅ Good: explicit assignment
+df$y <- NULL
+```
+</div>
+
+## Column Reordering
+
+<div class="insight-box">
+💡 **Key Insight: Reordering Columns**
+
+```{r}
+df <- data.frame(z = 7:9, x = 1:3, y = 4:6)
+names(df)
+
+# Method 1: Specify order explicitly
+df <- df[, c("x", "y", "z")]
+names(df)
+
+# Method 2: Sort alphabetically
+df <- df[, sort(names(df))]
+names(df)
+
+# Method 3: Move specific columns first
+df <- data.frame(z = 7:9, x = 1:3, y = 4:6)
+df <- df[, c("x", setdiff(names(df), "x"))]
+names(df)
+
+# Method 4: dplyr relocate
+library(dplyr)
+df <- data.frame(z = 7:9, x = 1:3, y = 4:6)
+df <- df %>% relocate(x, y, z)
+names(df)
+
+# Or move to front/end
+df <- data.frame(z = 7:9, x = 1:3, y = 4:6)
+df <- df %>% relocate(x, .before = everything())
+df %>% relocate(z, .after = everything())
+```
+</div>
+
+## Type Preservation
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Type Changes**
+
+```{r}
+# Start with factors
+df <- data.frame(
+  id = 1:3,
+  category = c("A", "B", "C"),
+  stringsAsFactors = TRUE
+)
+class(df$category)  # "factor"
+
+# Select columns - type changes!
+df_subset <- df[, "category"]
+class(df_subset)  # "factor" (still)
+
+# But extract as vector
+vec <- df$category
+class(vec)  # "factor"
+
+# With drop = TRUE (default)
+df_subset <- df[, "category", drop = TRUE]
+class(df_subset)  # "factor" - becomes vector
+
+# With drop = FALSE
+df_subset <- df[, "category", drop = FALSE]
+class(df_subset)  # "data.frame" - stays data frame
+```
+
+**Best practice:**
+```{r}
+# Use drop = FALSE when you want to keep data frame structure
+df[, "category", drop = FALSE]
+
+# Or use $ when you explicitly want a vector
+df$category
+```
+</div>
+
+## Adding Multiple Columns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Adding Multiple Columns**
+
+```{r}
+df <- data.frame(x = 1:5)
+
+# Method 1: One at a time
+df$y <- 6:10
+df$z <- 11:15
+
+# Method 2: cbind
+df <- data.frame(x = 1:5)
+df <- cbind(df, data.frame(y = 6:10, z = 11:15))
+
+# Method 3: dplyr mutate
+library(dplyr)
+df <- data.frame(x = 1:5)
+df <- df %>%
+  mutate(
+    y = x + 5,
+    z = y + 5
+  )
+
+# Method 4: Transform base R
+df <- data.frame(x = 1:5)
+df <- transform(df,
+  y = x + 5,
+  z = y + 5  # Can reference previous
+)
+
+# Method 5: within
+df <- data.frame(x = 1:5)
+df <- within(df, {
+  y <- x + 5
+  z <- y + 5
+})
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Check column exists** before accessing with `%in% names()`
+2. **Match row count** when adding columns (or use length 1)
+3. **Avoid duplicate names** - check with `anyDuplicated()`
+4. **Provide all names** when renaming - one per column
+5. **Use drop = FALSE** to preserve data frame structure
+6. **$ sets to NULL** removes columns cleanly
+7. **dplyr is clearer** for complex column operations
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| undefined columns selected | Column doesn't exist | Check with `%in% names()` |
+| replacement has X rows | Wrong length column | Match nrows or use length 1 |
+| duplicate column names | Non-unique names | Use `make.names(unique=TRUE)` |
+| names attribute wrong length | Wrong # of names | Provide one per column |
+
+**Column Operations Checklist:**
+
+```{r eval=FALSE}
+# Before accessing:
+"colname" %in% names(df)      # Check exists
+anyDuplicated(names(df))      # Check no duplicates
+
+# When adding column:
+length(new_values) == nrow(df) || length(new_values) == 1
+
+# When renaming:
+length(new_names) == ncol(df)
+!anyDuplicated(new_names)
+
+# Safe patterns:
+df$col <- NULL                # Remove column
+df[, cols, drop = FALSE]      # Keep as data frame
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+df %>% select(any_of(c("a", "b", "c")))  # Safe selection
+df %>% mutate(new = old * 2)             # Add column
+names(df)[names(df) == "old"] <- "new"   # Rename one
+
+# ❌ Avoid
+df[, "missing_col"]           # No check
+df$new <- wrong_length_vector # No validation
+names(df) <- c("a", "b")      # Partial names
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Safe Column Access**
+
+Write a function that safely gets a column:
+- Returns the column if it exists
+- Returns default value if it doesn't
+- Warns user about missing columns
+- Handles both $ and [[ ]] style access
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Batch Rename**
+
+You have:
+```{r eval=FALSE}
+df <- data.frame(
+  old_name_1 = 1:5,
+  old_name_2 = 6:10,
+  old_name_3 = 11:15
+)
+```
+
+Write a function to rename all columns matching a pattern.
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Safe Column Addition**
+
+Write `add_column(df, name, values)` that:
+1. Checks if name already exists
+2. Validates values length
+3. Handles recycling appropriately
+4. Returns modified data frame
+5. Gives informative errors
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Column Audit**
+
+Write a function that audits a data frame and reports:
+- Missing column names
+- Duplicate column names
+- Invalid column names (non-syntactic)
+- Columns with NA names
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+safe_get_column <- function(df, col, default = NULL, warn = TRUE) {
+  if (!col %in% names(df)) {
+    if (warn) {
+      warning("Column '", col, "' not found in data frame")
+    }
+    return(default)
+  }
+  
+  return(df[[col]])
+}
+
+# Test
+df <- data.frame(x = 1:5, y = 6:10)
+safe_get_column(df, "x")         # Returns column
+safe_get_column(df, "z")         # Returns NULL with warning
+safe_get_column(df, "z", default = NA, warn = FALSE)
+```
+
+**Exercise 2:**
+
+```{r}
+rename_pattern <- function(df, pattern, replacement) {
+  old_names <- names(df)
+  new_names <- gsub(pattern, replacement, old_names)
+  
+  if (identical(old_names, new_names)) {
+    message("No columns matched pattern '", pattern, "'")
+    return(df)
+  }
+  
+  # Check for duplicates after rename
+  if (anyDuplicated(new_names)) {
+    warning("Renaming would create duplicate names, using make.unique()")
+    new_names <- make.unique(new_names)
+  }
+  
+  names(df) <- new_names
+  
+  # Report changes
+  changed <- old_names != new_names
+  if (any(changed)) {
+    message("Renamed ", sum(changed), " columns:")
+    for (i in which(changed)) {
+      message("  ", old_names[i], " -> ", new_names[i])
+    }
+  }
+  
+  return(df)
+}
+
+# Test
+df <- data.frame(
+  old_name_1 = 1:5,
+  old_name_2 = 6:10,
+  old_name_3 = 11:15
+)
+df <- rename_pattern(df, "old_name_", "new_col_")
+names(df)
+```
+
+**Exercise 3:**
+
+```{r}
+add_column <- function(df, name, values, overwrite = FALSE) {
+  # Check if name exists
+  if (name %in% names(df) && !overwrite) {
+    stop("Column '", name, "' already exists. ",
+         "Use overwrite = TRUE to replace.")
+  }
+  
+  # Check length
+  n_rows <- nrow(df)
+  n_values <- length(values)
+  
+  if (n_values == n_rows) {
+    # Perfect match
+    df[[name]] <- values
+  } else if (n_values == 1) {
+    # Recycle single value
+    message("Recycling single value to ", n_rows, " rows")
+    df[[name]] <- values
+  } else if (n_rows %% n_values == 0) {
+    # Multiple recycling
+    message("Recycling ", n_values, " values to ", n_rows, " rows")
+    df[[name]] <- rep(values, length.out = n_rows)
+  } else {
+    stop("Length mismatch: values has ", n_values, 
+         " elements but data frame has ", n_rows, " rows")
+  }
+  
+  return(df)
+}
+
+# Test
+df <- data.frame(x = 1:5)
+df <- add_column(df, "y", 10)           # Recycles
+df <- add_column(df, "z", 11:15)        # Matches
+```
+
+```{r error=TRUE}
+df <- add_column(df, "w", 1:3)          # Errors
+```
+
+**Exercise 4:**
+
+```{r}
+audit_columns <- function(df) {
+  col_names <- names(df)
+  issues <- list()
+  
+  # Check for missing names
+  if (any(is.na(col_names) | col_names == "")) {
+    issues$missing <- which(is.na(col_names) | col_names == "")
+  }
+  
+  # Check for duplicates
+  if (anyDuplicated(col_names)) {
+    dupes <- col_names[duplicated(col_names)]
+    issues$duplicates <- unique(dupes)
+  }
+  
+  # Check for invalid names (non-syntactic)
+  valid <- make.names(col_names) == col_names
+  if (!all(valid)) {
+    issues$invalid <- col_names[!valid]
+  }
+  
+  # Report
+  if (length(issues) == 0) {
+    message("✓ All column names are valid")
+    return(invisible(TRUE))
+  }
+  
+  message("Column name issues found:")
+  
+  if (!is.null(issues$missing)) {
+    message("  Missing names at positions: ", 
+            paste(issues$missing, collapse = ", "))
+  }
+  
+  if (!is.null(issues$duplicates)) {
+    message("  Duplicate names: ", 
+            paste(issues$duplicates, collapse = ", "))
+  }
+  
+  if (!is.null(issues$invalid)) {
+    message("  Invalid names: ", 
+            paste(issues$invalid, collapse = ", "))
+    message("  Suggested: ", 
+            paste(make.names(issues$invalid), collapse = ", "))
+  }
+  
+  return(invisible(issues))
+}
+
+# Test
+df_good <- data.frame(x = 1:3, y = 4:6)
+audit_columns(df_good)
+
+df_bad <- data.frame(x = 1:3, x = 4:6, `2bad` = 7:9, 
+                     check.names = FALSE)
+audit_columns(df_bad)
+```
+</details>

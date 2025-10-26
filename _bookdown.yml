@@ -1,0 +1,103 @@
+book_filename: "mastering-r-through-errors"
+language:
+  ui:
+    chapter_name: "Chapter "
+delete_merged_file: true
+output_dir: "docs"
+
+rmd_files: [
+  "index.Rmd",
+  
+  # Part I: Foundation & Environment
+  "01-installation-environment.Rmd",
+  "02-working-directory-paths.Rmd",
+  "03-objects-variables.Rmd",
+  
+  # Part II: Data Types & Coercion
+  "04-type-mismatch.Rmd",
+  "05-vectors-recycling.Rmd",
+  "06-na-null-nan-inf.Rmd",
+  
+  # Part III: Indexing & Subsetting
+  "07-subscript-dimension.Rmd",
+  "08-dollar-double-bracket.Rmd",
+  
+  # Part IV: Data Frames & Matrices
+  "09-dataframe-construction.Rmd",
+  "10-column-manipulation.Rmd",
+  "11-matrix-operations.Rmd",
+  
+  # Part V: Factors
+  "12-factor-creation-levels.Rmd",
+  "13-factor-operations.Rmd",
+  
+  # Part VI: Strings & Characters
+  "14-string-basics.Rmd",
+  "15-string-pattern-matching.Rmd",
+  
+  # Part VII: Functions & Programming
+  "16-function-creation.Rmd",
+  "17-scoping-environments.Rmd",
+  "18-control-flow.Rmd",
+  "19-error-handling.Rmd",
+  
+  # Part VIII: Data Manipulation (dplyr/tidyr)
+  "20-dplyr-intro.Rmd",
+  "21-dplyr-grouping.Rmd",
+  "22-dplyr-joins.Rmd",
+  "23-tidyr-intro.Rmd",
+  "24-dplyr-advanced.Rmd",
+  "25-dplyr-best-practices.Rmd",
+  
+  # Part IX: Graphics (ggplot2)
+  "26-ggplot2-intro.Rmd",
+  "27-ggplot2-advanced.Rmd",
+  "28-ggplot2-extensions.Rmd",
+  "29-ggplot2-troubleshooting.Rmd",
+  
+  # Part X: Statistical Operations
+  "30-statistical-tests.Rmd",
+  "31-regression-anova.Rmd",
+  "32-stats-best-practices.Rmd",
+  
+  # Part XI: File I/O
+  "33-reading-data.Rmd",
+  "34-writing-data.Rmd",
+  "35-database-connections.Rmd",
+  
+  # Part XIII: Programming Patterns
+  "36-apply-family.Rmd",
+  "37-purrr-package.Rmd",
+  "38-iteration-best-practices.Rmd",
+  
+  # Part XIV: Package Development
+  "39-package-basics.Rmd",
+  "40-documentation-testing.Rmd",
+  "41-package-best-practices.Rmd",
+  
+  # Part XV: Performance
+  "42-profiling.Rmd",
+  "43-optimization.Rmd",
+  "44-memory.Rmd",
+  
+  # Part XVI: Advanced Topics
+  "45-parallel.Rmd",
+  "46-advanced-databases.Rmd",
+  "47-web-scraping.Rmd",
+  "48-shiny-basics.Rmd",
+  "49-advanced-programming.Rmd",
+  "50-production-code.Rmd",
+  "51-final-best-practices.Rmd",
+  
+  # Part XVII: Advanced R Programming
+  "52-s3-oop.Rmd",
+  "53-r6-s4-oop.Rmd",
+  "54-nse-metaprogramming.Rmd",
+  "55-rcpp-basics.Rmd",
+  "56-function-factories.Rmd",
+  
+  # Appendices
+  "appendix-A-error-dictionary.Rmd",
+  
+  "references.Rmd"
+]

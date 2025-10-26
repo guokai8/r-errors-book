@@ -1,0 +1,934 @@
+# String Pattern Matching {#string-pattern-matching}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Regular expressions basics
+- grep family functions
+- Pattern matching errors
+- Replacement operations
+- Common regex pitfalls
+
+**Key Errors Covered:** 12+ pattern matching errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Pattern matching in strings is powerful but error-prone:
+
+```{r error=TRUE}
+# Try to match a pattern
+text <- c("file1.txt", "file2.csv", "file3.txt")
+grep(".", text)  # Expect to find the dots
+```
+
+```{r}
+# But . in regex means "any character"!
+grep(".", text)  # Matches everything!
+```
+
+Let's master pattern matching and avoid regex pitfalls.
+
+## Pattern Matching Basics
+
+<div class="insight-box">
+💡 **Key Insight: grep Family Functions**
+
+```{r}
+texts <- c("apple", "banana", "apricot", "cherry")
+
+# grep: return indices of matches
+grep("ap", texts)
+texts[grep("ap", texts)]
+
+# grepl: return logical vector
+grepl("ap", texts)
+
+# sub: replace first match
+sub("a", "X", texts)
+
+# gsub: replace all matches
+gsub("a", "X", texts)
+
+# regexpr: position of first match
+regexpr("a", texts)
+
+# gregexpr: positions of all matches
+gregexpr("a", texts)
+```
+
+**Key differences:**
+- `grep()` → indices
+- `grepl()` → TRUE/FALSE
+- `sub()` → replace first
+- `gsub()` → replace all
+- `*expr()` → positions
+</div>
+
+## Error #1: `invalid regular expression` {#invalid-regex}
+
+<span class="difficulty-advanced">⭐⭐⭐ ADVANCED</span> <span class="category-badge cat-syntax">🔤 SYNTAX</span>
+
+### The Error
+
+```{r error=TRUE}
+# Unmatched bracket
+grep("[abc", c("a", "b", "c"))
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in grep("[abc", c("a", "b", "c")) : 
+  invalid regular expression '[abc', reason 'Missing ']''
+```
+</div>
+
+### What It Means
+
+Your regular expression has invalid syntax.
+
+### Common Invalid Patterns
+
+```{r error=TRUE}
+# Unmatched brackets
+grep("[abc", "test")
+grep("abc]", "test")
+
+# Unmatched parentheses
+grep("(abc", "test")
+grep("abc)", "test")
+
+# Invalid repetition
+grep("a{2,1}", "test")  # max < min
+
+# Trailing backslash
+grep("test\\", "test")
+
+# Invalid escape
+grep("\\k", "test")  # \k not valid
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Escape Special Characters**
+
+```{r}
+# To match literal special characters, escape them
+special_chars <- c(".", "*", "+", "?", "[", "]", "(", ")", 
+                   "{", "}", "^", "$", "|", "\\")
+
+# Match literal dot
+grep("\\.", c("file.txt", "file_txt"))
+
+# Match literal bracket
+grep("\\[", c("[test]", "test"))
+
+# Match literal backslash
+grep("\\\\", c("C:\\path", "C:/path"))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use fixed = TRUE for Literals**
+
+```{r}
+# When you want literal matching, not regex
+grep(".", c("file.txt", "file_txt"), fixed = TRUE)
+
+# Works with all special characters
+grep("[abc]", c("[abc]", "abc"), fixed = TRUE)
+
+# Much simpler for file extensions
+grep(".txt", c("file.txt", "file.csv"), fixed = TRUE)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Validate Pattern First**
+
+```{r}
+is_valid_regex <- function(pattern) {
+  tryCatch({
+    grep(pattern, "test")
+    TRUE
+  }, error = function(e) {
+    message("Invalid regex: ", e$message)
+    FALSE
+  })
+}
+
+# Test
+is_valid_regex("[abc")    # FALSE
+is_valid_regex("[abc]")   # TRUE
+```
+</div>
+
+## Regular Expression Special Characters
+
+<div class="insight-box">
+💡 **Key Insight: Regex Special Characters**
+
+```{r}
+texts <- c("abc", "a.c", "a*c", "aXc", "ac", "abbc")
+
+# . = any single character
+grep("a.c", texts, value = TRUE)
+
+# * = zero or more of previous
+grep("ab*c", texts, value = TRUE)
+
+# + = one or more of previous
+grep("ab+c", texts, value = TRUE)
+
+# ? = zero or one of previous
+grep("ab?c", texts, value = TRUE)
+
+# ^ = start of string
+grep("^a", texts, value = TRUE)
+
+# $ = end of string
+grep("c$", texts, value = TRUE)
+
+# [abc] = any of a, b, or c
+grep("a[bX]c", texts, value = TRUE)
+
+# [^abc] = anything except a, b, or c
+grep("a[^b]c", texts, value = TRUE)
+
+# | = or
+grep("a|c", texts, value = TRUE)
+
+# {n} = exactly n
+grep("b{2}", texts, value = TRUE)
+
+# {n,} = n or more
+grep("b{1,}", texts, value = TRUE)
+
+# {n,m} = between n and m
+grep("b{1,2}", texts, value = TRUE)
+```
+
+**To match literal special characters, escape with `\\`:**
+
+```{r}
+# Match literal dot
+grep("\\.", c("a.b", "aXb"), value = TRUE)
+
+# Match literal asterisk
+grep("\\*", c("a*b", "aXb"), value = TRUE)
+```
+</div>
+
+## Error #2: Pattern Matches Everything/Nothing
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-logic">🧠 LOGIC</span>
+
+### The Problem
+
+```{r}
+# Want to find files with dots
+files <- c("file1.txt", "file2.csv", "README")
+
+# But . matches any character!
+grep(".", files)  # Matches all 3!
+
+# Want to find emails
+emails <- c("test@email.com", "notanemail", "another@test.org")
+
+# But simple pattern matches too much
+grep("@", emails, value = TRUE)  # OK so far...
+grep(".*@.*", emails, value = TRUE)  # Also matches all!
+```
+
+### Common Pattern Mistakes
+
+```{r}
+texts <- c("abc", "def", "xyz")
+
+# .* matches everything (zero or more any character)
+grep(".*", texts)  # All match!
+
+# Wrong escaping
+grep(".", texts)   # All match (. is any character)
+grep("\\.", texts) # None match (no literal dots)
+
+# Too greedy
+text <- "value=123&other=456"
+sub("=.*", "", text)  # Removes too much! "value"
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Be Specific**
+
+```{r}
+files <- c("file1.txt", "file2.csv", "README")
+
+# Match literal dot
+grep("\\.", files, value = TRUE)
+
+# Match specific extension
+grep("\\.txt$", files, value = TRUE)
+
+# Match email pattern
+emails <- c("test@email.com", "notanemail", "another@test.org")
+grep("[A-Za-z0-9.]+@[A-Za-z0-9.]+\\.[A-Za-z]{2,}", emails, value = TRUE)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Anchors**
+
+```{r}
+texts <- c("apple", "pineapple", "application")
+
+# Without anchor: matches all
+grep("app", texts, value = TRUE)
+
+# With ^: only at start
+grep("^app", texts, value = TRUE)
+
+# With $: only at end
+grep("app$", texts, value = TRUE)
+
+# Exact match
+grep("^apple$", texts, value = TRUE)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use Non-greedy Matching**
+
+```{r}
+text <- "value=123&other=456"
+
+# Greedy: takes everything
+sub("=.*&", "=X&", text)  # "value=X&other=456"
+
+# Non-greedy (in Perl regex): *? or +?
+sub("=.*?&", "=X&", text, perl = TRUE)  # "value=X&other=456"
+
+# Alternative: use negated character class
+sub("=[^&]*&", "=X&", text)  # "value=X&other=456"
+```
+</div>
+
+## stringr: Modern String Operations
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Use stringr**
+
+```{r}
+library(stringr)
+
+texts <- c("apple", "banana", "apricot")
+
+# Detect pattern (like grepl)
+str_detect(texts, "ap")
+
+# Which match (like grep)
+str_which(texts, "ap")
+
+# Extract matches
+str_subset(texts, "ap")
+
+# Count matches
+str_count(texts, "a")
+
+# Extract pattern
+str_extract(texts, "ap")
+str_extract_all(texts, "a")
+
+# Replace
+str_replace(texts, "a", "X")      # First match
+str_replace_all(texts, "a", "X")  # All matches
+
+# Remove pattern
+str_remove(texts, "ap")           # First match
+str_remove_all(texts, "a")        # All matches
+
+# Split
+str_split("a-b-c", "-")
+str_split("a-b-c", "-", simplify = TRUE)
+
+# Better error messages
+str_detect(texts, "[invalid")  # Clearer error
+```
+</div>
+
+## Common Regex Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Useful Patterns**
+
+```{r}
+library(stringr)
+
+# Digits
+texts <- c("abc123", "def456", "xyz")
+str_extract_all(texts, "\\d+")  # One or more digits
+
+# Non-digits
+str_extract_all(texts, "\\D+")  # One or more non-digits
+
+# Word characters (letters, digits, underscore)
+str_extract_all("hello_world123", "\\w+")
+
+# Whitespace
+str_detect("hello world", "\\s")
+
+# Email (simple)
+email_pattern <- "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+str_detect("test@email.com", email_pattern)
+
+# Phone (US)
+phone_pattern <- "\\d{3}-\\d{3}-\\d{4}"
+str_detect("123-456-7890", phone_pattern)
+
+# URL (simple)
+url_pattern <- "https?://[A-Za-z0-9.-]+"
+str_extract("Visit http://example.com", url_pattern)
+
+# Extract numbers
+text <- "Price: $19.99"
+str_extract(text, "\\d+\\.?\\d*")
+
+# Extract words
+text <- "hello world, how are you?"
+str_extract_all(text, "\\w+")
+```
+</div>
+
+## Replacement Operations
+
+<div class="insight-box">
+💡 **Key Insight: Replacement Strategies**
+
+```{r}
+library(stringr)
+
+texts <- c("apple", "banana", "apricot")
+
+# Simple replacement
+str_replace(texts, "a", "X")      # First 'a'
+str_replace_all(texts, "a", "X")  # All 'a's
+
+# Using captured groups
+str_replace("John Smith", "(\\w+) (\\w+)", "\\2, \\1")
+
+# Multiple replacements
+text <- "I have 3 cats and 2 dogs"
+str_replace_all(text, c("cats" = "birds", "dogs" = "fish"))
+
+# Conditional replacement
+str_replace_all("hello", "l+", "L")  # Multiple l's to one L
+
+# Remove pattern
+str_remove("Price: $19.99", "\\$")
+str_remove_all("a-b-c-d", "-")
+
+# Case-insensitive
+str_replace("Hello", regex("hello", ignore_case = TRUE), "Hi")
+```
+</div>
+
+## Splitting Strings
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: strsplit() Returns List**
+
+```{r}
+text <- "a,b,c"
+
+# Returns a LIST
+result <- strsplit(text, ",")
+class(result)  # "list"
+result         # List of 1 element
+
+# To get vector, extract first element
+result[[1]]
+
+# With multiple strings
+texts <- c("a,b,c", "d,e,f")
+result <- strsplit(texts, ",")
+result         # List of 2 elements
+
+# To get all values as vector
+unlist(result)
+
+# stringr alternative (also returns list)
+str_split(text, ",")
+
+# But can simplify
+str_split(text, ",", simplify = TRUE)  # Matrix
+
+# Or use specific extraction
+str_split_fixed(text, ",", n = 3)  # Fixed number of pieces
+```
+</div>
+
+## Error #3: `'replacement' is not a character vector` {#replacement-not-character}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+texts <- c("price: 10", "price: 20")
+sub("price: ", 100, texts)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in sub("price: ", 100, texts) : 
+  invalid 'replacement' argument
+```
+</div>
+
+### What It Means
+
+The replacement value must be a character string, not numeric.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Convert Replacement to Character**
+
+```{r}
+texts <- c("price: 10", "price: 20")
+
+# Convert to character
+sub("price: ", as.character(100), texts)
+
+# Or use paste
+sub("price: ", paste0("$", 100), texts)
+
+# With stringr (auto-converts)
+library(stringr)
+str_replace(texts, "price: ", 100)  # Auto-converts
+```
+</div>
+
+## Case-Insensitive Matching
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Ignore Case**
+
+```{r}
+texts <- c("Apple", "banana", "CHERRY")
+
+# Base R: use ignore.case
+grep("apple", texts, ignore.case = TRUE, value = TRUE)
+
+# Or convert to same case first
+grep("apple", tolower(texts), value = TRUE)
+
+# stringr: use regex() with ignore_case
+library(stringr)
+str_subset(texts, regex("apple", ignore_case = TRUE))
+
+# In replacement
+str_replace(texts, regex("apple", ignore_case = TRUE), "Orange")
+```
+</div>
+
+## Unicode and Locales
+
+<div class="pitfall-box">
+⚠️ **Platform Issue: Locale-Dependent Matching**
+
+```{r}
+# Character classes depend on locale
+texts <- c("café", "naïve", "résumé")
+
+# May behave differently on different systems
+grep("[[:alpha:]]+", texts, value = TRUE)
+
+# Safer: specify UTF-8
+Sys.setlocale("LC_CTYPE", "en_US.UTF-8")
+
+# Or use Unicode escapes
+grep("caf\\u00e9", texts, value = TRUE)
+
+# stringr handles Unicode better
+library(stringr)
+str_detect(texts, "é")  # More consistent across platforms
+```
+</div>
+
+## Extracting Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Pattern Extraction**
+
+```{r}
+library(stringr)
+
+# Extract all numbers
+text <- "I have 3 cats, 2 dogs, and 15 fish"
+str_extract_all(text, "\\d+")
+
+# Extract email addresses
+text <- "Contact: john@example.com or jane@test.org"
+str_extract_all(text, "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")
+
+# Extract with groups
+text <- "John Smith, Age: 30"
+str_match(text, "(\\w+) (\\w+), Age: (\\d+)")
+
+# Named groups (requires stringr)
+str_match(text, "(?<first>\\w+) (?<last>\\w+), Age: (?<age>\\d+)")
+
+# Extract between delimiters
+text <- "The value is [123] and the code is [ABC]"
+str_extract_all(text, "\\[([^\\]]+)\\]")
+str_match_all(text, "\\[([^\\]]+)\\]")
+```
+</div>
+
+## Debugging Regex
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Test and Debug Patterns**
+
+```{r}
+# Test patterns incrementally
+text <- "test@email.com"
+
+# Build up pattern piece by piece
+str_detect(text, "\\w+")           # Any word chars
+str_detect(text, "\\w+@")          # Word chars + @
+str_detect(text, "\\w+@\\w+")      # Add domain start
+str_detect(text, "\\w+@\\w+\\.")   # Add dot
+str_detect(text, "\\w+@\\w+\\.\\w+")  # Add extension
+
+# Use str_view() to visualize (if available)
+# str_view(text, "\\w+@\\w+\\.\\w+")
+
+# Test on multiple examples
+test_cases <- c(
+  "valid@email.com",
+  "invalid",
+  "no@domain",
+  "missing.at.sign.com"
+)
+
+pattern <- "\\w+@\\w+\\.\\w+"
+data.frame(
+  text = test_cases,
+  matches = str_detect(test_cases, pattern)
+)
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Escape special characters** - Use `\\` or `fixed = TRUE`
+2. **. matches any character** - Use `\\.` for literal dot
+3. **Use anchors** - `^` for start, `$` for end
+4. **stringr is easier** - Better errors and consistency
+5. **Test patterns incrementally** - Build complex patterns step by step
+6. **strsplit() returns list** - Extract with `[[1]]` or use `simplify = TRUE`
+7. **Replacement must be character** - Convert numbers with `as.character()`
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| invalid regular expression | Syntax error in pattern | Check brackets, escape specials |
+| Matches everything/nothing | Wrong pattern | Test incrementally, use anchors |
+| replacement not character | Numeric replacement | as.character() first |
+| Different results by platform | Locale/encoding | Use stringr, specify UTF-8 |
+
+**Essential Patterns:**
+
+```{r eval=FALSE}
+# Special characters
+.     # Any character
+*     # Zero or more
++     # One or more
+?     # Zero or one
+^     # Start of string
+$     # End of string
+|     # Or
+[]    # Character class
+()    # Group
+
+# Character classes
+\\d   # Digit
+\\D   # Non-digit
+\\w   # Word character
+\\W   # Non-word
+\\s   # Whitespace
+\\S   # Non-whitespace
+
+# Quantifiers
+{n}   # Exactly n
+{n,}  # n or more
+{n,m} # Between n and m
+```
+
+**grep Family:**
+
+```{r eval=FALSE}
+grep(pattern, x)        # Indices
+grepl(pattern, x)       # Logical
+sub(pattern, repl, x)   # Replace first
+gsub(pattern, repl, x)  # Replace all
+
+# stringr alternatives (recommended)
+str_detect(x, pattern)
+str_which(x, pattern)
+str_subset(x, pattern)
+str_replace(x, pattern, replacement)
+str_replace_all(x, pattern, replacement)
+str_extract(x, pattern)
+str_extract_all(x, pattern)
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+grep("\\.", files)                    # Escape special chars
+str_detect(text, "^pattern$")         # Use anchors
+str_replace_all(text, "a", "X")      # Use stringr
+fixed = TRUE                          # For literal matching
+
+# ❌ Avoid
+grep(".", files)                      # Matches everything
+grep(unvalidated_pattern, text)       # No error checking
+sub() with unescaped specials         # Unexpected matches
+Platform-dependent locale assumptions # Inconsistent results
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Pattern Building**
+
+Build patterns to match:
+1. Valid email addresses
+2. Phone numbers (format: XXX-XXX-XXXX)
+3. Dates (format: YYYY-MM-DD)
+4. URLs starting with http:// or https://
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Text Extraction**
+
+From: `"Price: $19.99, Quantity: 5 units"`
+
+Extract:
+1. The price (numeric only)
+2. The quantity (number only)
+3. Both in a named vector
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Safe Pattern Matching**
+
+Write `safe_grep(pattern, x)` that:
+1. Validates pattern first
+2. Provides helpful errors
+3. Returns indices with option for values
+4. Handles empty inputs
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Text Cleaning**
+
+Write `clean_identifiers(x)` that:
+1. Removes special characters
+2. Converts spaces to underscores
+3. Converts to lowercase
+4. Ensures valid R variable names
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+library(stringr)
+
+# 1. Email pattern
+email_pattern <- "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"
+
+test_emails <- c(
+  "valid@email.com",
+  "also.valid@test.co.uk",
+  "invalid",
+  "missing@domain"
+)
+str_subset(test_emails, email_pattern)
+
+# 2. Phone pattern (XXX-XXX-XXXX)
+phone_pattern <- "\\d{3}-\\d{3}-\\d{4}"
+
+test_phones <- c(
+  "123-456-7890",
+  "555-1234",
+  "not a phone",
+  "123-456-789"
+)
+str_subset(test_phones, phone_pattern)
+
+# 3. Date pattern (YYYY-MM-DD)
+date_pattern <- "\\d{4}-\\d{2}-\\d{2}"
+
+test_dates <- c(
+  "2024-01-15",
+  "2024-1-5",
+  "not a date",
+  "2024/01/15"
+)
+str_subset(test_dates, date_pattern)
+
+# 4. URL pattern
+url_pattern <- "https?://[A-Za-z0-9.-]+(/[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=-]*)?"
+
+test_urls <- c(
+  "http://example.com",
+  "https://test.org/path",
+  "not a url",
+  "ftp://wrong.com"
+)
+str_subset(test_urls, url_pattern)
+```
+
+**Exercise 2:**
+
+```{r}
+text <- "Price: $19.99, Quantity: 5 units"
+
+# 1. Extract price
+price <- str_extract(text, "\\d+\\.\\d+")
+as.numeric(price)
+
+# 2. Extract quantity
+quantity <- str_extract(text, "Quantity: (\\d+)")
+quantity <- str_extract(quantity, "\\d+")
+as.numeric(quantity)
+
+# 3. Both in named vector
+extract_both <- function(text) {
+  price <- as.numeric(str_extract(text, "(?<=\\$)\\d+\\.\\d+"))
+  quantity <- as.numeric(str_extract(text, "(?<=Quantity: )\\d+"))
+  
+  c(price = price, quantity = quantity)
+}
+
+extract_both(text)
+
+# Alternative: using str_match with groups
+pattern <- "Price: \\$(\\d+\\.\\d+), Quantity: (\\d+)"
+matches <- str_match(text, pattern)
+c(
+  price = as.numeric(matches[, 2]),
+  quantity = as.numeric(matches[, 3])
+)
+```
+
+**Exercise 3:**
+
+```{r}
+safe_grep <- function(pattern, x, value = FALSE, ignore.case = FALSE) {
+  # Validate inputs
+  if (length(x) == 0) {
+    message("Input vector is empty")
+    return(if (value) character(0) else integer(0))
+  }
+  
+  if (!is.character(x)) {
+    message("Converting input to character")
+    x <- as.character(x)
+  }
+  
+  # Validate pattern
+  pattern_valid <- tryCatch({
+    grep(pattern, "test")
+    TRUE
+  }, error = function(e) {
+    FALSE
+  })
+  
+  if (!pattern_valid) {
+    stop("Invalid regular expression pattern: '", pattern, "'\n",
+         "Check for:\n",
+         "  - Unmatched brackets: [ ] ( )\n",
+         "  - Invalid escapes\n",
+         "  - Unescaped special characters: . * + ? ^ $")
+  }
+  
+  # Perform grep
+  result <- grep(pattern, x, value = value, ignore.case = ignore.case)
+  
+  # Report
+  n_matches <- if (value) length(result) else length(result)
+  message("Found ", n_matches, " match(es) out of ", length(x), " elements")
+  
+  return(result)
+}
+
+# Test
+safe_grep("ap", c("apple", "banana", "apricot"))
+safe_grep("ap", c("apple", "banana", "apricot"), value = TRUE)
+safe_grep("[invalid", c("test"))  # Clear error
+```
+
+**Exercise 4:**
+
+```{r}
+clean_identifiers <- function(x) {
+  library(stringr)
+  
+  # Convert to character if needed
+  if (!is.character(x)) {
+    x <- as.character(x)
+  }
+  
+  # Remove leading/trailing whitespace
+  x <- str_trim(x)
+  
+  # Convert to lowercase
+  x <- str_to_lower(x)
+  
+  # Replace spaces with underscores
+  x <- str_replace_all(x, "\\s+", "_")
+  
+  # Remove non-alphanumeric except underscore
+  x <- str_replace_all(x, "[^a-z0-9_]", "")
+  
+  # Ensure doesn't start with number
+  x <- str_replace(x, "^(\\d)", "x\\1")
+  
+  # Ensure not empty
+  x[x == ""] <- "var"
+  
+  # Ensure unique
+  x <- make.names(x, unique = TRUE)
+  
+  return(x)
+}
+
+# Test
+messy <- c("My Variable!", "123 Start", "test@#$", "  spaces  ", "")
+clean_identifiers(messy)
+```
+</details>

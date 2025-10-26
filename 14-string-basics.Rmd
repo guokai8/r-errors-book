@@ -1,0 +1,974 @@
+# Part VI: Strings & Characters {-}
+
+# String Basics & Common Errors {#string-basics}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Character vectors vs strings
+- String creation and encoding
+- Common string errors
+- Quotes and escaping
+- String conversion issues
+
+**Key Errors Covered:** 15+ string errors
+
+**Difficulty:** ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+Strings in R seem simple but have surprising complexity:
+
+```{r error=TRUE}
+text <- "He said "Hello""  # Try to include quotes
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: unexpected symbol in "text <- "He said "Hello"
+```
+</div>
+
+Let's master string handling to avoid these pitfalls.
+
+## String Basics
+
+<div class="insight-box">
+💡 **Key Insight: No String Type in R**
+
+R doesn't have a separate "string" type:
+
+```{r}
+# What you think of as a "string"
+text <- "hello"
+typeof(text)      # "character"
+class(text)       # "character"
+
+# It's a character vector of length 1
+length(text)      # 1 (one element)
+nchar(text)       # 5 (five characters)
+
+# Multiple strings
+texts <- c("hello", "world")
+typeof(texts)     # Still "character"
+length(texts)     # 2 (two elements)
+nchar(texts)      # 5 5 (characters in each)
+```
+
+**Key points:**
+- R has "character vectors", not "strings"
+- A "string" is a character vector of length 1
+- `length()` = number of elements
+- `nchar()` = number of characters in each element
+</div>
+
+## Error #1: `unexpected symbol` (quote issues) {#unexpected-symbol-quotes}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-syntax">🔤 SYNTAX</span>
+
+### The Error
+
+```{r error=TRUE}
+text <- "She said "yes""
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: unexpected symbol in "text <- "She said "yes"
+```
+</div>
+
+### What It Means
+
+You're trying to include quotes inside a quoted string without escaping them.
+
+### The Problem
+
+```{r error=TRUE}
+# Double quotes inside double quotes
+message <- "He said "Hello""
+
+# Single quotes inside single quotes
+message <- 'It's nice'
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use Different Quotes**
+
+```{r}
+# Use single quotes outside, double inside
+message <- 'He said "Hello"'
+message
+
+# Or vice versa
+message <- "It's nice"
+message
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Escape Quotes**
+
+```{r}
+# Escape with backslash
+message <- "He said \"Hello\""
+message
+
+# When printed, quotes show
+cat(message)
+
+# Single quote escaping
+message <- 'It\'s nice'
+cat(message)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use Raw Strings (R 4.0+)**
+
+```{r}
+# Raw strings (if available in your R version)
+if (getRversion() >= "4.0.0") {
+  message <- r"(He said "Hello" and she said 'Hi')"
+  cat(message)
+}
+```
+</div>
+
+## Escape Sequences
+
+<div class="insight-box">
+💡 **Key Insight: Common Escape Sequences**
+
+```{r}
+# Newline
+cat("Line 1\nLine 2")
+
+# Tab
+cat("Col1\tCol2\tCol3")
+
+# Backslash itself
+cat("Path: C:\\Users\\Documents")
+
+# Quotes
+cat("He said \"Hello\"")
+cat('It\'s working')
+
+# Carriage return
+cat("Part 1\rPart 2")  # Overwrites
+
+# Unicode
+cat("\u03B1 \u03B2 \u03B3")  # α β γ
+
+# Hex
+cat("\x48\x65\x6C\x6C\x6F")  # Hello
+
+# All escape sequences
+cat("Newline:\nTab:\tQuote:\"Backslash:\\")
+```
+
+**Common escapes:**
+- `\n` - newline
+- `\t` - tab
+- `\\` - backslash
+- `\"` - double quote
+- `\'` - single quote
+- `\r` - carriage return
+- `\uXXXX` - Unicode character
+- `\xXX` - Hex character
+</div>
+
+## Error #2: `argument is not of mode character` {#not-mode-character}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+numbers <- c(1, 2, 3, 4, 5)
+nchar(numbers)
+```
+
+<div class="error-box">
+🔴 **ERROR** (in some contexts)
+
+```
+Error in nchar(numbers) : 'nchar()' requires a character vector
+```
+</div>
+
+Actually, `nchar()` coerces, but other functions don't:
+
+```{r error=TRUE}
+substr(123, 1, 2)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in substr(123, 1, 2) : argument is not of mode character
+```
+</div>
+
+### What It Means
+
+You're passing a non-character vector to a function that requires characters.
+
+### Common Causes
+
+#### Cause 1: Using Numbers Directly
+
+```{r error=TRUE}
+# Try to substring a number
+substr(12345, 1, 3)
+
+# Try to split a number
+strsplit(123, "")
+```
+
+#### Cause 2: After Calculation
+
+```{r error=TRUE}
+x <- 10
+y <- 20
+result <- x + y
+
+# Try to manipulate as string
+substr(result, 1, 1)
+```
+
+#### Cause 3: Column Type Issues
+
+```{r error=TRUE}
+df <- data.frame(id = 1:5)
+
+# Try string operation on numeric column
+substr(df$id, 1, 1)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Convert to Character First**
+
+```{r}
+numbers <- c(1, 2, 3, 4, 5)
+
+# Convert
+numbers_char <- as.character(numbers)
+nchar(numbers_char)
+
+# Or inline
+substr(as.character(12345), 1, 3)
+
+# Extract first digit
+as.numeric(substr(as.character(12345), 1, 1))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Check Type Before Operation**
+
+```{r}
+safe_substr <- function(x, start, stop) {
+  if (!is.character(x)) {
+    message("Converting to character")
+    x <- as.character(x)
+  }
+  substr(x, start, stop)
+}
+
+# Test
+safe_substr(12345, 1, 3)
+safe_substr("hello", 1, 3)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use stringr (Auto-converts)**
+
+```{r}
+library(stringr)
+
+# stringr functions auto-convert
+str_sub(12345, 1, 3)
+str_length(12345)
+```
+</div>
+
+## Error #3: `invalid multibyte string` {#invalid-multibyte-string}
+
+<span class="difficulty-advanced">⭐⭐⭐ ADVANCED</span> <span class="category-badge cat-encoding">🌐 ENCODING</span>
+
+### The Error
+
+```{r error=TRUE}
+# Try to read file with wrong encoding
+text <- readLines("file_with_utf8.txt", encoding = "latin1")
+nchar(text)  # May error
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in nchar(text) : invalid multibyte string
+```
+</div>
+
+### What It Means
+
+The string contains bytes that aren't valid in the expected encoding.
+
+### Common Causes
+
+#### Cause 1: Reading with Wrong Encoding
+
+```{r eval=FALSE}
+# File is UTF-8 but reading as different encoding
+text <- readLines("utf8_file.txt", encoding = "latin1")
+
+# Or vice versa
+text <- readLines("latin1_file.txt", encoding = "UTF-8")
+```
+
+#### Cause 2: Locale Issues
+
+```{r}
+# Check current locale
+Sys.getlocale("LC_CTYPE")
+
+# May differ across systems
+```
+
+#### Cause 3: Pasting Invalid Bytes
+
+```{r error=TRUE}
+# Create invalid UTF-8
+invalid <- rawToChar(as.raw(c(0xFF, 0xFE)))
+nchar(invalid)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Specify Correct Encoding**
+
+```{r eval=FALSE}
+# Read with correct encoding
+text <- readLines("file.txt", encoding = "UTF-8")
+
+# Or detect encoding
+library(readr)
+guess_encoding("file.txt")
+
+# Then read with detected encoding
+text <- readLines("file.txt", encoding = "detected_encoding")
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Convert Encoding**
+
+```{r}
+# Sample text (may need real multibyte text)
+text <- "café"
+
+# Check encoding
+Encoding(text)
+
+# Convert if needed
+text_utf8 <- iconv(text, from = "latin1", to = "UTF-8")
+
+# Or ensure UTF-8
+enc2utf8(text)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Clean Invalid Characters**
+
+```{r}
+clean_string <- function(x) {
+  # Try to convert to UTF-8, replacing invalid
+  iconv(x, to = "UTF-8", sub = "?")
+}
+
+# Or remove invalid
+clean_string_remove <- function(x) {
+  iconv(x, to = "UTF-8", sub = "")
+}
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Platform Differences**
+
+Encoding issues often vary by platform:
+
+```{r eval=FALSE}
+# Windows default: may be Windows-1252 or local encoding
+Sys.getlocale()
+
+# Mac/Linux default: usually UTF-8
+Sys.getlocale()
+
+# Always specify encoding when reading files:
+readr::read_csv("file.csv", locale = locale(encoding = "UTF-8"))
+readLines("file.txt", encoding = "UTF-8")
+```
+</div>
+
+## String Creation and Manipulation
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Creating and Combining Strings**
+
+```{r}
+# Creating strings
+single <- "hello"
+multiple <- c("hello", "world", "!")
+
+# Combining strings
+paste("hello", "world")                    # Space by default
+paste("hello", "world", sep = "")          # No space
+paste0("hello", "world")                   # paste with sep=""
+
+# Collapse vector into one string
+paste(c("a", "b", "c"), collapse = ", ")
+
+# Vector operations (recycling)
+paste("File", 1:5, ".txt", sep = "")
+
+# stringr alternatives
+library(stringr)
+str_c("hello", "world", sep = " ")
+str_c(c("a", "b", "c"), collapse = ", ")
+
+# glue for interpolation
+library(glue)
+name <- "Alice"
+age <- 30
+glue("My name is {name} and I am {age} years old")
+```
+</div>
+
+## Length vs Number of Characters
+
+<div class="pitfall-box">
+⚠️ **Common Confusion: length() vs nchar()**
+
+```{r}
+# Single string
+text <- "hello"
+length(text)      # 1 (one element in vector)
+nchar(text)       # 5 (five characters)
+
+# Multiple strings
+texts <- c("hi", "hello", "hey")
+length(texts)     # 3 (three elements)
+nchar(texts)      # 2 5 3 (characters in each)
+
+# Empty string vs NULL
+empty <- ""
+length(empty)     # 1 (one element)
+nchar(empty)      # 0 (no characters)
+
+nothing <- character(0)
+length(nothing)   # 0 (no elements)
+nchar(nothing)    # integer(0)
+
+# Common mistake
+text <- "hello world"
+length(text)      # 1 (NOT 11!)
+nchar(text)       # 11 (including space)
+
+# To split into characters
+strsplit(text, "")[[1]]
+length(strsplit(text, "")[[1]])  # 11
+```
+</div>
+
+## Empty Strings and NA
+
+<div class="insight-box">
+💡 **Key Insight: Empty vs NA vs NULL**
+
+```{r}
+# Empty string (exists but empty)
+empty <- ""
+length(empty)         # 1
+nchar(empty)          # 0
+is.na(empty)          # FALSE
+empty == ""           # TRUE
+
+# NA (missing value)
+missing <- NA_character_
+length(missing)       # 1
+nchar(missing)        # NA (can't count characters of NA)
+is.na(missing)        # TRUE
+
+# NULL (doesn't exist)
+nothing <- NULL
+length(nothing)       # 0
+is.null(nothing)      # TRUE
+
+# In a vector
+vec <- c("hello", "", NA, "world")
+length(vec)           # 4
+nchar(vec)            # 5 0 NA 5
+is.na(vec)            # FALSE FALSE TRUE FALSE
+vec == ""             # FALSE TRUE NA FALSE (NA propagates!)
+
+# Testing for empty strings safely
+is_empty <- function(x) {
+  !is.na(x) & x == ""
+}
+
+is_empty(vec)         # FALSE TRUE FALSE FALSE
+```
+</div>
+
+## Case Conversion
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Case Operations**
+
+```{r}
+text <- "Hello World"
+
+# Base R
+toupper(text)
+tolower(text)
+
+# First letter (no built-in function)
+capitalize <- function(x) {
+  paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x)))
+}
+capitalize("hello")
+
+# stringr alternatives
+library(stringr)
+str_to_upper(text)
+str_to_lower(text)
+str_to_title(text)    # Title Case
+
+# Handle NAs better
+text_with_na <- c("hello", NA, "world")
+toupper(text_with_na)        # Preserves NA
+str_to_upper(text_with_na)   # Also preserves NA
+```
+</div>
+
+## Whitespace Issues
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Invisible Whitespace**
+
+```{r}
+# Strings that look the same
+text1 <- "hello"
+text2 <- " hello"
+text3 <- "hello "
+text4 <- "hello\n"
+
+# But aren't equal
+text1 == text2  # FALSE (leading space)
+text1 == text3  # FALSE (trailing space)
+text1 == text4  # FALSE (newline)
+
+# Hard to see!
+print(text2)
+print(text3)
+
+# Better visualization
+cat("[", text1, "]\n", sep = "")
+cat("[", text2, "]\n", sep = "")
+cat("[", text3, "]\n", sep = "")
+
+# Trim whitespace
+trimws(text2)  # Remove leading/trailing
+trimws(text3)
+
+# stringr
+library(stringr)
+str_trim(text2)
+str_squish("hello    world")  # Remove extra internal spaces too
+```
+</div>
+
+## String Comparison
+
+<div class="insight-box">
+💡 **Key Insight: String Comparison**
+
+```{r}
+# Equality
+"hello" == "hello"   # TRUE
+"hello" == "Hello"   # FALSE (case-sensitive)
+
+# Lexicographic ordering
+"a" < "b"           # TRUE
+"apple" < "banana"  # TRUE
+"10" < "2"          # TRUE (lexicographic, not numeric!)
+
+# Vector comparison
+c("a", "b") == c("a", "c")  # TRUE FALSE
+
+# %in% for membership
+"apple" %in% c("apple", "banana", "cherry")  # TRUE
+
+# Case-insensitive comparison
+tolower("Hello") == tolower("hello")  # TRUE
+
+# Partial matching (base R)
+grep("app", c("apple", "banana", "application"))  # 1 3
+grepl("app", c("apple", "banana", "application")) # TRUE FALSE TRUE
+
+# stringr
+library(stringr)
+str_detect(c("apple", "banana"), "app")  # TRUE FALSE
+str_which(c("apple", "banana", "app"), "app")  # 1 3
+```
+</div>
+
+## Type Coercion with Strings
+
+<div class="pitfall-box">
+⚠️ **Pitfall: Implicit String Coercion**
+
+```{r}
+# Combining strings and numbers
+c("a", 1, "b", 2)  # All become character
+
+# In data frames (old R)
+df_old <- data.frame(
+  id = 1:3,
+  name = c("Alice", "Bob", "Charlie"),
+  stringsAsFactors = TRUE  # Old default
+)
+class(df_old$name)  # "factor" (was default in R < 4.0)
+
+# Modern R
+df_new <- data.frame(
+  id = 1:3,
+  name = c("Alice", "Bob", "Charlie")
+)
+class(df_new$name)  # "character"
+
+# Operations can coerce
+x <- c(1, 2, 3)
+y <- paste(x, "items")
+y                   # "1 items" "2 items" "3 items"
+class(y)            # "character"
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **No string type** - R has character vectors
+2. **length() vs nchar()** - Elements vs characters
+3. **Escape quotes** with `\` or use different quotes
+4. **Encoding matters** - Specify UTF-8 when reading files
+5. **Empty vs NA vs NULL** - Three different concepts
+6. **Convert to character** before string operations
+7. **Whitespace is invisible** - Use trimws() or str_trim()
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| unexpected symbol | Quotes not escaped | Use `\"` or different quotes |
+| not of mode character | Non-character input | as.character() first |
+| invalid multibyte string | Encoding mismatch | Specify correct encoding |
+| Wrong comparison | Case or whitespace | tolower() and trimws() |
+
+**Essential Functions:**
+
+```{r eval=FALSE}
+# Creation
+c(), paste(), paste0(), sprintf()
+
+# Inspection
+length(), nchar(), Encoding()
+
+# Manipulation
+substr(), substring(), strsplit()
+toupper(), tolower(), trimws()
+
+# Comparison
+==, %in%, grep(), grepl()
+
+# Conversion
+as.character(), toString()
+
+# stringr equivalents (better)
+str_c(), str_length(), str_sub()
+str_to_upper(), str_to_lower()
+str_trim(), str_squish()
+str_detect(), str_which()
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+text <- 'He said "Hello"'           # Different quotes
+readLines("file.txt", encoding = "UTF-8")  # Explicit encoding
+trimws(text)                        # Clean whitespace
+as.character(x) before string ops   # Convert first
+
+# ❌ Avoid
+text <- "He said "Hello""           # Unescaped quotes
+readLines("file.txt")               # Platform-dependent encoding
+Assuming no whitespace              # Invisible characters
+String operations on numbers        # Type mismatch
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Quote Handling**
+
+Create strings containing:
+1. Double quotes inside single quotes
+2. Single quotes inside double quotes
+3. Both quote types in one string
+4. A file path with backslashes
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Length vs Characters**
+
+You have: `texts <- c("hi", "hello", "hey")`
+
+1. Find number of elements
+2. Find characters in each
+3. Find total characters
+4. Find longest string
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Clean Text**
+
+Write `clean_text(x)` that:
+1. Trims whitespace
+2. Converts to consistent case
+3. Removes or replaces NAs
+4. Reports what was changed
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Safe String Operations**
+
+Write `safe_substr(x, start, stop)` that:
+1. Converts to character if needed
+2. Handles NAs appropriately
+3. Handles out-of-bounds indices
+4. Returns character vector
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+# 1. Double quotes inside single quotes
+text1 <- 'She said "Hello"'
+cat(text1)
+
+# 2. Single quotes inside double quotes
+text2 <- "It's a nice day"
+cat(text2)
+
+# 3. Both quote types
+text3 <- "She said \"It's nice\""  # Escape double quotes
+cat(text3)
+
+# Alternative with single outside
+text3_alt <- 'She said "It\'s nice"'  # Escape single quote
+cat(text3_alt)
+
+# 4. File path with backslashes
+path <- "C:\\Users\\Documents\\file.txt"
+cat(path)
+
+# Or use forward slashes (works on all platforms)
+path_alt <- "C:/Users/Documents/file.txt"
+```
+
+**Exercise 2:**
+
+```{r}
+texts <- c("hi", "hello", "hey")
+
+# 1. Number of elements
+num_elements <- length(texts)
+num_elements
+
+# 2. Characters in each
+chars_each <- nchar(texts)
+chars_each
+
+# 3. Total characters
+total_chars <- sum(nchar(texts))
+total_chars
+
+# 4. Longest string
+longest <- texts[which.max(nchar(texts))]
+longest
+
+# Or get length of longest
+max_length <- max(nchar(texts))
+max_length
+
+# Complete analysis
+analyze_strings <- function(x) {
+  list(
+    n_elements = length(x),
+    chars_each = nchar(x),
+    total_chars = sum(nchar(x)),
+    avg_chars = mean(nchar(x)),
+    longest = x[which.max(nchar(x))],
+    shortest = x[which.min(nchar(x))]
+  )
+}
+
+analyze_strings(texts)
+```
+
+**Exercise 3:**
+
+```{r}
+clean_text <- function(x, 
+                       trim = TRUE,
+                       case = c("lower", "upper", "none"),
+                       na_action = c("keep", "remove", "replace"),
+                       na_replacement = "",
+                       report = TRUE) {
+  
+  case <- match.arg(case)
+  na_action <- match.arg(na_action)
+  
+  original <- x
+  changes <- list()
+  
+  # Handle NAs
+  n_na <- sum(is.na(x))
+  if (n_na > 0) {
+    if (na_action == "remove") {
+      x <- x[!is.na(x)]
+      changes$na <- paste("Removed", n_na, "NAs")
+    } else if (na_action == "replace") {
+      x[is.na(x)] <- na_replacement
+      changes$na <- paste("Replaced", n_na, "NAs with", 
+                         shQuote(na_replacement))
+    } else {
+      changes$na <- paste("Kept", n_na, "NAs")
+    }
+  }
+  
+  # Trim whitespace
+  if (trim) {
+    had_whitespace <- x != trimws(x) & !is.na(x)
+    if (any(had_whitespace)) {
+      x <- trimws(x)
+      changes$whitespace <- paste("Trimmed whitespace from",
+                                 sum(had_whitespace), "strings")
+    }
+  }
+  
+  # Case conversion
+  if (case == "lower") {
+    x <- tolower(x)
+    changes$case <- "Converted to lowercase"
+  } else if (case == "upper") {
+    x <- toupper(x)
+    changes$case <- "Converted to uppercase"
+  }
+  
+  # Report
+  if (report && length(changes) > 0) {
+    message("Text cleaning applied:")
+    for (change in changes) {
+      message("  - ", change)
+    }
+  }
+  
+  return(x)
+}
+
+# Test
+messy <- c("  Hello ", "WORLD", NA, " Test  ")
+clean_text(messy, case = "lower", na_action = "replace", 
+          na_replacement = "[missing]")
+```
+
+**Exercise 4:**
+
+```{r}
+safe_substr <- function(x, start, stop) {
+  # Convert to character if needed
+  if (!is.character(x)) {
+    message("Converting input to character")
+    x <- as.character(x)
+  }
+  
+  # Validate indices
+  if (start < 1) {
+    warning("start < 1, setting to 1")
+    start <- 1
+  }
+  
+  if (stop < start) {
+    warning("stop < start, returning empty strings")
+    return(rep("", length(x)))
+  }
+  
+  # Handle each element
+  result <- character(length(x))
+  
+  for (i in seq_along(x)) {
+    if (is.na(x[i])) {
+      result[i] <- NA_character_
+      next
+    }
+    
+    # Get length
+    len <- nchar(x[i])
+    
+    # Adjust stop if beyond length
+    actual_stop <- min(stop, len)
+    
+    if (start > len) {
+      result[i] <- ""
+    } else {
+      result[i] <- substr(x[i], start, actual_stop)
+    }
+  }
+  
+  return(result)
+}
+
+# Test
+safe_substr(c("hello", "world", NA, "R"), 1, 3)
+safe_substr(12345, 1, 3)  # Auto-converts
+safe_substr("short", 1, 100)  # Beyond length
+safe_substr("test", 10, 20)  # Start beyond length
+```
+</details>

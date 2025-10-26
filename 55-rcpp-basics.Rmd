@@ -1,0 +1,160 @@
+# Rcpp Basics {#rcpp-basics}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- When to use C++
+- Basic Rcpp syntax
+- Common errors
+- Performance gains
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Rcpp allows you to write C++ code called from R:
+
+```{r}
+library(Rcpp)
+
+# Simple C++ function
+cppFunction('
+int add(int x, int y) {
+  return x + y;
+}
+')
+
+add(2, 3)
+```
+
+## When to Use Rcpp
+
+✅ **Use Rcpp when:**
+- Loops that can't be vectorized
+- Recursive functions
+- Need maximum speed
+- Processing large data
+
+❌ **Don't use Rcpp when:**
+- R solution is fast enough
+- Can vectorize in R
+- Maintenance burden too high
+
+## Basic Syntax
+
+<div class="insight-box">
+💡 **Key Insight: Rcpp Sugar**
+
+```{r}
+# R-like syntax in C++
+cppFunction('
+NumericVector compute(NumericVector x) {
+  return sqrt(x * 2 + 1);
+}
+')
+
+compute(1:5)
+
+# Loops in C++
+cppFunction('
+double sum_cpp(NumericVector x) {
+  double total = 0;
+  for(int i = 0; i < x.size(); i++) {
+    total += x[i];
+  }
+  return total;
+}
+')
+
+sum_cpp(1:1000000)
+```
+</div>
+
+## Performance Example
+
+```{r}
+# R version
+mean_r <- function(x) {
+  sum(x) / length(x)
+}
+
+# C++ version
+cppFunction('
+double mean_cpp(NumericVector x) {
+  int n = x.size();
+  double total = 0;
+  for(int i = 0; i < n; i++) {
+    total += x[i];
+  }
+  return total / n;
+}
+')
+
+# Compare
+x <- rnorm(1000000)
+
+library(microbenchmark)
+microbenchmark(
+  mean(x),
+  mean_r(x),
+  mean_cpp(x),
+  times = 100
+)
+```
+
+## Common Errors
+
+### Error: No matching function
+
+```{r error=TRUE, eval=FALSE}
+# Wrong: R syntax in C++
+cppFunction('
+NumericVector add_one(NumericVector x) {
+  return x + 1  # Needs semicolon!
+}
+')
+```
+
+**Solution:** C++ requires semicolons
+
+```{r}
+cppFunction('
+NumericVector add_one(NumericVector x) {
+  return x + 1;
+}
+')
+```
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Rcpp** - Integrate C++ for speed
+2. **Use for loops** - When can't vectorize
+3. **Rcpp Sugar** - R-like syntax
+4. **Test performance** - Not always faster
+5. **Maintenance cost** - Consider complexity
+
+**Quick Reference:**
+
+```{r eval=FALSE}
+# Inline C++
+library(Rcpp)
+
+cppFunction('
+double my_function(NumericVector x) {
+  // C++ code here
+  return result;
+}
+')
+
+# Common types:
+# NumericVector - numeric vector
+# IntegerVector - integer vector
+# CharacterVector - character vector
+# NumericMatrix - matrix
+# List - list
+```
+</div>

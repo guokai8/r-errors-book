@@ -1,0 +1,1279 @@
+# Part II: Data Types & Coercion {-}
+
+# Type Mismatch Errors {#type-mismatch}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Understanding R's type system
+- How coercion works (and fails)
+- Type checking and conversion
+- Common type mismatch scenarios
+- How to prevent type errors
+
+**Key Errors Covered:** 20+ type-related errors
+
+**Difficulty:** ⭐ Beginner to ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+R is **dynamically typed** but **strongly typed**. This means:
+- You don't declare types (dynamic)
+- But types matter for operations (strong)
+
+```{r}
+x <- 5        # R figures out it's numeric
+y <- "5"      # R figures out it's character
+```
+
+But try to mix them:
+
+```{r error=TRUE}
+x + y  # Error!
+```
+
+Understanding type errors is fundamental to R mastery. This chapter covers every type mismatch you'll encounter.
+
+## R's Basic Types
+
+<div class="insight-box">
+💡 **Key Insight: The Six Atomic Types**
+
+R has six atomic (fundamental) types:
+
+```{r}
+# 1. Logical
+is_true <- TRUE
+typeof(is_true)
+
+# 2. Integer
+age <- 25L  # Note the L
+typeof(age)
+
+# 3. Double (numeric)
+price <- 19.99
+typeof(price)
+
+# 4. Character
+name <- "Alice"
+typeof(name)
+
+# 5. Complex
+z <- 3 + 2i
+typeof(z)
+
+# 6. Raw (rarely used)
+raw_byte <- charToRaw("A")
+typeof(raw_byte)
+```
+
+**Most common:** logical, integer, double, character
+</div>
+
+## Error #1: `non-numeric argument to binary operator` {#non-numeric-binary}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+"10" + 5
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in "10" + 5 : non-numeric argument to binary operator
+```
+</div>
+
+### What It Means
+
+You tried to use a mathematical operator (+, -, *, /, ^, %%, %/%) with something that isn't a number.
+
+**Binary operator** = operator that works on two things (left + right)
+
+### Common Causes
+
+#### Cause 1: Character That Looks Like Number
+
+```{r error=TRUE}
+# Read from CSV without proper type specification
+age <- "25"  # Actually character!
+age + 10     # Error
+```
+
+```{r}
+# Check type
+class(age)
+is.numeric(age)
+is.character(age)
+```
+
+#### Cause 2: Factor Instead of Numeric
+
+```{r error=TRUE}
+# Factors are secretly integers with labels
+scores <- factor(c("90", "85", "95"))
+scores + 10  # Error!
+```
+
+```{r}
+class(scores)
+typeof(scores)  # "integer" but can't do math on it!
+```
+
+#### Cause 3: Missing Data Coerced to Character
+
+```{r error=TRUE}
+# One NA can turn everything to character
+values <- c(10, 20, NA, 40)
+values <- as.character(values)  # Accidentally
+values[1] + 5  # Error!
+```
+
+#### Cause 4: Logical in Math (This Actually Works!)
+
+```{r}
+# Wait, this works?
+TRUE + 5   # TRUE becomes 1
+FALSE + 5  # FALSE becomes 0
+
+# This is by design - logical coerces to numeric
+sum(c(TRUE, FALSE, TRUE))  # Counts TRUEs
+```
+
+But mixing with character doesn't:
+
+```{r error=TRUE}
+"TRUE" + 5  # Character, not logical
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Convert to Numeric**
+
+```{r}
+# Basic conversion
+age <- "25"
+age <- as.numeric(age)
+age + 10
+
+# Check before converting
+if (is.character(age)) {
+  age <- as.numeric(age)
+}
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Handle Factors Correctly**
+
+```{r}
+# Wrong way:
+scores <- factor(c("90", "85", "95"))
+as.numeric(scores)  # Gives factor levels (1,2,3), not values!
+
+# Right way:
+as.numeric(as.character(scores))  # Convert to char first
+
+# Better way:
+as.numeric(levels(scores)[scores])
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Read Data with Correct Types**
+
+```{r eval=FALSE}
+# Base R - specify column types
+data <- read.csv("file.csv", 
+                colClasses = c("numeric", "character", "numeric"))
+
+# tidyverse - specify on read
+library(readr)
+data <- read_csv("file.csv",
+                col_types = cols(
+                  age = col_double(),
+                  name = col_character(),
+                  score = col_double()
+                ))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 4: Safe Conversion with Error Handling**
+
+```{r}
+safe_as_numeric <- function(x) {
+  result <- suppressWarnings(as.numeric(x))
+  
+  if (all(is.na(result)) && !all(is.na(x))) {
+    warning("Conversion produced all NAs - check your data")
+  }
+  
+  return(result)
+}
+
+# Test
+safe_as_numeric("25")      # Works
+safe_as_numeric("abc")     # Warning + NA
+safe_as_numeric(c("1", "2", "three"))  # Partial conversion
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Silent Failures**
+
+```{r}
+# This looks like it worked...
+x <- c("1", "2", "3", "four")
+x <- as.numeric(x)
+x
+```
+
+**Problem:** "four" became NA silently!
+
+**Solution:** Check for NAs after conversion:
+```{r}
+if (any(is.na(x))) {
+  warning("Some values couldn't be converted")
+}
+```
+</div>
+
+## Error #2: `non-numeric argument to mathematical function` {#non-numeric-math}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+sqrt("16")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in sqrt("16") : non-numeric argument to mathematical function
+```
+</div>
+
+### What It Means
+
+Mathematical functions (sqrt, log, exp, sin, cos, etc.) need numbers, not characters or other types.
+
+### Common Functions That Give This Error
+
+```{r error=TRUE}
+# All of these error with character input:
+sqrt("16")
+log("10")
+exp("2")
+abs("-5")
+round("3.14")
+floor("4.7")
+ceiling("4.2")
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Convert before calling function:**
+```{r}
+sqrt(as.numeric("16"))
+log(as.numeric("10"))
+```
+
+**2. Vectorized conversion and operation:**
+```{r}
+values <- c("16", "25", "36")
+sqrt(as.numeric(values))
+```
+
+**3. Use type-safe reading:**
+```{r eval=FALSE}
+# When reading data
+data <- read.csv("data.csv", stringsAsFactors = FALSE)
+data$numeric_col <- as.numeric(data$numeric_col)
+```
+</div>
+
+## Error #3: `(list) object cannot be coerced to type 'double'` {#list-coerce-double}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+my_list <- list(a = 1, b = 2, c = 3)
+sum(my_list)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in sum(my_list) : invalid 'type' (list) of argument
+```
+</div>
+
+### What It Means
+
+You're trying to do mathematical operations on a list, which is a container that can hold anything. R can't automatically convert a list to numbers.
+
+### Common Causes
+
+#### Cause 1: Using List Instead of Vector
+
+```{r error=TRUE}
+# List (wrong for math)
+numbers_list <- list(1, 2, 3, 4, 5)
+mean(numbers_list)  # Error!
+```
+
+```{r}
+# Vector (right for math)
+numbers_vec <- c(1, 2, 3, 4, 5)
+mean(numbers_vec)  # Works!
+```
+
+#### Cause 2: Extracting From Data Frame Incorrectly
+
+```{r error=TRUE}
+df <- data.frame(x = 1:5, y = 6:10)
+
+# Single bracket returns data frame (list-based)
+sum(df[1])  # Error - still a data frame
+
+# Double bracket returns vector
+sum(df[[1]])  # Works!
+
+# Dollar sign returns vector
+sum(df$x)  # Works!
+```
+
+#### Cause 3: List Column in Data Frame
+
+```{r error=TRUE}
+# Modern R can have list columns
+df <- data.frame(id = 1:3)
+df$values <- list(c(1,2), c(3,4), c(5,6))
+
+# Can't do math on list column
+sum(df$values)  # Error!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Convert List to Vector**
+
+```{r}
+my_list <- list(a = 1, b = 2, c = 3)
+
+# Unlist to vector
+unlist(my_list)
+sum(unlist(my_list))
+
+# Or use do.call
+do.call(sum, my_list)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Correct Extraction**
+
+```{r}
+df <- data.frame(x = 1:5, y = 6:10)
+
+# Good ways:
+sum(df$x)      # Dollar sign
+sum(df[[1]])   # Double bracket
+sum(df[, 1])   # Bracket with comma
+
+# Bad way:
+# sum(df[1])   # Single bracket = data frame
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Handle List Columns**
+
+```{r}
+df <- data.frame(id = 1:3)
+df$values <- list(c(1,2), c(3,4), c(5,6))
+
+# Apply operation to each list element
+sapply(df$values, sum)
+lapply(df$values, mean)
+
+# Or unnest first (tidyverse)
+library(tidyr)
+df %>% unnest(values)
+```
+</div>
+
+<div class="insight-box">
+💡 **Key Insight: List vs Vector**
+
+```{r}
+# Vector: All same type
+vec <- c(1, 2, 3)
+typeof(vec)
+class(vec)
+
+# List: Can mix types
+lst <- list(1, "two", TRUE)
+typeof(lst)
+class(lst)
+
+# Data frame: Special list of vectors
+df <- data.frame(x = 1:3, y = 4:6)
+typeof(df)  # "list"!
+class(df)   # "data.frame"
+
+# Single bracket keeps structure
+df[1]      # Data frame (list)
+df[[1]]    # Vector
+```
+</div>
+
+## Error #4: `invalid type (closure) for variable 'X'` {#invalid-type-closure}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+# Accidentally using a function as data
+data <- data.frame(x = 1:5)
+plot(mean, data$x)  # mean is the function!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in plot.xy(xy.coords(x, y), type = type, ...) : 
+  invalid type (closure) for variable 'mean'
+```
+</div>
+
+### What It Means
+
+"Closure" = function. You passed a function where R expected data.
+
+### Common Causes
+
+#### Cause 1: Forgot to Call Function
+
+```{r error=TRUE}
+numbers <- 1:10
+plot(mean, numbers)  # Passed function itself
+```
+
+```{r}
+# Fix: Call the function
+plot(mean(numbers), numbers)
+```
+
+#### Cause 2: Variable Name Same as Function
+
+```{r error=TRUE}
+# Created variable named 'c'
+c <- 100
+data <- c(1, 2, 3)  # Now c() function is masked!
+
+# Later, someone tries to use the function
+# But 'c' is now the number 100
+```
+
+```{r}
+# Check what something is
+is.function(mean)
+is.function(100)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Call the function (add parentheses):**
+```{r eval=FALSE}
+# Wrong:
+plot(mean, data)
+
+# Right:
+plot(mean(data), ...)
+```
+
+**2. Don't name variables after functions:**
+```{r}
+# Bad:
+# mean <- 42
+# sum <- 100
+# data <- my_data
+
+# Good:
+average_value <- 42
+total_sum <- 100
+my_data <- ...
+```
+
+**3. Remove conflicting variable:**
+```{r}
+# If you accidentally created:
+# sum <- 100
+
+# Remove it:
+rm(sum)
+
+# Now sum() function works again
+sum(1:10)
+```
+</div>
+
+## Error #5: `cannot coerce class "X" to a data.frame` {#cannot-coerce-df}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+# Trying to convert incompatible type
+my_func <- function() { return(42) }
+as.data.frame(my_func)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in as.data.frame.default(my_func) : 
+  cannot coerce class '"function"' to a data.frame
+```
+</div>
+
+### Common Causes
+
+#### Cause 1: Wrong Object Type
+
+```{r error=TRUE}
+# Can't convert function
+as.data.frame(mean)
+
+# Can't convert environment
+as.data.frame(.GlobalEnv)
+```
+
+#### Cause 2: Wrong List Structure
+
+```{r error=TRUE}
+# Uneven list lengths
+bad_list <- list(a = 1:3, b = 1:5)
+as.data.frame(bad_list)  # Error - different lengths!
+```
+
+```{r}
+# Must be same length or length 1
+good_list <- list(a = 1:3, b = 4:6)
+as.data.frame(good_list)
+
+# Or use recycling
+recycled_list <- list(a = 1:3, b = 1)  # b recycled
+as.data.frame(recycled_list)
+```
+
+#### Cause 3: Matrix With Wrong Type
+
+```{r error=TRUE}
+# Some object types don't convert cleanly
+nested <- list(list(1, 2), list(3, 4))
+as.data.frame(nested)  # Error - nested lists!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Fix List Structure**
+
+```{r}
+# Uneven lengths - fix it
+bad_list <- list(a = 1:3, b = 1:5)
+
+# Option 1: Trim to shortest
+min_len <- min(lengths(bad_list))
+fixed_list <- lapply(bad_list, function(x) x[1:min_len])
+as.data.frame(fixed_list)
+
+# Option 2: Pad with NA
+max_len <- max(lengths(bad_list))
+fixed_list <- lapply(bad_list, function(x) {
+  c(x, rep(NA, max_len - length(x)))
+})
+as.data.frame(fixed_list)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Convert Correctly**
+
+```{r}
+# From matrix
+mat <- matrix(1:6, nrow = 2)
+as.data.frame(mat)
+
+# From vector with names
+vec <- c(a = 1, b = 2, c = 3)
+as.data.frame(as.list(vec))
+
+# From nested list - flatten first
+nested <- list(list(1, 2), list(3, 4))
+flat <- unlist(nested, recursive = FALSE)
+# Or handle differently depending on structure
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Check Before Converting**
+
+```{r}
+safe_as_df <- function(x) {
+  # Check if it's already a data frame
+  if (is.data.frame(x)) return(x)
+  
+  # Check if it's a matrix
+  if (is.matrix(x)) return(as.data.frame(x))
+  
+  # Check if it's a list with equal lengths
+  if (is.list(x)) {
+    lens <- lengths(x)
+    if (length(unique(lens)) == 1 || all(lens == 1 | lens == max(lens))) {
+      return(as.data.frame(x))
+    } else {
+      stop("List elements have incompatible lengths: ", 
+           paste(lens, collapse = ", "))
+    }
+  }
+  
+  # Try generic conversion
+  tryCatch(
+    as.data.frame(x),
+    error = function(e) {
+      stop("Cannot convert ", class(x), " to data.frame: ", e$message)
+    }
+  )
+}
+
+# Test
+safe_as_df(list(a = 1:3, b = 4:6))  # Works
+```
+</div>
+
+## Error #6: `NAs introduced by coercion` {#nas-coercion}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Warning (Usually)
+
+```{r}
+as.numeric(c("1", "2", "three", "4"))
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Warning message:
+NAs introduced by coercion
+```
+</div>
+
+### What It Means
+
+R tried to convert something to numeric, but some values couldn't be converted, so they became NA.
+
+### Common Scenarios
+
+#### Scenario 1: Text in Numeric Column
+
+```{r}
+# Data entry errors
+scores <- c("90", "85", "N/A", "92", "absent")
+as.numeric(scores)
+
+# Check which became NA
+is.na(as.numeric(scores))
+```
+
+#### Scenario 2: Special Characters
+
+```{r}
+# Currency symbols
+prices <- c("$10.99", "$25.50", "$8.75")
+as.numeric(prices)  # All become NA!
+
+# Need to remove $ first
+as.numeric(gsub("\\$", "", prices))
+```
+
+#### Scenario 3: Scientific Notation Issues
+
+```{r}
+# Usually these work fine
+as.numeric("1.5e-10")  # Scientific notation OK
+
+# But typos don't
+as.numeric("1.5E-10a")  # Typo creates NA
+```
+
+#### Scenario 4: Factors with Text Levels
+
+```{r}
+# Factor with non-numeric levels
+responses <- factor(c("Yes", "No", "Yes", "Maybe"))
+as.numeric(responses)  # Gives factor codes (1,2,1,3), not what you want
+
+# And trying to convert to the levels gives NA
+as.numeric(as.character(responses))
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Clean Data First**
+
+```{r}
+# Remove non-numeric characters
+dirty <- c("$10.99", "€25.50", "8.75")
+
+# Remove currency symbols
+clean <- gsub("[^0-9.]", "", dirty)
+as.numeric(clean)
+
+# More robust cleaning
+clean_numeric <- function(x) {
+  # Remove everything except numbers, decimal, minus
+  cleaned <- gsub("[^0-9.-]", "", x)
+  as.numeric(cleaned)
+}
+
+clean_numeric(c("$10.99", "-25.5%", "8 dollars"))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Handle NAs Explicitly**
+
+```{r}
+values <- c("1", "2", "three", "4")
+converted <- as.numeric(values)
+
+# Check which failed
+failed <- is.na(converted) & !is.na(values)
+if (any(failed)) {
+  message("Could not convert: ", paste(values[failed], collapse = ", "))
+}
+
+# Or replace NAs with default
+converted[is.na(converted)] <- 0
+converted
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use readr's parse_number()**
+
+```{r}
+library(readr)
+
+# Automatically extracts numbers
+parse_number("$10.99")
+parse_number("Price: $25.50")
+parse_number("8.75%")
+
+# Vector
+parse_number(c("$10.99", "€25.50", "8.75"))
+```
+</div>
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Validate After Coercion**
+
+```{r}
+coerce_with_validation <- function(x, to = "numeric") {
+  original <- x
+  
+  if (to == "numeric") {
+    converted <- as.numeric(x)
+  } else if (to == "integer") {
+    converted <- as.integer(x)
+  } else {
+    stop("Unsupported conversion type")
+  }
+  
+  # Count NAs
+  original_nas <- sum(is.na(original))
+  new_nas <- sum(is.na(converted))
+  introduced_nas <- new_nas - original_nas
+  
+  if (introduced_nas > 0) {
+    warning(introduced_nas, " NAs introduced by coercion")
+    failed_values <- original[is.na(converted) & !is.na(original)]
+    message("Failed to convert: ", 
+            paste(head(failed_values, 5), collapse = ", "),
+            if(length(failed_values) > 5) "..." else "")
+  }
+  
+  return(converted)
+}
+
+# Test
+coerce_with_validation(c("1", "2", "three", "4"))
+```
+</div>
+
+## Error #7: `character string is not in a standard unambiguous format` {#date-parse-error}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+as.Date("2024/13/01")  # Month 13 doesn't exist
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in charToDate(x) : 
+  character string is not in a standard unambiguous format
+```
+</div>
+
+### What It Means
+
+You're trying to convert a string to a Date, but R can't figure out the format, or the date is invalid.
+
+### Common Causes
+
+#### Cause 1: Wrong Date Format
+
+```{r error=TRUE}
+# American format (month/day/year)
+as.Date("12/25/2024")  # R expects YYYY-MM-DD
+```
+
+```{r}
+# Specify format
+as.Date("12/25/2024", format = "%m/%d/%Y")
+```
+
+#### Cause 2: Invalid Date
+
+```{r error=TRUE}
+as.Date("2024-02-30")  # February doesn't have 30 days
+as.Date("2024-13-01")  # Month 13 doesn't exist
+```
+
+#### Cause 3: Ambiguous Format
+
+```{r error=TRUE}
+# Is this Jan 2 or Feb 1?
+as.Date("01/02/2024")  # R gets confused
+```
+
+```{r}
+# Be explicit
+as.Date("01/02/2024", format = "%m/%d/%Y")  # Jan 2
+as.Date("01/02/2024", format = "%d/%m/%Y")  # Feb 1
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Specify Format**
+
+```{r}
+# Common formats
+as.Date("2024-12-25")  # ISO format (default)
+as.Date("12/25/2024", format = "%m/%d/%Y")
+as.Date("25/12/2024", format = "%d/%m/%Y")
+as.Date("Dec 25, 2024", format = "%b %d, %Y")
+as.Date("December 25, 2024", format = "%B %d, %Y")
+```
+
+**Format codes:**
+- `%Y` = 4-digit year (2024)
+- `%y` = 2-digit year (24)
+- `%m` = numeric month (12)
+- `%d` = day of month (25)
+- `%b` = abbreviated month (Dec)
+- `%B` = full month (December)
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use lubridate (Easier!)**
+
+```{r}
+library(lubridate)
+
+# Auto-detect common formats
+ymd("2024-12-25")
+mdy("12/25/2024")
+dmy("25/12/2024")
+mdy("Dec 25, 2024")
+
+# Vector of dates
+dates <- c("2024-12-25", "2024/01/15", "2024.06.30")
+ymd(dates)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Handle Parse Failures**
+
+```{r}
+dates <- c("2024-12-25", "invalid", "2024-02-30", "2024-01-15")
+
+# Base R - NAs for failures
+parsed <- as.Date(dates)  # Warnings
+parsed
+
+# lubridate - shows which failed
+library(lubridate)
+parsed <- ymd(dates, quiet = FALSE)
+parsed
+
+# Custom handling
+safe_parse_date <- function(x, format = "%Y-%m-%d") {
+  result <- as.Date(x, format = format)
+  
+  # Report failures
+  failed <- is.na(result) & !is.na(x)
+  if (any(failed)) {
+    message("Failed to parse ", sum(failed), " dates:")
+    message(paste(x[failed], collapse = ", "))
+  }
+  
+  return(result)
+}
+
+safe_parse_date(dates)
+```
+</div>
+
+## Type Checking Functions
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Check Types Before Operating**
+
+```{r}
+# Checking functions
+is.numeric(5)       # TRUE for integer or double
+is.integer(5L)      # TRUE only for integer
+is.double(5.0)      # TRUE only for double
+is.character("5")   # TRUE for character
+is.logical(TRUE)    # TRUE for logical
+is.factor(factor(1:3))  # TRUE for factor
+
+# Getting type info
+typeof(5)           # "double"
+class(5)            # "numeric"
+mode(5)             # "numeric"
+
+# More specific checks
+is.na(NA)           # TRUE for NA
+is.null(NULL)       # TRUE for NULL
+is.nan(NaN)         # TRUE for NaN (not a number)
+is.infinite(Inf)    # TRUE for Inf
+is.finite(5)        # TRUE for normal numbers
+
+# Structure checks
+is.vector(c(1,2,3))      # TRUE
+is.list(list(1,2))       # TRUE
+is.matrix(matrix(1:4, 2, 2))  # TRUE
+is.data.frame(data.frame(x=1:3))  # TRUE
+is.array(array(1:8, dim=c(2,2,2)))  # TRUE
+```
+</div>
+
+## Type Conversion Functions
+
+<div class="insight-box">
+💡 **Key Insight: Conversion Functions**
+
+```{r}
+# To numeric
+as.numeric("5")
+as.integer("5")
+as.double("5.5")
+
+# To character
+as.character(5)
+as.character(TRUE)
+
+# To logical
+as.logical(1)        # TRUE
+as.logical(0)        # FALSE
+as.logical("TRUE")   # TRUE
+as.logical("T")      # TRUE
+
+# To factor
+as.factor(c("A", "B", "A"))
+
+# Special conversions
+as.Date("2024-01-15")
+as.POSIXct("2024-01-15 10:30:00")
+```
+
+**Coercion Hierarchy:**
+logical → integer → double → character
+
+Everything can become character!
+```{r}
+c(TRUE, 1L, 1.5, "text")  # All become character
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **R has 6 atomic types**: logical, integer, double, character, complex, raw
+2. **Check types before operations**: Use `typeof()`, `class()`, `is.*()` functions
+3. **Explicit is better than implicit**: Use `as.numeric()` rather than hoping
+4. **Watch for silent failures**: Check for NAs after coercion
+5. **Factors are tricky**: Convert to character before numeric
+6. **Lists aren't vectors**: Use `unlist()` or `[[]]` extraction
+7. **Specify date formats**: Don't rely on auto-detection
+8. **Use lubridate for dates**: Much easier than base R
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| non-numeric argument to binary operator | Character in math | `as.numeric()` |
+| non-numeric argument to math function | Character in function | `as.numeric()` |
+| (list) cannot be coerced | Wrong structure | `unlist()` or `[[]]` |
+| invalid type (closure) | Function instead of data | Call function or rename variable |
+| cannot coerce to data.frame | Incompatible type | Fix structure or use correct conversion |
+| NAs introduced by coercion | Invalid values | Clean data first |
+| character string not in standard format | Date parse failure | Specify format or use lubridate |
+
+**Type Checking Checklist:**
+```{r eval=FALSE}
+# Before doing math:
+is.numeric(x)
+
+# Before subsetting:
+is.vector(x) || is.list(x)
+
+# Before data frame operations:
+is.data.frame(df)
+
+# After conversion:
+any(is.na(result))
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Type Detective**
+
+What's wrong and how do you fix it?
+
+```{r eval=FALSE}
+# Scenario 1
+age <- "25"
+next_year <- age + 1
+
+# Scenario 2
+scores <- factor(c("90", "85", "95"))
+average <- mean(as.numeric(scores))
+
+# Scenario 3
+df <- data.frame(x = 1:5)
+total <- sum(df[1])
+
+# Scenario 4
+dates <- c("2024-01-15", "15/01/2024", "Jan 15 2024")
+parsed <- as.Date(dates)
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Type Conversion**
+
+Write a function that:
+1. Takes a vector of any type
+2. Tries to convert to numeric
+3. Reports which values failed
+4. Returns numeric vector with NAs for failures
+5. Provides a summary of conversions
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Real Data**
+
+You receive this data:
+
+```{r eval=FALSE}
+sales <- c("$1,234.56", "$987.65", "N/A", "$2,345.67", "pending")
+dates <- c("01/15/2024", "2024-02-20", "Mar 15, 2024")
+```
+
+Clean and convert both to appropriate types.
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Data Frame Types**
+
+Debug this code:
+
+```{r eval=FALSE}
+df <- data.frame(
+  id = 1:3,
+  value = c("100", "200", "300"),
+  date = c("2024-01-15", "2024-02-20", "2024-03-25")
+)
+
+# Want to do:
+df$value_doubled <- df$value * 2
+df$days_since <- Sys.Date() - df$date
+```
+
+Fix the types so operations work.
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r eval=FALSE}
+# Scenario 1 - Character in math
+age <- "25"
+age <- as.numeric(age)  # Fix
+next_year <- age + 1
+
+# Scenario 2 - Factor to numeric wrong way
+scores <- factor(c("90", "85", "95"))
+# Wrong: as.numeric(scores) gives 1,2,3
+# Right:
+scores_num <- as.numeric(as.character(scores))
+average <- mean(scores_num)
+
+# Scenario 3 - Single bracket returns data frame
+df <- data.frame(x = 1:5)
+# Wrong: df[1] is still data frame
+# Right:
+total <- sum(df[[1]])  # or sum(df$x)
+
+# Scenario 4 - Mixed date formats
+dates <- c("2024-01-15", "15/01/2024", "Jan 15 2024")
+# Need different formats for each
+library(lubridate)
+parsed <- c(ymd("2024-01-15"), 
+            dmy("15/01/2024"),
+            mdy("Jan 15 2024"))
+```
+
+**Exercise 2:**
+
+```{r}
+smart_numeric_convert <- function(x) {
+  # Store original
+  original <- x
+  original_class <- class(x)
+  
+  # Attempt conversion
+  converted <- suppressWarnings(as.numeric(x))
+  
+  # Identify failures
+  original_na <- is.na(original)
+  new_na <- is.na(converted)
+  failures <- new_na & !original_na
+  
+  # Report
+  cat("Conversion Summary:\n")
+  cat("  Original type:", original_class, "\n")
+  cat("  Total values:", length(x), "\n")
+  cat("  Successful:", sum(!new_na), "\n")
+  cat("  Failed:", sum(failures), "\n")
+  cat("  Already NA:", sum(original_na), "\n\n")
+  
+  if (any(failures)) {
+    cat("Failed values:\n")
+    print(head(original[failures], 10))
+  }
+  
+  return(converted)
+}
+
+# Test
+smart_numeric_convert(c("1", "2", "three", "4", "five"))
+```
+
+**Exercise 3:**
+
+```{r}
+library(readr)
+library(lubridate)
+
+# Clean sales
+sales <- c("$1,234.56", "$987.65", "N/A", "$2,345.67", "pending")
+
+# Remove currency and commas, handle text
+sales_clean <- gsub("[$,]", "", sales)
+sales_num <- suppressWarnings(as.numeric(sales_clean))
+sales_num[is.na(sales_num)]  <- 0  # Or handle differently
+
+# Clean dates
+dates <- c("01/15/2024", "2024-02-20", "Mar 15, 2024")
+
+# Try multiple formats
+dates_parsed <- as.Date(parse_date_time(dates, 
+                                        orders = c("mdy", "ymd", "bdy")))
+
+# Result
+data.frame(
+  sales = sales_num,
+  date = dates_parsed
+)
+```
+
+**Exercise 4:**
+
+```{r}
+df <- data.frame(
+  id = 1:3,
+  value = c("100", "200", "300"),
+  date = c("2024-01-15", "2024-02-20", "2024-03-25"),
+  stringsAsFactors = FALSE
+)
+
+# Fix types
+df$value <- as.numeric(df$value)
+df$date <- as.Date(df$date)
+
+# Now operations work
+df$value_doubled <- df$value * 2
+df$days_since <- as.numeric(Sys.Date() - df$date)
+
+df
+```
+</details>

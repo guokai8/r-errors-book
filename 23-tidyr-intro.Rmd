@@ -1,0 +1,858 @@
+# Introduction to tidyr {#tidyr-intro}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Tidy data principles
+- Wide vs long format
+- pivot_longer() and pivot_wider()
+- Common reshaping errors
+- When to reshape data
+
+**Key Errors Covered:** 15+ tidyr errors
+
+**Difficulty:** ⭐⭐ Intermediate to ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+tidyr helps reshape data between wide and long formats:
+
+```{r message=FALSE}
+library(tidyr)
+library(dplyr)
+
+# Wide format
+wide_data <- tibble(
+  id = 1:3,
+  time_1 = c(10, 20, 30),
+  time_2 = c(15, 25, 35),
+  time_3 = c(20, 30, 40)
+)
+
+# Convert to long format
+long_data <- wide_data %>%
+  pivot_longer(
+    cols = starts_with("time"),
+    names_to = "time",
+    values_to = "value"
+  )
+
+long_data
+```
+
+Let's master reshaping!
+
+## Tidy Data Principles
+
+<div class="insight-box">
+💡 **Key Insight: What is Tidy Data?**
+
+```{r}
+# Tidy data rules:
+# 1. Each variable is a column
+# 2. Each observation is a row
+# 3. Each type of observational unit is a table
+
+# Example: UNTIDY (wide format)
+untidy <- tibble(
+  person = c("Alice", "Bob"),
+  age = c(25, 30),
+  income_2020 = c(50000, 60000),
+  income_2021 = c(52000, 62000),
+  income_2022 = c(54000, 64000)
+)
+
+untidy
+
+# TIDY (long format)
+tidy <- untidy %>%
+  pivot_longer(
+    cols = starts_with("income"),
+    names_to = "year",
+    names_prefix = "income_",
+    values_to = "income"
+  )
+
+tidy
+
+# Now year is a variable, each row is person-year observation
+```
+
+**Why tidy data?**
+- Works naturally with dplyr and ggplot2
+- Easy to filter, group, and summarize
+- Consistent structure for analysis
+</div>
+
+## pivot_longer() Basics
+
+<div class="insight-box">
+💡 **Key Insight: Wide to Long with pivot_longer()**
+
+```{r}
+# Basic pivot_longer
+wide <- tibble(
+  id = 1:3,
+  q1 = c(5, 3, 4),
+  q2 = c(4, 5, 3),
+  q3 = c(3, 4, 5)
+)
+
+wide %>%
+  pivot_longer(
+    cols = q1:q3,           # Columns to pivot
+    names_to = "quarter",   # New column for names
+    values_to = "score"     # New column for values
+  )
+
+# Using selection helpers
+wide %>%
+  pivot_longer(
+    cols = starts_with("q"),
+    names_to = "quarter",
+    values_to = "score"
+  )
+
+# Keep some columns
+wide %>%
+  pivot_longer(
+    cols = -id,             # All except id
+    names_to = "quarter",
+    values_to = "score"
+  )
+
+# Multiple value types
+data <- tibble(
+  id = 1:2,
+  x_value = c(10, 20),
+  x_error = c(1, 2),
+  y_value = c(30, 40),
+  y_error = c(3, 4)
+)
+
+data %>%
+  pivot_longer(
+    cols = -id,
+    names_to = c("variable", ".value"),
+    names_sep = "_"
+  )
+```
+</div>
+
+## Error #1: `cols must select at least one column` {#pivot-no-cols}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-args">📋 ARGS</span>
+
+### The Error
+
+```{r error=TRUE}
+data <- tibble(
+  id = 1:3,
+  value = c(10, 20, 30)
+)
+
+data %>%
+  pivot_longer(
+    cols = starts_with("time"),  # No columns match!
+    names_to = "time",
+    values_to = "measurement"
+  )
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in pivot_longer():
+! `cols` must select at least one column.
+```
+</div>
+
+### What It Means
+
+The column selection didn't match any columns.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Column Names**
+
+```{r}
+# Verify columns exist
+names(data)
+
+# Use correct selection
+data_wide <- tibble(
+  id = 1:3,
+  time_1 = c(10, 20, 30),
+  time_2 = c(15, 25, 35)
+)
+
+data_wide %>%
+  pivot_longer(
+    cols = starts_with("time"),
+    names_to = "time",
+    values_to = "value"
+  )
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Flexible Selection**
+
+```{r}
+# Select all numeric columns
+data_wide %>%
+  pivot_longer(
+    cols = where(is.numeric),
+    names_to = "variable",
+    values_to = "value"
+  )
+
+# Or exclude specific columns
+data_wide %>%
+  pivot_longer(
+    cols = -id,
+    names_to = "variable",
+    values_to = "value"
+  )
+```
+</div>
+
+## pivot_wider() Basics
+
+<div class="insight-box">
+💡 **Key Insight: Long to Wide with pivot_wider()**
+
+```{r}
+# Basic pivot_wider
+long <- tibble(
+  id = rep(1:3, each = 2),
+  time = rep(c("before", "after"), 3),
+  value = c(10, 15, 20, 25, 30, 35)
+)
+
+long %>%
+  pivot_wider(
+    names_from = time,      # Column to get names from
+    values_from = value     # Column to get values from
+  )
+
+# Multiple value columns
+long_multi <- tibble(
+  id = rep(1:2, each = 2),
+  time = rep(c("t1", "t2"), 2),
+  score = c(10, 15, 20, 25),
+  error = c(1, 2, 3, 4)
+)
+
+long_multi %>%
+  pivot_wider(
+    names_from = time,
+    values_from = c(score, error)
+  )
+
+# With name formatting
+long %>%
+  pivot_wider(
+    names_from = time,
+    values_from = value,
+    names_prefix = "time_"
+  )
+```
+</div>
+
+## Error #2: `Values are not uniquely identified` {#pivot-not-unique}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-logic">🧠 LOGIC</span>
+
+### The Error
+
+```{r error=TRUE}
+# Data with duplicates
+data <- tibble(
+  id = c(1, 1, 2, 2),
+  time = c("before", "before", "before", "after"),
+  value = c(10, 15, 20, 25)
+)
+
+data %>%
+  pivot_wider(
+    names_from = time,
+    values_from = value
+  )
+```
+
+<div class="error-box">
+🔴 **WARNING/ERROR**
+
+```
+Warning: Values from `value` are not uniquely identified; output will contain list-cols.
+```
+</div>
+
+### What It Means
+
+Multiple values exist for same id-time combination. Can't decide which to use.
+
+### Common Causes
+
+```{r}
+# Multiple measurements per combination
+measurements <- tibble(
+  person = c("Alice", "Alice", "Bob", "Bob"),
+  test = c("test1", "test1", "test2", "test2"),
+  score = c(85, 87, 90, 92)  # Two scores for Alice-test1
+)
+
+measurements %>%
+  pivot_wider(
+    names_from = test,
+    values_from = score
+  )
+# Creates list columns!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Aggregate First**
+
+```{r}
+measurements %>%
+  group_by(person, test) %>%
+  summarize(score = mean(score), .groups = "drop") %>%
+  pivot_wider(
+    names_from = test,
+    values_from = score
+  )
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Add Identifier**
+
+```{r}
+# Add row number to make unique
+measurements %>%
+  group_by(person, test) %>%
+  mutate(attempt = row_number()) %>%
+  pivot_wider(
+    names_from = c(test, attempt),
+    values_from = score
+  )
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use values_fn**
+
+```{r}
+# Specify how to aggregate
+measurements %>%
+  pivot_wider(
+    names_from = test,
+    values_from = score,
+    values_fn = list(score = mean)
+  )
+
+# Or use list for multiple aggregations
+measurements %>%
+  pivot_wider(
+    names_from = test,
+    values_from = score,
+    values_fn = list(score = list)
+  )
+```
+</div>
+
+## separate() and unite()
+
+<div class="insight-box">
+💡 **Key Insight: Splitting and Combining Columns**
+
+```{r}
+# separate: split one column into multiple
+data <- tibble(
+  id = 1:3,
+  name = c("Alice_Smith", "Bob_Jones", "Charlie_Brown")
+)
+
+data %>%
+  separate(name, into = c("first", "last"), sep = "_")
+
+# With different separator
+data2 <- tibble(
+  id = 1:3,
+  date = c("2024-01-15", "2024-02-20", "2024-03-25")
+)
+
+data2 %>%
+  separate(date, into = c("year", "month", "day"), sep = "-")
+
+# Convert types
+data2 %>%
+  separate(date, into = c("year", "month", "day"), 
+           sep = "-", convert = TRUE)
+
+# unite: combine multiple columns
+data_split <- tibble(
+  id = 1:3,
+  first = c("Alice", "Bob", "Charlie"),
+  last = c("Smith", "Jones", "Brown")
+)
+
+data_split %>%
+  unite(name, first, last, sep = " ")
+
+# Keep original columns
+data_split %>%
+  unite(name, first, last, sep = " ", remove = FALSE)
+```
+</div>
+
+## fill() for Missing Values
+
+<div class="insight-box">
+💡 **Key Insight: Fill Missing Values**
+
+```{r}
+# Data with implicit missing values
+data <- tibble(
+  group = c("A", NA, NA, "B", NA, "C"),
+  value = 1:6
+)
+
+# Fill down
+data %>%
+  fill(group)
+
+# Fill up
+data %>%
+  fill(group, .direction = "up")
+
+# Fill both directions
+data %>%
+  fill(group, .direction = "downup")
+```
+</div>
+
+## complete() for Implicit Missing Values
+
+<div class="insight-box">
+💡 **Key Insight: Make Implicit NAs Explicit**
+
+```{r}
+# Incomplete data
+sales <- tibble(
+  product = c("A", "A", "B"),
+  quarter = c(1, 2, 1),
+  sales = c(100, 150, 200)
+)
+
+# Missing: product B quarter 2
+# Make it explicit
+sales %>%
+  complete(product, quarter)
+
+# Fill with specific value
+sales %>%
+  complete(product, quarter, fill = list(sales = 0))
+
+# With sequences
+dates <- tibble(
+  date = as.Date(c("2024-01-01", "2024-01-03", "2024-01-05")),
+  value = c(10, 20, 30)
+)
+
+dates %>%
+  complete(date = seq(min(date), max(date), by = "day"))
+```
+</div>
+
+## Common Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Reshaping Workflows**
+
+```{r}
+# 1. Survey data wide to long
+survey_wide <- tibble(
+  id = 1:3,
+  q1_satisfaction = c(5, 4, 3),
+  q1_importance = c(5, 5, 4),
+  q2_satisfaction = c(4, 3, 5),
+  q2_importance = c(4, 4, 5)
+)
+
+survey_long <- survey_wide %>%
+  pivot_longer(
+    cols = -id,
+    names_to = c("question", "measure"),
+    names_sep = "_",
+    values_to = "rating"
+  )
+
+survey_long
+
+# 2. Time series wide to long
+stocks <- tibble(
+  date = as.Date("2024-01-01") + 0:2,
+  AAPL = c(150, 152, 149),
+  GOOGL = c(140, 142, 138),
+  MSFT = c(380, 385, 378)
+)
+
+stocks %>%
+  pivot_longer(
+    cols = -date,
+    names_to = "stock",
+    values_to = "price"
+  )
+
+# 3. Pivot wider for comparison
+comparisons <- tibble(
+  id = rep(1:3, each = 2),
+  condition = rep(c("control", "treatment"), 3),
+  outcome = c(10, 12, 15, 18, 20, 22)
+)
+
+comparisons %>%
+  pivot_wider(
+    names_from = condition,
+    values_from = outcome
+  ) %>%
+  mutate(difference = treatment - control)
+
+# 4. Complex reshape
+data <- tibble(
+  id = 1:2,
+  treatment_1_pre = c(10, 15),
+  treatment_1_post = c(12, 17),
+  treatment_2_pre = c(20, 25),
+  treatment_2_post = c(22, 27)
+)
+
+data %>%
+  pivot_longer(
+    cols = -id,
+    names_to = c("treatment", "time"),
+    names_pattern = "treatment_(.*)_(.*)",
+    values_to = "score"
+  )
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Tidy data principles** - Variables in columns, observations in rows
+2. **pivot_longer()** - Wide to long format
+3. **pivot_wider()** - Long to wide format
+4. **Check for duplicates** - Before pivot_wider()
+5. **separate() and unite()** - Split/combine columns
+6. **fill()** - Handle missing values
+7. **complete()** - Make implicit NAs explicit
+
+**Quick Reference:**
+
+| Function | Purpose | Common Use |
+|----------|---------|------------|
+| pivot_longer() | Wide → Long | Convert multiple columns to rows |
+| pivot_wider() | Long → Wide | Spread values across columns |
+| separate() | Split column | Parse combined data |
+| unite() | Combine columns | Create composite keys |
+| fill() | Fill NAs | Propagate values |
+| complete() | Add missing combos | Explicit NAs |
+
+**Reshaping:**
+
+```{r eval=FALSE}
+# Wide to long
+data %>%
+  pivot_longer(
+    cols = col1:col3,
+    names_to = "variable",
+    values_to = "value"
+  )
+
+# Long to wide
+data %>%
+  pivot_wider(
+    names_from = variable,
+    values_from = value
+  )
+
+# Split column
+data %>%
+  separate(col, into = c("part1", "part2"), sep = "_")
+
+# Combine columns
+data %>%
+  unite(new_col, col1, col2, sep = "_")
+
+# Fill missing
+data %>%
+  fill(col, .direction = "down")
+
+# Complete combinations
+data %>%
+  complete(var1, var2, fill = list(value = 0))
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+Check data structure first                # Know what you have
+Aggregate before pivot_wider              # Avoid list columns
+Use descriptive names_to/values_to        # Clear column names
+Test on small sample first                # Verify logic
+
+# ❌ Avoid
+Pivot_wider with duplicates               # Creates list columns
+Complex reshapes in one step              # Hard to debug
+Forgetting to specify cols                # Error or unexpected
+Not checking result structure             # May not be what you want
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Wide to Long**
+
+Given:
+```{r eval=FALSE}
+grades <- tibble(
+  student = c("Alice", "Bob", "Charlie"),
+  math_q1 = c(85, 78, 92),
+  math_q2 = c(88, 82, 95),
+  english_q1 = c(90, 85, 88),
+  english_q2 = c(92, 87, 90)
+)
+```
+
+Convert to long format with columns: student, subject, quarter, grade
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Long to Wide**
+
+Given:
+```{r eval=FALSE}
+measurements <- tibble(
+  id = rep(1:3, each = 3),
+  time = rep(c("t1", "t2", "t3"), 3),
+  value = c(10, 12, 14, 20, 22, 24, 30, 32, 34)
+)
+```
+
+Convert to wide format with time as columns
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Safe Pivot**
+
+Write `safe_pivot_wider(data, names_from, values_from)` that:
+1. Checks for duplicate combinations
+2. Aggregates if needed
+3. Performs pivot
+4. Validates result
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Complex Reshape**
+
+Given survey data:
+```{r eval=FALSE}
+survey <- tibble(
+  id = 1:3,
+  age = c(25, 30, 35),
+  q1_pre = c(3, 4, 2),
+  q1_post = c(4, 5, 3),
+  q2_pre = c(2, 3, 4),
+  q2_post = c(3, 4, 5)
+)
+```
+
+Reshape to: id, age, question, time, response
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+grades <- tibble(
+  student = c("Alice", "Bob", "Charlie"),
+  math_q1 = c(85, 78, 92),
+  math_q2 = c(88, 82, 95),
+  english_q1 = c(90, 85, 88),
+  english_q2 = c(92, 87, 90)
+)
+
+# Method 1: Two-step pivot
+result <- grades %>%
+  pivot_longer(
+    cols = -student,
+    names_to = "subject_quarter",
+    values_to = "grade"
+  ) %>%
+  separate(subject_quarter, into = c("subject", "quarter"), sep = "_")
+
+result
+
+# Method 2: Use names_pattern
+result2 <- grades %>%
+  pivot_longer(
+    cols = -student,
+    names_to = c("subject", "quarter"),
+    names_pattern = "(.*)_(.*)",
+    values_to = "grade"
+  )
+
+result2
+```
+
+**Exercise 2:**
+
+```{r}
+measurements <- tibble(
+  id = rep(1:3, each = 3),
+  time = rep(c("t1", "t2", "t3"), 3),
+  value = c(10, 12, 14, 20, 22, 24, 30, 32, 34)
+)
+
+result <- measurements %>%
+  pivot_wider(
+    names_from = time,
+    values_from = value
+  )
+
+result
+
+# Verify dimensions
+cat("Original: ", nrow(measurements), "rows\n")
+cat("Wide: ", nrow(result), "rows,", ncol(result) - 1, "time columns\n")
+```
+
+**Exercise 3:**
+
+```{r}
+safe_pivot_wider <- function(data, names_from, values_from, 
+                             aggregate_fn = mean, warn = TRUE) {
+  
+  names_col <- rlang::ensym(names_from)
+  values_col <- rlang::ensym(values_from)
+  
+  # Get ID columns (everything except names_from and values_from)
+  id_cols <- setdiff(names(data), c(as.character(names_col), 
+                                     as.character(values_col)))
+  
+  # Check for duplicates
+  dup_check <- data %>%
+    group_by(across(all_of(c(id_cols, as.character(names_col))))) %>%
+    filter(n() > 1) %>%
+    ungroup()
+  
+  if (nrow(dup_check) > 0) {
+    if (warn) {
+      warning("Found ", nrow(dup_check), " duplicate rows. ",
+              "Aggregating with ", deparse(substitute(aggregate_fn)))
+      print(head(dup_check))
+    }
+    
+    # Aggregate
+    data <- data %>%
+      group_by(across(all_of(c(id_cols, as.character(names_col))))) %>%
+      summarize(
+        !!values_col := aggregate_fn(!!values_col),
+        .groups = "drop"
+      )
+  }
+  
+  # Perform pivot
+  result <- data %>%
+    pivot_wider(
+      names_from = !!names_col,
+      values_from = !!values_col
+    )
+  
+  # Validate
+  expected_rows <- length(unique(interaction(data[id_cols])))
+  actual_rows <- nrow(result)
+  
+  if (expected_rows != actual_rows) {
+    warning("Row count mismatch! Expected: ", expected_rows, 
+            ", Got: ", actual_rows)
+  }
+  
+  result
+}
+
+# Test with clean data
+measurements <- tibble(
+  id = rep(1:3, each = 2),
+  time = rep(c("t1", "t2"), 3),
+  value = c(10, 15, 20, 25, 30, 35)
+)
+
+safe_pivot_wider(measurements, time, value)
+
+# Test with duplicates
+measurements_dup <- tibble(
+  id = c(1, 1, 2, 2, 2),
+  time = c("t1", "t1", "t1", "t2", "t2"),
+  value = c(10, 12, 20, 25, 27)
+)
+
+safe_pivot_wider(measurements_dup, time, value)
+```
+
+**Exercise 4:**
+
+```{r}
+survey <- tibble(
+  id = 1:3,
+  age = c(25, 30, 35),
+  q1_pre = c(3, 4, 2),
+  q1_post = c(4, 5, 3),
+  q2_pre = c(2, 3, 4),
+  q2_post = c(3, 4, 5)
+)
+
+# Method 1: Step by step
+result <- survey %>%
+  pivot_longer(
+    cols = starts_with("q"),
+    names_to = "question_time",
+    values_to = "response"
+  ) %>%
+  separate(question_time, into = c("question", "time"), sep = "_")
+
+result
+
+# Method 2: Using names_pattern
+result2 <- survey %>%
+  pivot_longer(
+    cols = starts_with("q"),
+    names_to = c("question", "time"),
+    names_pattern = "(q\\d+)_(.*)",
+    values_to = "response"
+  )
+
+result2
+
+# Verify
+cat("Original questions:", (ncol(survey) - 2), "\n")
+cat("Long format rows:", nrow(result), "\n")
+cat("Should be:", nrow(survey) * (ncol(survey) - 2), "\n")
+```
+</details>

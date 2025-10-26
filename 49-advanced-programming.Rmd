@@ -1,0 +1,22 @@
+# Advanced R Programming {#advanced-programming}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Metaprogramming
+- Non-standard evaluation
+- R6 classes
+- Advanced patterns
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Summary
+
+Advanced R programming techniques including metaprogramming and OOP.
+
+**Key Topics:**
+- Tidy evaluation
+- Quasiquotation
+- R6 object system
+- Function operators

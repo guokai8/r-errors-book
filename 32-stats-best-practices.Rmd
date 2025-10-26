@@ -1,0 +1,426 @@
+# Statistical Best Practices {#stats-best-practices}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- P-value interpretation
+- Multiple testing corrections
+- Effect sizes and power
+- Reproducible analyses
+- Common pitfalls
+
+**Key Errors Covered:** 15+ conceptual errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Statistical best practices prevent common mistakes:
+
+```{r message=FALSE}
+library(dplyr)
+```
+
+## P-values
+
+<div class="insight-box">
+💡 **Key Insight: Understanding P-values**
+
+```{r}
+# P-value is NOT:
+# - Probability hypothesis is true
+# - Probability of replication
+# - Effect size
+
+# P-value IS:
+# - P(data | H0 is true)
+# - Probability of seeing data this extreme if null is true
+
+# Example
+t_result <- t.test(mpg ~ am, data = mtcars)
+
+cat("P-value:", round(t_result$p.value, 4), "\n")
+cat("\nInterpretation:\n")
+cat("If there were truly no difference in mpg between transmissions,\n")
+cat("we would see a difference this large or larger in", 
+    round(t_result$p.value * 100, 2), "% of studies.\n")
+
+# Common thresholds
+if (t_result$p.value < 0.001) cat("\nVery strong evidence against H0\n")
+else if (t_result$p.value < 0.01) cat("\nStrong evidence against H0\n")
+else if (t_result$p.value < 0.05) cat("\nModerate evidence against H0\n")
+else cat("\nWeak evidence against H0\n")
+```
+</div>
+
+## Multiple Testing
+
+<div class="insight-box">
+💡 **Key Insight: Adjusting for Multiple Tests**
+
+```{r}
+# Problem: More tests = more false positives
+set.seed(123)
+n_tests <- 20
+p_values <- replicate(n_tests, {
+  x <- rnorm(30)
+  y <- rnorm(30)
+  t.test(x, y)$p.value
+})
+
+cat("Significant at α = 0.05:", sum(p_values < 0.05), "out of", n_tests, "\n")
+cat("Expected false positives:", n_tests * 0.05, "\n")
+
+# Solutions:
+# 1. Bonferroni correction (conservative)
+p_bonferroni <- p.adjust(p_values, method = "bonferroni")
+cat("\nAfter Bonferroni:", sum(p_bonferroni < 0.05), "significant\n")
+
+# 2. FDR control (less conservative)
+p_fdr <- p.adjust(p_values, method = "fdr")
+cat("After FDR:", sum(p_fdr < 0.05), "significant\n")
+
+# 3. Holm method (sequential)
+p_holm <- p.adjust(p_values, method = "holm")
+cat("After Holm:", sum(p_holm < 0.05), "significant\n")
+```
+</div>
+
+## Effect Sizes
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Always Report Effect Sizes**
+
+```{r}
+# t-test with effect size
+auto <- mtcars$mpg[mtcars$am == 0]
+manual <- mtcars$mpg[mtcars$am == 1]
+
+t_result <- t.test(auto, manual)
+
+# Cohen's d
+cohens_d <- function(x, y) {
+  n1 <- length(x)
+  n2 <- length(y)
+  s_pooled <- sqrt(((n1 - 1) * var(x) + (n2 - 1) * var(y)) / (n1 + n2 - 2))
+  (mean(x) - mean(y)) / s_pooled
+}
+
+d <- cohens_d(auto, manual)
+
+# Complete reporting
+cat("=== Complete Statistical Report ===\n\n")
+cat("Descriptives:\n")
+cat("  Automatic: M =", round(mean(auto), 2), ", SD =", round(sd(auto), 2), ", n =", length(auto), "\n")
+cat("  Manual: M =", round(mean(manual), 2), ", SD =", round(sd(manual), 2), ", n =", length(manual), "\n\n")
+
+cat("Inferential:\n")
+cat("  t(", round(t_result$parameter, 1), ") = ", round(t_result$statistic, 2), "\n", sep = "")
+cat("  p =", format.pval(t_result$p.value, digits = 3), "\n")
+cat("  95% CI: [", round(t_result$conf.int[1], 2), ", ", round(t_result$conf.int[2], 2), "]\n", sep = "")
+cat("  Cohen's d =", round(d, 2), "\n")
+```
+</div>
+
+## Power Analysis
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Consider Statistical Power**
+
+```{r}
+# A priori power analysis (before study)
+power_result <- power.t.test(
+  delta = 5,          # Expected difference
+  sd = 6,             # Expected SD
+  sig.level = 0.05,
+  power = 0.80
+)
+
+cat("Required sample size per group:", ceiling(power_result$n), "\n")
+
+# Post-hoc power analysis (after study)
+power_observed <- power.t.test(
+  n = length(auto),
+  delta = abs(mean(auto) - mean(manual)),
+  sd = sd(c(auto, manual)),
+  sig.level = 0.05
+)
+
+cat("Observed power:", round(power_observed$power, 2), "\n")
+
+# Sensitivity analysis
+cat("\nDetectable effect sizes with 80% power:\n")
+for (n in c(10, 20, 30, 50)) {
+  result <- power.t.test(n = n, sd = 6, sig.level = 0.05, power = 0.80)
+  cat("  n =", n, ": d =", round(result$delta / 6, 2), "\n")
+}
+```
+</div>
+
+## Reproducible Analysis
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Make Analyses Reproducible**
+
+```{r}
+# Set seed for reproducibility
+set.seed(42)
+
+# Document R version and packages
+cat("R version:", R.version.string, "\n")
+cat("Packages:\n")
+cat("  dplyr:", as.character(packageVersion("dplyr")), "\n")
+
+# Save session info
+# sessionInfo()
+
+# Complete analysis function
+reproducible_t_test <- function(data, formula, seed = NULL) {
+  if (!is.null(seed)) set.seed(seed)
+  
+  # Record context
+  context <- list(
+    date = Sys.time(),
+    r_version = R.version.string,
+    data_rows = nrow(data),
+    seed = seed
+  )
+  
+  # Perform test
+  result <- t.test(formula, data = data)
+  
+  # Return everything
+  list(
+    result = result,
+    context = context,
+    data_summary = summary(data)
+  )
+}
+
+# Use it
+analysis <- reproducible_t_test(mtcars, mpg ~ am, seed = 123)
+analysis$result
+```
+</div>
+
+## Common Pitfalls
+
+<div class="pitfall-box">
+⚠️ **Avoid These Common Mistakes**
+
+```{r}
+# Pitfall 1: P-hacking (testing until significant)
+# BAD: Keep testing different variables until p < 0.05
+# GOOD: Pre-specify hypotheses
+
+# Pitfall 2: HARKing (Hypothesizing After Results Known)
+# BAD: Claim you predicted a finding you discovered
+# GOOD: Be transparent about exploratory vs confirmatory
+
+# Pitfall 3: Not checking assumptions
+model <- lm(mpg ~ hp, data = mtcars)
+# BAD: Trust results without checking
+# GOOD: Check diagnostics
+plot(model)
+
+# Pitfall 4: Confusing significance with importance
+# p < 0.05 doesn't mean effect is large or meaningful
+# Always report effect sizes
+
+# Pitfall 5: Ignoring multiple comparisons
+# BAD: Do 20 t-tests, report any p < 0.05
+# GOOD: Adjust for multiple testing
+
+# Pitfall 6: Treating p = 0.051 differently than p = 0.049
+# BAD: Arbitrary cutoffs
+# GOOD: Report actual p-values and confidence intervals
+```
+</div>
+
+## Reporting Results
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Complete Reporting Template**
+
+```{r}
+report_t_test <- function(x, y, test_name = "t-test") {
+  # Perform test
+  result <- t.test(x, y)
+  
+  # Calculate effect size
+  n1 <- length(x)
+  n2 <- length(y)
+  s_pooled <- sqrt(((n1 - 1) * var(x) + (n2 - 1) * var(y)) / (n1 + n2 - 2))
+  d <- (mean(x) - mean(y)) / s_pooled
+  
+  # Format report
+  cat("======================\n")
+  cat(test_name, "\n")
+  cat("======================\n\n")
+  
+  cat("Sample sizes:\n")
+  cat("  Group 1: n =", n1, "\n")
+  cat("  Group 2: n =", n2, "\n\n")
+  
+  cat("Descriptive statistics:\n")
+  cat("  Group 1: M =", round(mean(x), 2), ", SD =", round(sd(x), 2), "\n")
+  cat("  Group 2: M =", round(mean(y), 2), ", SD =", round(sd(y), 2), "\n")
+  cat("  Difference: M =", round(mean(x) - mean(y), 2), "\n\n")
+  
+  cat("Inferential statistics:\n")
+  cat("  t(", round(result$parameter, 1), ") = ", round(result$statistic, 2), "\n", sep = "")
+  cat("  p-value:", format.pval(result$p.value, digits = 3), "\n")
+  cat("  95% CI: [", round(result$conf.int[1], 2), ", ", 
+      round(result$conf.int[2], 2), "]\n", sep = "")
+  cat("  Cohen's d =", round(d, 2))
+  
+  if (abs(d) < 0.2) cat(" (negligible)")
+  else if (abs(d) < 0.5) cat(" (small)")
+  else if (abs(d) < 0.8) cat(" (medium)")
+  else cat(" (large)")
+  
+  cat("\n\nInterpretation:\n")
+  if (result$p.value < 0.05) {
+    cat("  Statistically significant difference (p < 0.05)\n")
+  } else {
+    cat("  No statistically significant difference (p >= 0.05)\n")
+  }
+  
+  cat("  Effect size is", ifelse(abs(d) < 0.5, "small", "moderate to large"), "\n")
+  
+  invisible(list(result = result, effect_size = d))
+}
+
+# Use it
+auto <- mtcars$mpg[mtcars$am == 0]
+manual <- mtcars$mpg[mtcars$am == 1]
+
+report_t_test(auto, manual, "Transmission Type Comparison")
+```
+</div>
+
+## Checklist
+
+<div class="bestpractice-box">
+🎯 **Pre-Analysis Checklist**
+
+**Before running any statistical test:**
+
+1. ☐ Check sample sizes (adequate power?)
+2. ☐ Check for missing data
+3. ☐ Check assumptions
+   - ☐ Independence
+   - ☐ Normality (if required)
+   - ☐ Equal variances (if required)
+4. ☐ Pre-specify hypotheses
+5. ☐ Determine if multiple testing correction needed
+6. ☐ Set random seed for reproducibility
+
+**After running test:**
+
+1. ☐ Check diagnostics
+2. ☐ Calculate effect sizes
+3. ☐ Create visualizations
+4. ☐ Report completely:
+   - ☐ Descriptive statistics
+   - ☐ Test statistic and df
+   - ☐ P-value
+   - ☐ Confidence interval
+   - ☐ Effect size
+5. ☐ Interpret in context
+6. ☐ Note limitations
+
+```{r}
+# Example checklist function
+analysis_checklist <- function(data, dv, iv) {
+  cat("=== Analysis Checklist ===\n\n")
+  
+  # Sample size
+  n <- nrow(data)
+  cat("✓ Sample size:", n, "\n")
+  if (n < 30) cat("  ⚠ Small sample size\n")
+  
+  # Missing data
+  n_missing <- sum(!complete.cases(data))
+  cat("✓ Missing data:", n_missing, "cases\n")
+  if (n_missing > 0) cat("  ⚠ Consider handling missing data\n")
+  
+  # Assumptions
+  cat("✓ Check assumptions:\n")
+  cat("  - Independence: Consider study design\n")
+  cat("  - Normality: Use shapiro.test() or Q-Q plot\n")
+  cat("  - Equal variances: Use var.test()\n\n")
+  
+  cat("✓ Analysis ready!\n")
+}
+
+analysis_checklist(mtcars, "mpg", "am")
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **P-values measure evidence** - Not truth or importance
+2. **Adjust for multiple tests** - Use Bonferroni, FDR, or Holm
+3. **Always report effect sizes** - Cohen's d, R², etc.
+4. **Consider power** - Before and after study
+5. **Be reproducible** - Set seeds, document versions
+6. **Check assumptions** - Don't blindly trust results
+7. **Report completely** - All statistics, not just p-values
+
+**Reporting Template:**
+
+```{r eval=FALSE}
+# Complete report includes:
+1. Sample sizes
+2. Descriptive statistics (M, SD)
+3. Test statistic and df
+4. P-value (exact, not just p < 0.05)
+5. Confidence interval
+6. Effect size
+7. Interpretation in context
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+Pre-specify hypotheses
+Check all assumptions
+Report effect sizes
+Adjust for multiple testing
+Use confidence intervals
+Be transparent about exploratory analyses
+Set random seeds
+Document everything
+
+# ❌ Avoid
+P-hacking
+HARKing
+Treating p = 0.05 as magic threshold
+Only reporting significant results
+Ignoring effect sizes
+Not checking assumptions
+Cherry-picking results
+```
+</div>
+
+## Completion
+
+<div class="chapter-summary">
+**Part X Complete!**
+
+You've mastered:
+- t-tests and common errors
+- Regression and ANOVA
+- Statistical best practices
+- P-values and effect sizes
+- Multiple testing corrections
+- Reproducible analysis
+
+**Ready for:** Part XI (File I/O) or other topics!
+</div>

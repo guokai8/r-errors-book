@@ -1,0 +1,853 @@
+# Factor Operations {#factor-operations}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Recoding and relabeling factors
+- Grouping and collapsing levels
+- Reordering factors
+- Factor arithmetic issues
+- Common factor operation errors
+
+**Key Errors Covered:** 10+ factor operation errors
+
+**Difficulty:** ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+Working with existing factors requires care:
+
+```{r error=TRUE}
+grades <- factor(c("A", "B", "C", "B", "A"))
+grades > "B"  # Try to compare
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in Ops.factor(grades, "B") : 
+  level sets of factors are different
+```
+</div>
+
+Let's master factor operations to avoid these errors.
+
+## Recoding Factors
+
+<div class="insight-box">
+💡 **Key Insight: Recoding Strategies**
+
+```{r}
+# Original factor
+responses <- factor(c("Y", "N", "Y", "N", "M"))
+responses
+
+# Method 1: Relabel levels directly
+responses_v1 <- responses
+levels(responses_v1) <- c("Maybe", "No", "Yes")  # Alphabetical order!
+responses_v1
+
+# Method 2: Create mapping
+library(forcats)
+responses_v2 <- fct_recode(responses,
+  "Yes" = "Y",
+  "No" = "N",
+  "Maybe" = "M"
+)
+responses_v2
+
+# Method 3: Convert to character, recode, factor
+responses_v3 <- as.character(responses)
+responses_v3[responses_v3 == "Y"] <- "Yes"
+responses_v3[responses_v3 == "N"] <- "No"
+responses_v3[responses_v3 == "M"] <- "Maybe"
+responses_v3 <- factor(responses_v3)
+responses_v3
+
+# Method 4: Use named vector mapping
+recode_map <- c(Y = "Yes", N = "No", M = "Maybe")
+responses_v4 <- factor(recode_map[as.character(responses)])
+responses_v4
+```
+</div>
+
+## Error #1: `level sets of factors are different` {#level-sets-different}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+sizes1 <- factor(c("S", "M", "L"))
+sizes2 <- factor(c("M", "L", "XL"))
+
+sizes1 == sizes2
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in Ops.factor(sizes1, sizes2) : 
+  level sets of factors are different
+```
+</div>
+
+### What It Means
+
+You're comparing factors with different level sets. R doesn't know how to match them.
+
+### Common Causes
+
+#### Cause 1: Comparing Different Factors
+
+```{r error=TRUE}
+color1 <- factor(c("red", "blue"))
+color2 <- factor(c("green", "yellow"))
+
+color1 == color2  # Different levels!
+```
+
+#### Cause 2: After Subsetting
+
+```{r error=TRUE}
+all_sizes <- factor(c("S", "M", "L", "XL"))
+
+# Different subsets
+small_sizes <- all_sizes[1:2]
+large_sizes <- all_sizes[3:4]
+
+# Both still have all levels
+levels(small_sizes)
+levels(large_sizes)
+
+# But after droplevels...
+small_sizes <- droplevels(small_sizes)
+large_sizes <- droplevels(large_sizes)
+
+levels(small_sizes)  # S, M
+levels(large_sizes)  # L, XL
+
+# Now can't compare
+small_sizes[1] == large_sizes[1]
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Convert to Character**
+
+```{r}
+sizes1 <- factor(c("S", "M", "L"))
+sizes2 <- factor(c("M", "L", "XL"))
+
+# Compare as characters
+as.character(sizes1) == as.character(sizes2)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Unify Levels**
+
+```{r}
+sizes1 <- factor(c("S", "M", "L"))
+sizes2 <- factor(c("M", "L", "XL"))
+
+# Find all unique levels
+all_levels <- union(levels(sizes1), levels(sizes2))
+all_levels
+
+# Recreate with same levels
+sizes1 <- factor(sizes1, levels = all_levels)
+sizes2 <- factor(sizes2, levels = all_levels)
+
+# Now can compare
+sizes1 == sizes2
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use %in% Instead**
+
+```{r}
+sizes1 <- factor(c("S", "M", "L"))
+sizes2 <- factor(c("M", "L", "XL"))
+
+# Check membership
+as.character(sizes1) %in% as.character(sizes2)
+```
+</div>
+
+## Error #2: `NAs produced` in factor operations {#factor-nas-produced}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Warning
+
+```{r}
+sizes <- factor(c("S", "M", "L"))
+levels(sizes) <- c("Small", "Large")  # Only 2 new names for 3 levels!
+```
+
+<div class="warning-box">
+🟡 **WARNING**
+
+```
+Warning message:
+In `levels<-.factor`(`*tmp*`, value = c("Small", "Large")) :
+  longer object length is not a multiple of replacement length
+```
+</div>
+
+```{r}
+sizes  # What happened?
+```
+
+### What It Means
+
+When recoding, if you don't provide the right number of new level names, unexpected things happen.
+
+### The Problem
+
+```{r}
+# Original
+sizes <- factor(c("S", "M", "L", "XL"))
+levels(sizes)
+
+# Try to simplify to 2 categories
+levels(sizes) <- c("Small", "Large")
+sizes  # Recycled! Not what we wanted
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Provide All New Names**
+
+```{r}
+sizes <- factor(c("S", "M", "L", "XL"))
+
+# All four mappings
+levels(sizes) <- c("Small", "Medium", "Large", "Extra Large")
+sizes
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use fct_collapse() for Grouping**
+
+```{r}
+library(forcats)
+
+sizes <- factor(c("S", "M", "L", "XL"))
+
+# Collapse into groups
+sizes_collapsed <- fct_collapse(sizes,
+  Small = c("S", "M"),
+  Large = c("L", "XL")
+)
+sizes_collapsed
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Use fct_recode() for Precise Mapping**
+
+```{r}
+sizes <- factor(c("S", "M", "L", "XL"))
+
+# Explicit recoding
+sizes_recoded <- fct_recode(sizes,
+  "Small" = "S",
+  "Small" = "M",    # Map M to Small too
+  "Large" = "L",
+  "Large" = "XL"
+)
+sizes_recoded
+```
+</div>
+
+## Collapsing Factor Levels
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Grouping Levels**
+
+```{r}
+library(forcats)
+
+# Original detailed categories
+age_groups <- factor(c("0-10", "11-20", "21-30", "31-40", 
+                      "41-50", "51-60", "61-70", "71+"))
+
+# Method 1: fct_collapse (explicit groups)
+age_collapsed <- fct_collapse(age_groups,
+  Youth = c("0-10", "11-20"),
+  Adult = c("21-30", "31-40", "41-50"),
+  Senior = c("51-60", "61-70", "71+")
+)
+age_collapsed
+
+# Method 2: fct_other (keep some, lump rest)
+top_ages <- fct_other(age_groups,
+  keep = c("21-30", "31-40", "41-50"),
+  other_level = "Other"
+)
+top_ages
+
+# Method 3: fct_lump (keep n most frequent)
+responses <- factor(c("A", "A", "A", "B", "B", "C", "D", "E"))
+lumped <- fct_lump(responses, n = 2)  # Keep top 2
+lumped
+
+# Method 4: fct_lump_min (minimum count)
+lumped_min <- fct_lump_min(responses, min = 2)  # Keep if appears 2+ times
+lumped_min
+```
+</div>
+
+## Reordering Factors
+
+<div class="insight-box">
+💡 **Key Insight: Factor Ordering**
+
+```{r}
+library(forcats)
+
+# Original (alphabetical by default)
+grades <- factor(c("B", "A", "C", "A", "B"))
+grades
+levels(grades)
+
+# Method 1: Specify order explicitly
+grades <- factor(grades, levels = c("C", "B", "A"))
+levels(grades)
+
+# Method 2: By frequency
+grades <- fct_infreq(grades)
+levels(grades)  # Most common first
+
+# Method 3: By another variable
+df <- data.frame(
+  name = c("Alice", "Bob", "Charlie"),
+  score = c(95, 85, 90)
+)
+df$name <- factor(df$name)
+
+# Order by score
+df$name <- fct_reorder(df$name, df$score)
+levels(df$name)  # Ordered by score
+
+# Method 4: Reverse order
+grades <- fct_rev(grades)
+levels(grades)
+
+# Method 5: Manual reordering
+grades <- fct_relevel(grades, "A", "B", "C")
+levels(grades)
+```
+</div>
+
+## Error #3: `'ordered' must be a factor` {#ordered-must-be-factor}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+sizes <- c("S", "M", "L")  # Character vector
+ordered(sizes)  # Try to make ordered
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in ordered(sizes) : argument is not a factor
+```
+</div>
+
+### What It Means
+
+The `ordered()` function requires a factor, not a character vector.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Convert to Factor First**
+
+```{r}
+sizes <- c("S", "M", "L")
+
+# Option A: Two steps
+sizes_fac <- factor(sizes)
+sizes_ord <- ordered(sizes_fac, levels = c("S", "M", "L"))
+sizes_ord
+
+# Option B: Direct with levels
+sizes_ord <- ordered(sizes, levels = c("S", "M", "L"))
+sizes_ord
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use factor() with ordered = TRUE**
+
+```{r}
+sizes <- c("S", "M", "L")
+
+# Directly to ordered factor
+sizes_ord <- factor(sizes, levels = c("S", "M", "L"), ordered = TRUE)
+sizes_ord
+class(sizes_ord)
+```
+</div>
+
+## Factor Arithmetic Errors
+
+<div class="pitfall-box">
+⚠️ **Pitfall: You Can't Do Math on Factors**
+
+```{r error=TRUE}
+# Numeric-looking factor
+numbers <- factor(c("1", "2", "3", "4", "5"))
+
+# Try arithmetic
+numbers + 10
+numbers * 2
+mean(numbers)
+```
+
+**Why:** Factors are categorical, not numeric, even if they look like numbers.
+
+**Solution:**
+```{r}
+# Convert first
+numbers_numeric <- as.numeric(as.character(numbers))
+numbers_numeric + 10
+mean(numbers_numeric)
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Pitfall: Factor Comparison Limitations**
+
+```{r}
+# Unordered factors can only check equality
+colors <- factor(c("red", "blue", "green"))
+colors[1] == colors[2]  # OK
+```
+
+```{r error=TRUE}
+colors[1] < colors[2]   # Error!
+```
+
+```{r}
+# Ordered factors can be compared
+sizes <- ordered(c("S", "M", "L"), levels = c("S", "M", "L"))
+sizes[1] < sizes[3]     # OK
+```
+</div>
+
+## Useful forcats Functions
+
+<div class="bestpractice-box">
+🎯 **Best Practice: forcats Toolkit**
+
+```{r}
+library(forcats)
+
+# Sample data
+responses <- factor(c("Good", "Bad", "Good", "Excellent", "Bad", 
+                     "Good", "Fair", "Excellent"))
+
+# 1. Count levels
+fct_count(responses)
+
+# 2. Reorder by frequency
+responses_freq <- fct_infreq(responses)
+levels(responses_freq)
+
+# 3. Reverse order
+responses_rev <- fct_rev(responses_freq)
+levels(responses_rev)
+
+# 4. Recode specific levels
+responses_clean <- fct_recode(responses,
+  "Very Good" = "Excellent",
+  "Not Good" = "Bad"
+)
+levels(responses_clean)
+
+# 5. Lump rare levels
+responses_lumped <- fct_lump(responses, n = 2, other_level = "Other")
+table(responses_lumped)
+
+# 6. Add new levels
+responses_expanded <- fct_expand(responses, "Outstanding")
+levels(responses_expanded)
+
+# 7. Drop unused levels
+sub <- responses[responses %in% c("Good", "Bad")]
+levels(sub)  # Still has all levels
+sub <- fct_drop(sub)
+levels(sub)  # Only Good and Bad
+
+# 8. Explicit ordering
+responses_ordered <- fct_relevel(responses, 
+  "Bad", "Fair", "Good", "Excellent")
+levels(responses_ordered)
+```
+</div>
+
+## Factor in Data Frames
+
+<div class="insight-box">
+💡 **Key Insight: Factors in Data Analysis**
+
+```{r}
+library(dplyr)
+
+# Sample data
+df <- data.frame(
+  category = factor(c("A", "B", "A", "C", "B", "A")),
+  value = c(10, 20, 15, 25, 22, 18)
+)
+
+# Factors work well with grouping
+df %>%
+  group_by(category) %>%
+  summarise(mean_value = mean(value))
+
+# But watch out for unused levels after filtering
+df_filtered <- df %>%
+  filter(category != "C")
+
+levels(df_filtered$category)  # C still there!
+
+# Drop unused
+df_filtered <- df_filtered %>%
+  mutate(category = droplevels(category))
+
+levels(df_filtered$category)  # Now just A and B
+
+# Or use forcats
+df_filtered <- df %>%
+  filter(category != "C") %>%
+  mutate(category = fct_drop(category))
+```
+</div>
+
+## Converting Between Types
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Type Conversions**
+
+```{r}
+# Factor to character
+f <- factor(c("a", "b", "c"))
+as.character(f)
+
+# Factor to numeric (for numeric-looking factors)
+f_num <- factor(c("10", "20", "30"))
+as.numeric(as.character(f_num))  # Correct
+# NOT: as.numeric(f_num)  # Wrong! Gives 1, 2, 3
+
+# Character to factor
+ch <- c("x", "y", "z")
+factor(ch)
+
+# Numeric to factor (with labels)
+nums <- c(1, 2, 3, 2, 1)
+factor(nums, levels = 1:3, labels = c("Low", "Medium", "High"))
+
+# Ordered to unordered
+ord <- ordered(c("S", "M", "L"), levels = c("S", "M", "L"))
+factor(ord, ordered = FALSE)
+
+# Unordered to ordered
+unord <- factor(c("S", "M", "L"))
+ordered(unord, levels = c("S", "M", "L"))
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Can't compare factors with different levels** - Unify first or convert to character
+2. **Recoding requires all levels** - Use fct_recode() or fct_collapse()
+3. **Can't do arithmetic on factors** - Convert to numeric first
+4. **Unordered factors can't use < >** - Use ordered() for ordinal data
+5. **droplevels() after subsetting** - Remove unused levels
+6. **forcats makes factor work easier** - Use it!
+7. **Convert through character** when going to numeric
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| level sets are different | Comparing different factors | Unify levels or convert |
+| NAs produced | Wrong number of level names | Use fct_recode() or provide all names |
+| 'ordered' must be a factor | Using ordered() on character | Convert to factor first |
+| Can't do arithmetic | Math on factor | Convert to numeric |
+| Can't use < > | Unordered factor comparison | Make ordered or use character |
+
+**forcats Essential Functions:**
+
+```{r eval=FALSE}
+# Reordering
+fct_infreq()      # By frequency
+fct_reorder()     # By another variable
+fct_relevel()     # Manually
+fct_rev()         # Reverse
+
+# Recoding
+fct_recode()      # Explicit mapping
+fct_collapse()    # Group levels
+fct_lump()        # Combine rare levels
+
+# Utilities
+fct_count()       # Count levels
+fct_drop()        # Drop unused
+fct_expand()      # Add levels
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+as.numeric(as.character(f))       # Factor to numeric
+fct_recode(f, "new" = "old")     # Explicit recoding
+fct_drop(f)                       # After subsetting
+ordered(f, levels = c(...))       # For ordinal data
+
+# ❌ Avoid
+as.numeric(f)                     # Wrong conversion
+levels(f) <- too_few_names        # Will recycle
+f1 == f2                          # Without checking levels
+factor(x) without levels          # Implicit ordering
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Factor Recoding**
+
+You have:
+```{r eval=FALSE}
+grades <- factor(c("A+", "A", "A-", "B+", "B", "B-", "C+", "C"))
+```
+
+1. Collapse to simple letter grades (A, B, C)
+2. Convert to ordered factor
+3. Create numeric scale (A=4, B=3, C=2)
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Survey Data Cleaning**
+
+You have messy survey responses:
+```{r eval=FALSE}
+responses <- factor(c("yes", "Yes", "YES", "no", "No", "NO", 
+                     "maybe", "Maybe"))
+```
+
+Standardize all to lowercase and create ordered factor:
+Disagree < Maybe < Agree
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Factor Comparison**
+
+Write `safe_compare(f1, f2, op)` that:
+1. Checks if factors can be compared
+2. Unifies levels if needed
+3. Performs comparison
+4. Returns result with warnings
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Factor Summary**
+
+Write `factor_summary(f)` that reports:
+1. Number of levels
+2. Most/least common levels
+3. Any unused levels
+4. Whether it's ordered
+5. Suggested recoding (if many levels)
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+library(forcats)
+
+grades <- factor(c("A+", "A", "A-", "B+", "B", "B-", "C+", "C"))
+
+# 1. Collapse to letter grades
+grades_simple <- fct_collapse(grades,
+  A = c("A+", "A", "A-"),
+  B = c("B+", "B", "B-"),
+  C = c("C+", "C")
+)
+grades_simple
+
+# 2. Convert to ordered
+grades_ordered <- ordered(grades_simple, levels = c("C", "B", "A"))
+grades_ordered
+
+# 3. Numeric scale
+grade_to_numeric <- c(A = 4, B = 3, C = 2)
+grades_numeric <- grade_to_numeric[as.character(grades_simple)]
+grades_numeric
+```
+
+**Exercise 2:**
+
+```{r}
+responses <- factor(c("yes", "Yes", "YES", "no", "No", "NO", 
+                     "maybe", "Maybe"))
+
+# Standardize to lowercase
+responses_clean <- tolower(as.character(responses))
+
+# Map to agreement scale
+responses_clean[responses_clean == "yes"] <- "Agree"
+responses_clean[responses_clean == "no"] <- "Disagree"
+responses_clean[responses_clean == "maybe"] <- "Maybe"
+
+# Create ordered factor
+responses_ordered <- ordered(
+  responses_clean,
+  levels = c("Disagree", "Maybe", "Agree")
+)
+responses_ordered
+```
+
+**Exercise 3:**
+
+```{r}
+safe_compare <- function(f1, f2, op = c("==", "!=", "<", ">", "<=", ">=")) {
+  op <- match.arg(op)
+  
+  # Check if both are factors
+  if (!is.factor(f1) || !is.factor(f2)) {
+    stop("Both inputs must be factors")
+  }
+  
+  # Check length
+  if (length(f1) != length(f2)) {
+    warning("Factors have different lengths: ", 
+            length(f1), " vs ", length(f2))
+  }
+  
+  # Check if levels match
+  if (!identical(levels(f1), levels(f2))) {
+    message("Factors have different levels. Unifying...")
+    
+    # Unify levels
+    all_levels <- union(levels(f1), levels(f2))
+    f1 <- factor(f1, levels = all_levels)
+    f2 <- factor(f2, levels = all_levels)
+  }
+  
+  # Check if ordered (for < > <= >=)
+  if (op %in% c("<", ">", "<=", ">=")) {
+    if (!is.ordered(f1) || !is.ordered(f2)) {
+      warning("Using ordering operators on unordered factors. ",
+              "Converting to ordered.")
+      f1 <- ordered(f1, levels = levels(f1))
+      f2 <- ordered(f2, levels = levels(f2))
+    }
+  }
+  
+  # Perform comparison
+  result <- switch(op,
+    "==" = f1 == f2,
+    "!=" = f1 != f2,
+    "<"  = f1 < f2,
+    ">"  = f1 > f2,
+    "<=" = f1 <= f2,
+    ">=" = f1 >= f2
+  )
+  
+  return(result)
+}
+
+# Test
+f1 <- factor(c("A", "B", "C"))
+f2 <- factor(c("B", "C", "D"))
+safe_compare(f1, f2, "==")
+```
+
+**Exercise 4:**
+
+```{r}
+factor_summary <- function(f) {
+  if (!is.factor(f)) {
+    stop("Input must be a factor")
+  }
+  
+  # Basic info
+  cat("Factor Summary\n")
+  cat("==============\n\n")
+  
+  cat("Type:", if(is.ordered(f)) "Ordered" else "Unordered", "\n")
+  cat("Number of levels:", nlevels(f), "\n")
+  cat("Number of observations:", length(f), "\n\n")
+  
+  # Level counts
+  level_counts <- table(f)
+  cat("Level frequencies:\n")
+  print(sort(level_counts, decreasing = TRUE))
+  cat("\n")
+  
+  # Most/least common
+  cat("Most common:", names(which.max(level_counts)), 
+      "(", max(level_counts), "times)\n")
+  cat("Least common:", names(which.min(level_counts)), 
+      "(", min(level_counts), "times)\n\n")
+  
+  # Unused levels
+  used_levels <- levels(f)[levels(f) %in% as.character(f)]
+  unused_levels <- setdiff(levels(f), used_levels)
+  
+  if (length(unused_levels) > 0) {
+    cat("⚠ Unused levels:", paste(unused_levels, collapse = ", "), "\n")
+    cat("  Consider using droplevels()\n\n")
+  }
+  
+  # Suggestions
+  if (nlevels(f) > 10) {
+    cat("💡 Suggestion: Factor has", nlevels(f), "levels.\n")
+    cat("   Consider grouping rare levels with fct_lump()\n")
+    
+    # Find rare levels (< 5% of data)
+    rare <- level_counts < (0.05 * length(f))
+    if (any(rare)) {
+      cat("   Rare levels:", paste(names(level_counts)[rare], collapse = ", "), "\n")
+    }
+  }
+  
+  invisible(list(
+    n_levels = nlevels(f),
+    counts = level_counts,
+    unused = unused_levels
+  ))
+}
+
+# Test
+grades <- factor(c("A", "B", "A", "C", "B", "A"), 
+                levels = c("A", "B", "C", "D", "F"))
+factor_summary(grades)
+```
+</details>

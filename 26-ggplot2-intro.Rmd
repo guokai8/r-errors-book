@@ -1,0 +1,772 @@
+# Part IX: Graphics (ggplot2) {-}
+
+# Introduction to ggplot2 {#ggplot2-intro}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Grammar of Graphics principles
+- Basic ggplot2 structure
+- Common plotting errors
+- Aesthetics and geoms
+- Layer system
+
+**Key Errors Covered:** 20+ ggplot2 errors
+
+**Difficulty:** ⭐⭐ Intermediate to ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+ggplot2 revolutionized R graphics with the Grammar of Graphics:
+
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+
+# Basic plot
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point()
+```
+
+But ggplot2 has unique error patterns. Let's master them!
+
+## ggplot2 Structure
+
+<div class="insight-box">
+💡 **Key Insight: Grammar of Graphics**
+
+```{r}
+# Three essential components:
+# 1. Data
+# 2. Aesthetic mappings (aes)
+# 3. Geometric objects (geom)
+
+# Basic structure
+ggplot(data = mtcars, mapping = aes(x = mpg, y = hp)) +
+  geom_point()
+
+# Shortened (common)
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point()
+
+# Can specify aes in geom instead
+ggplot(mtcars) +
+  geom_point(aes(x = mpg, y = hp))
+
+# Or mix (useful for multiple layers)
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  geom_smooth()
+```
+
+**Key principle:** Build plots in layers with `+`
+</div>
+
+## Error #1: `object not found` in aes() {#ggplot-object-not-found}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-scope">🔍 SCOPE</span>
+
+### The Error
+
+```{r error=TRUE}
+ggplot(mtcars, aes(x = mpg, y = horsepower)) +
+  geom_point()
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in FUN(X[[i]], ...) : object 'horsepower' not found
+```
+</div>
+
+### What It Means
+
+The column name doesn't exist in the data.
+
+### Common Causes
+
+```{r error=TRUE}
+# Typo in column name
+ggplot(mtcars, aes(x = mpgg, y = hp)) +
+  geom_point()
+
+# Wrong dataset
+ggplot(iris, aes(x = mpg, y = hp)) +
+  geom_point()
+
+# Forgot to create column
+ggplot(mtcars, aes(x = mpg, y = efficiency)) +
+  geom_point()
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Column Names**
+
+```{r}
+# Verify columns
+names(mtcars)
+
+# Use correct name
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point()
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Create Column First**
+
+```{r}
+library(dplyr)
+
+mtcars %>%
+  mutate(efficiency = mpg / hp) %>%
+  ggplot(aes(x = hp, y = efficiency)) +
+  geom_point()
+```
+</div>
+
+## Error #2: Using `+` vs `%>%` {#ggplot-plus-vs-pipe}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-syntax">🔤 SYNTAX</span>
+
+### The Error
+
+```{r error=TRUE}
+library(dplyr)
+
+mtcars %>%
+  filter(cyl == 4) %>%
+  ggplot(aes(x = mpg, y = hp)) %>%  # Wrong operator!
+  geom_point()
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in geom_point(.) : 
+  Cannot use `+` with a ggplot object. Did you accidentally use `%>%` instead of `+`?
+```
+</div>
+
+### What It Means
+
+Must use `+` to add ggplot2 layers, not `%>%`.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Use + for ggplot layers**
+
+```{r}
+# Correct: + for ggplot
+mtcars %>%
+  filter(cyl == 4) %>%
+  ggplot(aes(x = mpg, y = hp)) +  # Use +
+  geom_point()
+
+# Pipe data into ggplot, then use +
+mtcars %>%
+  filter(cyl == 4) %>%
+  ggplot(aes(x = mpg, y = hp)) +
+  geom_point() +
+  theme_minimal()
+```
+</div>
+
+## Aesthetics (aes)
+
+<div class="insight-box">
+💡 **Key Insight: Aesthetic Mappings**
+
+```{r}
+# Map variables to visual properties
+ggplot(mtcars, aes(x = mpg, y = hp, color = factor(cyl))) +
+  geom_point()
+
+# Common aesthetics:
+# x, y - position
+# color - point/line color
+# fill - area fill color
+# size - point/line size
+# shape - point shape
+# alpha - transparency
+# linetype - line pattern
+
+# Multiple aesthetics
+ggplot(mtcars, aes(x = mpg, y = hp, 
+                   color = factor(cyl),
+                   size = wt)) +
+  geom_point()
+
+# Set vs map
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point(color = "blue")  # Set: all points blue
+
+ggplot(mtcars, aes(x = mpg, y = hp, color = factor(cyl))) +
+  geom_point()  # Map: color varies by cyl
+```
+</div>
+
+## Error #3: Aesthetic outside aes() {#aesthetic-outside-aes}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-logic">🧠 LOGIC</span>
+
+### The Error
+
+```{r error=TRUE}
+# Trying to map cyl to color outside aes()
+ggplot(mtcars) +
+  geom_point(aes(x = mpg, y = hp), color = cyl)
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in layer(...) : object 'cyl' not found
+```
+</div>
+
+### What It Means
+
+Variable mappings must be inside `aes()`.
+
+### Common Causes
+
+```{r error=TRUE}
+# Want color by variable
+ggplot(mtcars) +
+  geom_point(aes(x = mpg, y = hp), color = factor(cyl))
+
+# Want size by variable
+ggplot(mtcars) +
+  geom_point(aes(x = mpg, y = hp), size = wt)
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Put Variable Mappings in aes()**
+
+```{r}
+# Correct: color mapping inside aes
+ggplot(mtcars) +
+  geom_point(aes(x = mpg, y = hp, color = factor(cyl)))
+
+# Can be in ggplot() aes
+ggplot(mtcars, aes(x = mpg, y = hp, color = factor(cyl))) +
+  geom_point()
+
+# Fixed values go OUTSIDE aes
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point(color = "blue", size = 3)  # All points same
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Confusion: Inside vs Outside aes()**
+
+```{r}
+# INSIDE aes(): varies by data
+ggplot(mtcars, aes(x = mpg, y = hp, color = factor(cyl))) +
+  geom_point()  # Color varies by cyl
+
+# OUTSIDE aes(): fixed for all
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point(color = "red")  # All points red
+
+# Wrong: puts string in aes
+ggplot(mtcars, aes(x = mpg, y = hp, color = "red")) +
+  geom_point()  # Creates legend for "red"!
+```
+</div>
+
+## Common geoms
+
+<div class="insight-box">
+💡 **Key Insight: Geometric Objects**
+
+```{r}
+# Points
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point()
+
+# Lines
+ggplot(economics, aes(x = date, y = unemploy)) +
+  geom_line()
+
+# Bars
+ggplot(mtcars, aes(x = factor(cyl))) +
+  geom_bar()
+
+# Histogram
+ggplot(mtcars, aes(x = mpg)) +
+  geom_histogram(bins = 10)
+
+# Boxplot
+ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
+  geom_boxplot()
+
+# Smooth
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+# Text
+ggplot(mtcars, aes(x = mpg, y = hp, label = rownames(mtcars))) +
+  geom_text(size = 3)
+```
+</div>
+
+## Error #4: `stat_count() requires x or y` {#stat-count-error}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-args">📋 ARGS</span>
+
+### The Error
+
+```{r error=TRUE}
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_bar()
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in `geom_bar()`:
+! Problem while computing stat.
+ℹ Error occurred in the 1st layer.
+Caused by error:
+! `stat_count()` must only have an `x` or `y` aesthetic.
+```
+</div>
+
+### What It Means
+
+`geom_bar()` is for counts. For pre-computed heights, use `geom_col()`.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Use geom_col() for Heights**
+
+```{r}
+# Pre-computed values
+data <- data.frame(
+  category = c("A", "B", "C"),
+  value = c(10, 15, 20)
+)
+
+ggplot(data, aes(x = category, y = value)) +
+  geom_col()
+
+# Or use stat = "identity" with geom_bar
+ggplot(data, aes(x = category, y = value)) +
+  geom_bar(stat = "identity")
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use geom_bar() for Counts**
+
+```{r}
+# Count occurrences
+ggplot(mtcars, aes(x = factor(cyl))) +
+  geom_bar()
+
+# Equivalent to
+mtcars %>%
+  count(cyl) %>%
+  ggplot(aes(x = factor(cyl), y = n)) +
+  geom_col()
+```
+</div>
+
+## Faceting
+
+<div class="insight-box">
+💡 **Key Insight: Small Multiples**
+
+```{r}
+# Facet by one variable
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  facet_wrap(~ cyl)
+
+# Facet by two variables
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  facet_grid(cyl ~ gear)
+
+# Free scales
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  facet_wrap(~ cyl, scales = "free")
+
+# Number of columns
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  facet_wrap(~ cyl, ncol = 2)
+```
+</div>
+
+## Themes and Customization
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Customizing Plots**
+
+```{r}
+# Built-in themes
+p <- ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point()
+
+p + theme_minimal()
+p + theme_classic()
+p + theme_bw()
+
+# Custom labels
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  labs(
+    title = "Fuel Efficiency vs Horsepower",
+    subtitle = "Motor Trend Car Road Tests",
+    x = "Miles per Gallon",
+    y = "Horsepower",
+    caption = "Source: mtcars dataset"
+  )
+
+# Customize theme elements
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+```
+</div>
+
+## Error #5: Non-numeric variable for histogram {#histogram-non-numeric}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+ggplot(mtcars, aes(x = factor(cyl))) +
+  geom_histogram()
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in `geom_histogram()`:
+! `stat_bin()` requires a numeric `x` variable
+```
+</div>
+
+### What It Means
+
+Histograms need continuous numeric data, not categorical.
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION: Use Appropriate Geom**
+
+```{r}
+# For categorical: use geom_bar
+ggplot(mtcars, aes(x = factor(cyl))) +
+  geom_bar()
+
+# For continuous: histogram works
+ggplot(mtcars, aes(x = mpg)) +
+  geom_histogram(bins = 10)
+
+# Density plot alternative
+ggplot(mtcars, aes(x = mpg)) +
+  geom_density()
+```
+</div>
+
+## Saving Plots
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Save Plots**
+
+```{r eval=FALSE}
+# Create plot
+p <- ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point() +
+  theme_minimal()
+
+# Save with ggsave
+ggsave("plot.png", p, width = 6, height = 4, dpi = 300)
+
+# Or save last plot
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point()
+
+ggsave("last_plot.png", width = 6, height = 4)
+
+# Different formats
+ggsave("plot.pdf", p)
+ggsave("plot.svg", p)
+ggsave("plot.jpg", p)
+```
+</div>
+
+## Common Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Common Plot Types**
+
+```{r}
+# Scatterplot with trend line
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point(aes(color = factor(cyl))) +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_minimal()
+
+# Grouped bar chart
+mtcars %>%
+  count(cyl, gear) %>%
+  ggplot(aes(x = factor(cyl), y = n, fill = factor(gear))) +
+  geom_col(position = "dodge")
+
+# Boxplot with points
+ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.2, alpha = 0.3)
+
+# Time series
+ggplot(economics, aes(x = date, y = unemploy)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "US Unemployment Over Time")
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Three components** - Data, aes(), geom
+2. **Use + not %>%** - Add layers with +
+3. **Variables in aes()** - Fixed values outside
+4. **geom_bar() vs geom_col()** - Counts vs heights
+5. **Check column names** - Before plotting
+6. **Histograms need numeric** - Use geom_bar() for categorical
+7. **Build in layers** - Add components step by step
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| object not found | Column doesn't exist | Check names(data) |
+| Can't use + | Used %>% instead of + | Use + for ggplot layers |
+| object 'var' not found | Variable outside aes | Put in aes() |
+| stat_count requires x or y | geom_bar with y | Use geom_col() |
+| requires numeric x | Non-numeric histogram | Use appropriate geom |
+
+**Basic Structure:**
+
+```{r eval=FALSE}
+# Template
+ggplot(data, aes(x = var1, y = var2)) +
+  geom_point() +
+  theme_minimal()
+
+# With pipes
+data %>%
+  filter(condition) %>%
+  ggplot(aes(x = var1, y = var2)) +  # Use +
+  geom_point() +
+  labs(title = "Plot Title")
+
+# Common aesthetics
+aes(
+  x = var,           # x-axis
+  y = var,           # y-axis
+  color = var,       # point/line color
+  fill = var,        # area fill
+  size = var,        # size
+  shape = var,       # point shape
+  alpha = var,       # transparency
+  linetype = var     # line pattern
+)
+
+# Common geoms
+geom_point()         # scatter
+geom_line()          # line
+geom_bar()           # bar (counts)
+geom_col()           # bar (heights)
+geom_histogram()     # histogram
+geom_boxplot()       # boxplot
+geom_smooth()        # trend line
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+ggplot(data, aes(x = var1, y = var2, color = var3)) +
+  geom_point() +
+  theme_minimal()
+
+data %>% filter(...) %>%
+  ggplot(aes(x = var)) +  # + not %>%
+  geom_histogram()
+
+# ❌ Avoid
+ggplot(data, aes(x = var1, y = var2)) %>%  # Wrong operator
+  geom_point()
+
+ggplot(data) +
+  geom_point(aes(x = var), color = other_var)  # Should be in aes
+
+geom_histogram(aes(x = factor_var))  # Need numeric
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Basic Plot**
+
+Create a scatterplot of mtcars:
+1. mpg vs hp
+2. Color by cyl
+3. Size by wt
+4. Add title and labels
+5. Use theme_minimal()
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Error Fixing**
+
+Fix these errors:
+```{r eval=FALSE}
+# Error 1
+ggplot(mtcars, aes(x = mpg, y = hp)) %>%
+  geom_point()
+
+# Error 2
+ggplot(mtcars) +
+  geom_point(aes(x = mpg, y = hp), color = cyl)
+
+# Error 3
+ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
+  geom_histogram()
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Multiple Geoms**
+
+Create a plot with:
+1. Points for raw data
+2. Smooth line for trend
+3. Faceted by cyl
+4. Custom colors
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Bar Chart**
+
+Using mtcars:
+1. Count cars by cyl
+2. Fill by gear
+3. Dodge position
+4. Add labels
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+ggplot(mtcars, aes(x = mpg, y = hp, color = factor(cyl), size = wt)) +
+  geom_point(alpha = 0.7) +
+  labs(
+    title = "Fuel Efficiency vs Horsepower",
+    subtitle = "Motor Trend Car Road Tests",
+    x = "Miles per Gallon",
+    y = "Horsepower",
+    color = "Cylinders",
+    size = "Weight (1000 lbs)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    legend.position = "right"
+  )
+```
+
+**Exercise 2:**
+
+```{r}
+# Error 1: Use + not %>%
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point()
+
+# Error 2: Put variable in aes()
+ggplot(mtcars) +
+  geom_point(aes(x = mpg, y = hp, color = factor(cyl)))
+
+# Error 3: Use geom_boxplot for this
+ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
+  geom_boxplot()
+
+# Or if want histogram of mpg
+ggplot(mtcars, aes(x = mpg)) +
+  geom_histogram(bins = 10)
+```
+
+**Exercise 3:**
+
+```{r}
+ggplot(mtcars, aes(x = mpg, y = hp)) +
+  geom_point(aes(color = factor(cyl)), size = 3, alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed") +
+  facet_wrap(~ cyl, labeller = label_both) +
+  scale_color_manual(values = c("4" = "#E41A1C", "6" = "#377EB8", "8" = "#4DAF4A")) +
+  labs(
+    title = "MPG vs HP by Number of Cylinders",
+    x = "Miles per Gallon",
+    y = "Horsepower",
+    color = "Cylinders"
+  ) +
+  theme_bw()
+```
+
+**Exercise 4:**
+
+```{r}
+library(dplyr)
+
+mtcars %>%
+  count(cyl, gear) %>%
+  ggplot(aes(x = factor(cyl), y = n, fill = factor(gear))) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Car Count by Cylinders and Gears",
+    x = "Number of Cylinders",
+    y = "Count",
+    fill = "Number of Gears"
+  ) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set2")
+```
+</details>

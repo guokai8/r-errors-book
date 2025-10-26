@@ -1,0 +1,74 @@
+% LaTeX preamble for R Errors Book
+
+% Better fonts
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+
+% Better code formatting
+\usepackage{fancyvrb}
+\usepackage{listings}
+
+% Colors for code
+\usepackage{xcolor}
+\definecolor{codegray}{rgb}{0.95,0.95,0.95}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+
+% Hyperlinks
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={R Errors and How to Fix Them},
+    pdfauthor={},
+    pdfsubject={R Programming},
+    pdfkeywords={R, errors, debugging, programming},
+}
+
+% Better tables
+\usepackage{booktabs}
+\usepackage{longtable}
+
+% Graphics
+\usepackage{graphicx}
+
+% Better spacing
+\usepackage{microtype}
+
+% Section formatting
+\usepackage{titlesec}
+
+% Page layout
+\usepackage{geometry}
+\geometry{
+  margin=1in,
+  includeheadfoot
+}
+
+% Headers and footers
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\thepage}
+\fancyhead[LO]{\nouppercase{\rightmark}}
+\fancyhead[RE]{\nouppercase{\leftmark}}
+
+% Code blocks with background
+\lstset{
+  backgroundcolor=\color{codegray},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny,
+  captionpos=b
+}
+
+% Prevent overfull hbox warnings
+\setlength{\emergencystretch}{3em}
+
+% Better list spacing
+\usepackage{enumitem}
+\setlist{noitemsep}

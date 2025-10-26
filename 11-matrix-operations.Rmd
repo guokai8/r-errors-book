@@ -1,0 +1,1010 @@
+# Matrix Operations {#matrix-operations}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Matrix creation and structure
+- Matrix algebra operations
+- Dimension requirements
+- Transpose and multiplication
+- Common matrix errors
+
+**Key Errors Covered:** 12+ matrix operation errors
+
+**Difficulty:** ⭐⭐ Intermediate
+</div>
+
+## Introduction
+
+Matrices are fundamental to many R operations, especially statistics and linear algebra:
+
+```{r error=TRUE}
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:6, nrow = 3, ncol = 2)
+
+# Try to add them
+A + B
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in A + B : non-conformable arrays
+```
+</div>
+
+Let's master matrix operations and avoid dimension mismatches.
+
+## Matrix Basics
+
+<div class="insight-box">
+💡 **Key Insight: Matrices vs Data Frames**
+
+```{r}
+# Matrix: all same type
+mat <- matrix(1:6, nrow = 2, ncol = 3)
+typeof(mat)      # "integer"
+is.matrix(mat)
+is.data.frame(mat)
+
+# Data frame: can mix types
+df <- data.frame(
+  x = 1:2,
+  y = c("a", "b")
+)
+is.matrix(df)
+is.data.frame(df)
+
+# Can convert
+as.matrix(df)    # Coerces to character!
+as.data.frame(mat)
+
+# Matrix properties
+dim(mat)         # 2 3 (rows, cols)
+nrow(mat)
+ncol(mat)
+length(mat)      # 6 (total elements)
+```
+
+**Key differences:**
+- Matrices: All same type, 2D array
+- Data frames: Can mix types, list of vectors
+</div>
+
+## Error #1: `non-conformable arrays` {#non-conformable-arrays}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:10, nrow = 2, ncol = 5)
+
+A + B  # Different dimensions!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in A + B : non-conformable arrays
+```
+</div>
+
+### What It Means
+
+For element-wise operations (+, -, *, /), matrices must have the same dimensions.
+
+### Conformability Rules
+
+```{r}
+# Same dimensions - OK
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(7:12, nrow = 2, ncol = 3)
+A + B
+
+# Scalar - OK (recycled)
+A + 10
+
+# Vector recycling
+A + c(1, 2)  # Recycles down columns
+
+# But these fail:
+```
+
+```{r error=TRUE}
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:6, nrow = 3, ncol = 2)
+A + B  # Different dimensions
+```
+
+### Common Causes
+
+#### Cause 1: Transposed Matrix
+
+```{r error=TRUE}
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:6, nrow = 3, ncol = 2)
+
+# B is transpose of A shape
+A + B  # Error
+```
+
+```{r}
+# Fix: transpose one
+A + t(B)
+```
+
+#### Cause 2: Wrong Construction
+
+```{r error=TRUE}
+# Meant to be same size
+A <- matrix(1:6, nrow = 2)  # 2x3
+B <- matrix(1:8, nrow = 2)  # 2x4
+
+A + B  # Error
+```
+
+#### Cause 3: After Subsetting
+
+```{r error=TRUE}
+A <- matrix(1:12, nrow = 3, ncol = 4)
+B <- matrix(1:12, nrow = 3, ncol = 4)
+
+# Subset changes dimensions
+A_sub <- A[, 1:2]  # Now 3x2
+B_sub <- B[, 1:3]  # Now 3x3
+
+A_sub + B_sub  # Error!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Dimensions First**
+
+```{r}
+safe_matrix_add <- function(A, B) {
+  if (!identical(dim(A), dim(B))) {
+    stop("Matrices have different dimensions: ",
+         paste(dim(A), collapse = "x"), " vs ",
+         paste(dim(B), collapse = "x"))
+  }
+  
+  return(A + B)
+}
+
+# Test
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(7:12, nrow = 2, ncol = 3)
+safe_matrix_add(A, B)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Reshape to Match**
+
+```{r}
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:6, nrow = 3, ncol = 2)
+
+# Transpose B to match
+B_matched <- t(B)
+A + B_matched
+
+# Or reshape
+B_reshaped <- matrix(B, nrow = 2, ncol = 3)
+A + B_reshaped
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Extract Common Dimensions**
+
+```{r}
+A <- matrix(1:12, nrow = 3, ncol = 4)
+B <- matrix(1:15, nrow = 3, ncol = 5)
+
+# Find common dimensions
+common_rows <- min(nrow(A), nrow(B))
+common_cols <- min(ncol(A), ncol(B))
+
+# Extract submatrices
+A_sub <- A[1:common_rows, 1:common_cols]
+B_sub <- B[1:common_rows, 1:common_cols]
+
+A_sub + B_sub
+```
+</div>
+
+## Error #2: `non-conformable arguments` {#non-conformable-arguments}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-dimension">📏 DIMENSION</span>
+
+### The Error
+
+```{r error=TRUE}
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:6, nrow = 2, ncol = 3)
+
+# Try matrix multiplication
+A %*% B
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in A %*% B : non-conformable arguments
+```
+</div>
+
+### What It Means
+
+For matrix multiplication (`%*%`), the number of columns in A must equal the number of rows in B.
+
+### Matrix Multiplication Rules
+
+<div class="insight-box">
+💡 **Matrix Multiplication Requirements**
+
+For `A %*% B`:
+- A must be `m × n`
+- B must be `n × p`
+- Result will be `m × p`
+
+```{r}
+# A is 2×3, B is 3×2 - OK
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:6, nrow = 3, ncol = 2)
+dim(A)  # 2 3
+dim(B)  # 3 2
+
+result <- A %*% B
+dim(result)  # 2 2 (outer dimensions)
+```
+
+**Rule:** Inner dimensions must match, outer dimensions form result.
+
+```
+(2 × 3) %*% (3 × 2) = (2 × 2)
+     ↑       ↑
+     └───────┘ must match
+```
+</div>
+
+### Common Causes
+
+#### Cause 1: Wrong Order
+
+```{r error=TRUE}
+A <- matrix(1:6, nrow = 2, ncol = 3)   # 2×3
+B <- matrix(1:10, nrow = 2, ncol = 5)  # 2×5
+
+# A has 3 cols, B has 2 rows - mismatch!
+A %*% B
+```
+
+```{r}
+# But reverse works!
+B %*% A  # 2×5 times 5×3... wait, A is 2×3
+
+# Need to transpose A
+B %*% t(A)  # 2×5 times 5×2 = 2×2
+```
+
+#### Cause 2: Using Element-wise Instead
+
+```{r}
+A <- matrix(1:4, nrow = 2)
+B <- matrix(5:8, nrow = 2)
+
+# Element-wise multiplication (different!)
+A * B  # Hadamard product
+
+# Matrix multiplication
+A %*% t(B)  # Need to transpose
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Conformability**
+
+```{r}
+can_multiply <- function(A, B) {
+  ncol(A) == nrow(B)
+}
+
+safe_matrix_mult <- function(A, B) {
+  if (!can_multiply(A, B)) {
+    stop("Cannot multiply: A is ", nrow(A), "×", ncol(A),
+         ", B is ", nrow(B), "×", ncol(B),
+         "\nNeed ncol(A) = nrow(B)")
+  }
+  
+  return(A %*% B)
+}
+
+# Test
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:6, nrow = 3, ncol = 2)
+safe_matrix_mult(A, B)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Auto-transpose if Needed**
+
+```{r}
+smart_mult <- function(A, B) {
+  # Try as-is
+  if (ncol(A) == nrow(B)) {
+    return(A %*% B)
+  }
+  
+  # Try transposing B
+  if (ncol(A) == ncol(B)) {
+    message("Transposing B")
+    return(A %*% t(B))
+  }
+  
+  # Try transposing A
+  if (nrow(A) == nrow(B)) {
+    message("Transposing A")
+    return(t(A) %*% B)
+  }
+  
+  stop("Matrices not conformable in any configuration")
+}
+
+# Test
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:6, nrow = 2, ncol = 3)
+smart_mult(A, B)  # Transposes B
+```
+</div>
+
+## Error #3: `system is computationally singular` {#computationally-singular}
+
+<span class="difficulty-advanced">⭐⭐⭐ ADVANCED</span> <span class="category-badge cat-math">🧮 MATH</span>
+
+### The Error
+
+```{r error=TRUE}
+# Singular matrix (not invertible)
+A <- matrix(c(1, 2, 2, 4), nrow = 2)
+A
+
+solve(A)  # Try to invert
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in solve.default(A) : 
+  system is computationally singular: reciprocal condition number = 0
+```
+</div>
+
+### What It Means
+
+The matrix is singular (non-invertible). Its determinant is 0 (or very close to 0).
+
+### Why Matrices Become Singular
+
+```{r}
+# Linearly dependent rows
+A <- matrix(c(1, 2, 2, 4), nrow = 2)
+A
+# Row 2 = 2 * Row 1
+
+det(A)  # 0 (singular)
+
+# Compare to invertible matrix
+B <- matrix(c(1, 2, 3, 4), nrow = 2)
+det(B)  # -2 (non-zero, invertible)
+solve(B)  # Works
+```
+
+### Common Causes
+
+#### Cause 1: Perfect Collinearity
+
+```{r error=TRUE}
+# Data with perfect correlation
+x1 <- 1:5
+x2 <- 2 * x1  # Perfectly correlated
+
+X <- cbind(1, x1, x2)  # Design matrix
+A <- t(X) %*% X  # X'X matrix
+
+solve(A)  # Singular!
+```
+
+#### Cause 2: More Variables Than Observations
+
+```{r error=TRUE}
+# 3 observations, 5 variables
+X <- matrix(rnorm(15), nrow = 3, ncol = 5)
+A <- t(X) %*% X  # 5×5 matrix
+
+solve(A)  # Singular!
+```
+
+#### Cause 3: Numerical Issues
+
+```{r error=TRUE}
+# Very small numbers can cause numerical singularity
+A <- matrix(c(1, 1e-10, 1e-10, 1), nrow = 2)
+solve(A)  # May fail due to numerical precision
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Before Inverting**
+
+```{r}
+safe_solve <- function(A, tol = 1e-10) {
+  # Check if square
+  if (nrow(A) != ncol(A)) {
+    stop("Matrix must be square")
+  }
+  
+  # Check determinant
+  d <- det(A)
+  
+  if (abs(d) < tol) {
+    stop("Matrix is singular (det = ", d, ")")
+  }
+  
+  return(solve(A))
+}
+
+# Test
+B <- matrix(c(1, 2, 3, 4), nrow = 2)
+safe_solve(B)  # Works
+
+A <- matrix(c(1, 2, 2, 4), nrow = 2)
+```
+
+```{r error=TRUE}
+safe_solve(A)  # Clear error message
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use Generalized Inverse**
+
+```{r}
+library(MASS)
+
+# Singular matrix
+A <- matrix(c(1, 2, 2, 4), nrow = 2)
+
+# Moore-Penrose generalized inverse
+A_inv <- ginv(A)
+A_inv
+
+# Check: A %*% ginv(A) %*% A = A
+all.equal(A, A %*% A_inv %*% A)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Remove Collinear Variables**
+
+```{r}
+# Detect and remove collinear columns
+remove_collinear <- function(X, threshold = 0.99) {
+  cor_matrix <- cor(X)
+  
+  # Find highly correlated pairs
+  high_cor <- which(abs(cor_matrix) > threshold & 
+                    upper.tri(cor_matrix, diag = FALSE),
+                    arr.ind = TRUE)
+  
+  if (nrow(high_cor) > 0) {
+    # Remove second column of correlated pairs
+    remove_cols <- unique(high_cor[, 2])
+    message("Removing collinear columns: ", 
+            paste(remove_cols, collapse = ", "))
+    X <- X[, -remove_cols]
+  }
+  
+  return(X)
+}
+
+# Test
+x1 <- 1:5
+x2 <- 2 * x1
+x3 <- rnorm(5)
+X <- cbind(x1, x2, x3)
+
+X_clean <- remove_collinear(X)
+ncol(X_clean)  # One less column
+```
+</div>
+
+## Matrix Creation Errors
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Matrix Filling**
+
+```{r}
+# Matrix fills by COLUMN (default)
+matrix(1:6, nrow = 2, ncol = 3)
+
+# To fill by row:
+matrix(1:6, nrow = 2, ncol = 3, byrow = TRUE)
+
+# This catches many people!
+matrix(c(1, 2, 3,
+         4, 5, 6), nrow = 2, ncol = 3)
+# NOT what you might expect!
+
+# Want row-wise? Use byrow:
+matrix(c(1, 2, 3,
+         4, 5, 6), nrow = 2, ncol = 3, byrow = TRUE)
+```
+</div>
+
+## Matrix Operations Reference
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Common Matrix Operations**
+
+```{r}
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:6, nrow = 3, ncol = 2)
+
+# Transpose
+t(A)
+
+# Matrix multiplication
+A %*% B  # Result: 2×2
+
+# Element-wise operations (same dimensions needed)
+C <- matrix(7:12, nrow = 2, ncol = 3)
+A + C
+A - C
+A * C  # Hadamard product (element-wise)
+A / C
+
+# Cross product
+crossprod(A)    # t(A) %*% A
+tcrossprod(A)   # A %*% t(A)
+
+# Determinant
+D <- matrix(c(1, 2, 3, 4), nrow = 2)
+det(D)
+
+# Inverse (square matrices only)
+solve(D)
+
+# Diagonal
+diag(D)          # Extract diagonal
+diag(c(1, 2, 3)) # Create diagonal matrix
+
+# Eigenvalues and eigenvectors
+eigen(D)
+
+# Singular value decomposition
+svd(A)
+```
+</div>
+
+## Dimension Preservation
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Dropping Dimensions**
+
+```{r}
+A <- matrix(1:12, nrow = 3, ncol = 4)
+
+# Extract row (becomes vector!)
+row1 <- A[1, ]
+dim(row1)  # NULL (it's a vector now)
+
+# Extract column (becomes vector!)
+col1 <- A[, 1]
+dim(col1)  # NULL
+
+# Preserve matrix structure
+row1 <- A[1, , drop = FALSE]
+dim(row1)  # 1 3
+
+col1 <- A[, 1, drop = FALSE]
+dim(col1)  # 3 1
+```
+
+**When it matters:**
+```{r error=TRUE}
+A <- matrix(1:12, nrow = 3, ncol = 4)
+B <- matrix(1:3, nrow = 3, ncol = 1)
+
+# Extract column from A (becomes vector)
+A_col <- A[, 1]
+
+# Try to multiply
+A_col %*% B  # Error! A_col is vector
+```
+
+```{r}
+# Fix: preserve dimensions
+A_col <- A[, 1, drop = FALSE]
+A_col %*% t(B)  # Works!
+```
+</div>
+
+## Converting Between Structures
+
+<div class="insight-box">
+💡 **Key Insight: Conversions**
+
+```{r}
+# Vector to matrix
+vec <- 1:12
+mat <- matrix(vec, nrow = 3, ncol = 4)
+
+# Matrix to vector
+as.vector(mat)  # Column-major order
+
+# Matrix to data frame
+df <- as.data.frame(mat)
+class(df)
+
+# Data frame to matrix
+mat2 <- as.matrix(df)
+class(mat2)
+
+# List to matrix (if all same length)
+lst <- list(a = 1:3, b = 4:6, c = 7:9)
+mat3 <- do.call(cbind, lst)
+mat3
+
+# Matrix to list (by column)
+lst2 <- as.list(as.data.frame(mat))
+```
+
+**Warning: Type coercion**
+```{r}
+# Data frame with mixed types
+df_mixed <- data.frame(
+  x = 1:3,
+  y = c("a", "b", "c")
+)
+
+# Converting to matrix coerces to common type
+as.matrix(df_mixed)  # All become character!
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Element-wise operations**: Need identical dimensions
+2. **Matrix multiplication**: Inner dimensions must match
+3. **Singular matrices**: Cannot be inverted (det = 0)
+4. **Filling order**: Column-major by default (use `byrow = TRUE`)
+5. **drop = FALSE**: Preserves matrix structure
+6. **Type coercion**: Converting mixed-type df to matrix coerces all
+7. **Check dimensions**: Always verify before operations
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| non-conformable arrays | Different dimensions for +,-,*,/ | Match dimensions |
+| non-conformable arguments | ncol(A) ≠ nrow(B) for %*% | Transpose or reshape |
+| computationally singular | Matrix not invertible | Check det(), use ginv() |
+| incorrect number of dimensions | Wrong subscripts | Match matrix structure |
+
+**Matrix Operations Checklist:**
+
+```{r eval=FALSE}
+# Before operations:
+dim(A)                    # Check dimensions
+det(A)                    # Check if invertible
+ncol(A) == nrow(B)        # Check for multiplication
+
+# Safe extraction:
+A[i, , drop = FALSE]      # Preserve row
+A[, j, drop = FALSE]      # Preserve column
+
+# Matrix multiplication:
+A %*% B                   # Matrix product
+A * B                     # Element-wise (Hadamard)
+crossprod(A, B)           # t(A) %*% B
+tcrossprod(A, B)          # A %*% t(B)
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+identical(dim(A), dim(B))      # Check before adding
+ncol(A) == nrow(B)             # Check before multiply
+det(A) != 0                    # Check before invert
+A[i, , drop = FALSE]           # Preserve structure
+
+# ❌ Avoid
+A + B                          # Without checking dims
+solve(A)                       # Without checking singular
+A[i, ]                         # Drops to vector unexpectedly
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Matrix Dimension Checker**
+
+Write a function that checks if two matrices can be:
+1. Added/subtracted
+2. Multiplied (A %*% B)
+3. Multiplied (B %*% A)
+
+Return TRUE/FALSE for each operation.
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Safe Matrix Operations**
+
+Create `matrix_op(A, B, op)` that:
+- Checks dimensions before operation
+- Supports: "add", "subtract", "multiply", "divide"
+- Gives clear error messages
+- Returns result or NULL
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Matrix Inversion Check**
+
+Write `safe_invert(A)` that:
+1. Checks if matrix is square
+2. Checks if singular
+3. Warns if near-singular
+4. Returns inverse or NULL
+5. Provides diagnostic information
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Matrix Creation Helper**
+
+Write `make_matrix(...)` that:
+- Takes values and shape (nrow, ncol)
+- Handles different input formats (vector, list, data frame)
+- Validates dimensions
+- Allows byrow specification
+- Returns matrix with informative errors
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+check_matrix_ops <- function(A, B) {
+  result <- list(
+    can_add = identical(dim(A), dim(B)),
+    can_multiply_AB = ncol(A) == nrow(B),
+    can_multiply_BA = ncol(B) == nrow(A)
+  )
+  
+  # Add details
+  result$dim_A <- paste(dim(A), collapse = "×")
+  result$dim_B <- paste(dim(B), collapse = "×")
+  
+  if (result$can_multiply_AB) {
+    result$result_dim_AB <- paste(c(nrow(A), ncol(B)), collapse = "×")
+  }
+  
+  if (result$can_multiply_BA) {
+    result$result_dim_BA <- paste(c(nrow(B), ncol(A)), collapse = "×")
+  }
+  
+  class(result) <- "matrix_ops_check"
+  return(result)
+}
+
+print.matrix_ops_check <- function(x, ...) {
+  cat("Matrix A:", x$dim_A, "\n")
+  cat("Matrix B:", x$dim_B, "\n\n")
+  cat("Can add/subtract:", x$can_add, "\n")
+  cat("Can multiply A %*% B:", x$can_multiply_AB)
+  if (x$can_multiply_AB) {
+    cat(" (result:", x$result_dim_AB, ")")
+  }
+  cat("\n")
+  cat("Can multiply B %*% A:", x$can_multiply_BA)
+  if (x$can_multiply_BA) {
+    cat(" (result:", x$result_dim_BA, ")")
+  }
+  cat("\n")
+}
+
+# Test
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:6, nrow = 3, ncol = 2)
+check_matrix_ops(A, B)
+```
+
+**Exercise 2:**
+
+```{r}
+matrix_op <- function(A, B, op = c("add", "subtract", "multiply", "divide")) {
+  op <- match.arg(op)
+  
+  # Validate inputs
+  if (!is.matrix(A) || !is.matrix(B)) {
+    stop("Both A and B must be matrices")
+  }
+  
+  # Check dimensions based on operation
+  if (op %in% c("add", "subtract", "divide")) {
+    if (!identical(dim(A), dim(B))) {
+      stop("For ", op, ", matrices must have same dimensions. ",
+           "A is ", paste(dim(A), collapse = "×"),
+           ", B is ", paste(dim(B), collapse = "×"))
+    }
+    
+    result <- switch(op,
+      add = A + B,
+      subtract = A - B,
+      divide = A / B
+    )
+  } else if (op == "multiply") {
+    if (ncol(A) != nrow(B)) {
+      stop("For multiplication, ncol(A) must equal nrow(B). ",
+           "A is ", paste(dim(A), collapse = "×"),
+           ", B is ", paste(dim(B), collapse = "×"))
+    }
+    
+    result <- A %*% B
+  }
+  
+  return(result)
+}
+
+# Test
+A <- matrix(1:6, nrow = 2, ncol = 3)
+B <- matrix(1:6, nrow = 3, ncol = 2)
+matrix_op(A, B, "multiply")
+```
+
+**Exercise 3:**
+
+```{r}
+safe_invert <- function(A, tol = 1e-10, warn_threshold = 1e-8) {
+  # Check if matrix
+  if (!is.matrix(A)) {
+    message("Input is not a matrix")
+    return(NULL)
+  }
+  
+  # Check if square
+  if (nrow(A) != ncol(A)) {
+    message("Matrix is not square: ", 
+            paste(dim(A), collapse = "×"))
+    return(NULL)
+  }
+  
+  # Calculate determinant
+  d <- det(A)
+  
+  # Check if singular
+  if (abs(d) < tol) {
+    message("Matrix is singular (det = ", d, ")")
+    message("Consider using MASS::ginv() for generalized inverse")
+    return(NULL)
+  }
+  
+  # Warn if near-singular
+  if (abs(d) < warn_threshold) {
+    warning("Matrix is near-singular (det = ", d, "). ",
+            "Results may be numerically unstable.")
+  }
+  
+  # Compute inverse
+  A_inv <- solve(A)
+  
+  # Verify (optional)
+  check <- A %*% A_inv
+  is_identity <- all(abs(check - diag(nrow(A))) < 1e-10)
+  
+  if (!is_identity) {
+    warning("Inversion may be inaccurate (A %*% A^-1 != I)")
+  }
+  
+  # Return with diagnostics
+  attr(A_inv, "determinant") <- d
+  attr(A_inv, "condition_number") <- kappa(A)
+  
+  return(A_inv)
+}
+
+# Test
+A <- matrix(c(1, 2, 3, 4), nrow = 2)
+A_inv <- safe_invert(A)
+A_inv
+
+# Singular
+B <- matrix(c(1, 2, 2, 4), nrow = 2)
+safe_invert(B)
+```
+
+**Exercise 4:**
+
+```{r}
+make_matrix <- function(x, nrow, ncol, byrow = FALSE) {
+  # Handle different input types
+  if (is.matrix(x)) {
+    if (missing(nrow) && missing(ncol)) {
+      return(x)
+    }
+    x <- as.vector(x)
+  } else if (is.data.frame(x)) {
+    x <- as.matrix(x)
+    if (missing(nrow) && missing(ncol)) {
+      return(x)
+    }
+    x <- as.vector(x)
+  } else if (is.list(x)) {
+    # Check if all elements same length
+    lens <- lengths(x)
+    if (length(unique(lens)) != 1) {
+      stop("List elements have different lengths")
+    }
+    x <- unlist(x)
+  }
+  
+  # Validate dimensions
+  n_elements <- length(x)
+  
+  if (missing(nrow) && missing(ncol)) {
+    stop("Must provide nrow, ncol, or both")
+  }
+  
+  if (missing(nrow)) {
+    nrow <- ceiling(n_elements / ncol)
+  } else if (missing(ncol)) {
+    ncol <- ceiling(n_elements / nrow)
+  }
+  
+  expected_elements <- nrow * ncol
+  
+  if (n_elements != expected_elements) {
+    if (n_elements < expected_elements) {
+      warning("Data length (", n_elements, 
+              ") is less than matrix size (", expected_elements,
+              "). Recycling values.")
+    } else {
+      warning("Data length (", n_elements,
+              ") is greater than matrix size (", expected_elements,
+              "). Truncating values.")
+      x <- x[1:expected_elements]
+    }
+  }
+  
+  # Create matrix
+  result <- matrix(x, nrow = nrow, ncol = ncol, byrow = byrow)
+  
+  return(result)
+}
+
+# Test
+make_matrix(1:6, nrow = 2, ncol = 3)
+make_matrix(1:6, nrow = 2, byrow = TRUE)
+make_matrix(list(a = 1:3, b = 4:6), ncol = 3)
+```
+</details>

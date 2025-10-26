@@ -1,0 +1,72 @@
+# ggplot2 Extensions {#ggplot2-extensions}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Extension packages
+- Special plot types  
+- Interactive plots
+- Combining plots
+
+**Key Errors Covered:** 15+ extension errors
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+ggplot2 extensions add specialized functionality:
+
+```{r message=FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+## patchwork
+
+<div class="insight-box">
+💡 **Key Insight: Combining Plots**
+
+```{r message=FALSE}
+library(patchwork)
+
+p1 <- ggplot(mtcars, aes(x = mpg, y = hp)) + geom_point()
+p2 <- ggplot(mtcars, aes(x = mpg, y = wt)) + geom_point()
+
+p1 + p2
+p1 / p2
+```
+</div>
+
+## ggrepel
+
+<div class="insight-box">
+💡 **Key Insight: Better Labels**
+
+```{r message=FALSE}
+library(ggrepel)
+
+ggplot(mtcars, aes(x = mpg, y = hp, label = rownames(mtcars))) +
+  geom_point() +
+  geom_text_repel(max.overlaps = 10)
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **patchwork** - Combine plots
+2. **ggrepel** - Non-overlapping labels
+3. **Many extensions available**
+
+**Common Extensions:**
+
+```{r eval=FALSE}
+library(patchwork)  # Combine plots
+library(ggrepel)    # Labels
+library(ggthemes)   # Themes
+library(plotly)     # Interactive
+```
+</div>

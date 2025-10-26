@@ -1,0 +1,1166 @@
+# Part VII: Functions & Programming {-}
+
+# Function Creation & Errors {#function-creation}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- Creating functions in R
+- Function arguments and defaults
+- Return values
+- Common function creation errors
+- Function documentation
+
+**Key Errors Covered:** 18+ function errors
+
+**Difficulty:** ⭐⭐ Intermediate to ⭐⭐⭐ Advanced
+</div>
+
+## Introduction
+
+Functions are fundamental to R programming, but creating them has pitfalls:
+
+```{r error=TRUE}
+# Try to create a function
+my_function <- function(x) {
+  result <- x * 2
+  # Forget to return!
+}
+
+my_function(5)  # Returns NULL!
+```
+
+Let's master function creation to avoid these issues.
+
+## Function Basics
+
+<div class="insight-box">
+💡 **Key Insight: Functions Are Objects**
+
+```{r}
+# Functions are first-class objects
+my_func <- function(x) {
+  x * 2
+}
+
+# It's an object
+class(my_func)
+typeof(my_func)
+
+# Can be passed around
+apply_func <- function(f, value) {
+  f(value)
+}
+
+apply_func(my_func, 5)
+
+# Can be stored in lists
+func_list <- list(
+  double = function(x) x * 2,
+  triple = function(x) x * 3
+)
+
+func_list$double(5)
+
+# Can be returned from functions
+make_multiplier <- function(n) {
+  function(x) x * n
+}
+
+times_4 <- make_multiplier(4)
+times_4(5)
+```
+
+**Key points:**
+- Functions are objects like any other
+- Can be assigned to variables
+- Can be passed as arguments
+- Can be returned from functions
+- Can be anonymous (unnamed)
+</div>
+
+## Error #1: `could not find function` {#could-not-find-function}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-scope">🔍 SCOPE</span>
+
+### The Error
+
+```{r error=TRUE}
+# Typo in function name
+maen(c(1, 2, 3))
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in maen(c(1, 2, 3)) : could not find function "maen"
+```
+</div>
+
+### What It Means
+
+R can't find a function with that name in the current environment or loaded packages.
+
+### Common Causes
+
+#### Cause 1: Typo
+
+```{r error=TRUE}
+# Spelling mistakes
+summry(mtcars)
+lenght(1:10)
+subsett(mtcars, mpg > 20)
+```
+
+#### Cause 2: Package Not Loaded
+
+```{r error=TRUE}
+# Function from package not loaded
+ggplot(mtcars, aes(x = mpg, y = hp))  # ggplot2 not loaded
+```
+
+#### Cause 3: Function Not Created Yet
+
+```{r error=TRUE}
+# Calling before definition
+result <- calculate_total(10, 20)
+
+calculate_total <- function(a, b) {
+  a + b
+}
+```
+
+#### Cause 4: Wrong Scope
+
+```{r error=TRUE}
+# Function created in different environment
+{
+  local_func <- function(x) x * 2
+}
+
+local_func(5)  # No longer accessible
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Spelling**
+
+```{r}
+# Use tab completion in RStudio
+# Type first few letters and press Tab
+
+# Check available functions
+apropos("mean")  # Find functions with "mean" in name
+
+# Search help
+??mean
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Load Required Package**
+
+```{r}
+# Check if function is in a package
+help.search("ggplot")
+
+# Load package
+library(ggplot2)
+
+# Or use package::function syntax
+ggplot2::ggplot(mtcars, aes(x = mpg, y = hp))
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Check Function Exists**
+
+```{r}
+safe_call <- function(func_name, ...) {
+  if (!exists(func_name, mode = "function")) {
+    stop("Function '", func_name, "' not found. ",
+         "Did you mean: ", paste(apropos(func_name), collapse = ", "))
+  }
+  
+  do.call(func_name, list(...))
+}
+
+# Test
+safe_call("mean", c(1, 2, 3))
+```
+
+```{r error=TRUE}
+safe_call("maen", c(1, 2, 3))  # Helpful error
+```
+</div>
+
+## Error #2: `argument "x" is missing, with no default` {#argument-missing}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-args">📋 ARGS</span>
+
+### The Error
+
+```{r error=TRUE}
+my_func <- function(x, y) {
+  x + y
+}
+
+my_func(5)  # Missing y!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in my_func(5) : argument "y" is missing, with no default
+```
+</div>
+
+### What It Means
+
+You're calling a function without providing all required arguments.
+
+### Understanding Arguments
+
+```{r}
+# Required arguments (no default)
+func1 <- function(x, y) {
+  x + y
+}
+
+func1(5, 10)  # Must provide both
+```
+
+```{r error=TRUE}
+func1(5)      # Error!
+```
+
+```{r}
+# Optional arguments (with default)
+func2 <- function(x, y = 10) {
+  x + y
+}
+
+func2(5, 20)  # Can override default
+func2(5)      # Uses default y = 10
+
+# All optional
+func3 <- function(x = 5, y = 10) {
+  x + y
+}
+
+func3()       # Uses all defaults
+func3(8)      # Override x, use default y
+func3(8, 12)  # Override both
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Provide All Required Arguments**
+
+```{r}
+my_func <- function(x, y) {
+  x + y
+}
+
+# Call with all arguments
+my_func(5, 10)
+
+# Named arguments (order doesn't matter)
+my_func(y = 10, x = 5)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Add Default Values**
+
+```{r}
+# Make some/all arguments optional
+my_func <- function(x, y = 0) {
+  x + y
+}
+
+my_func(5)     # Works, y defaults to 0
+my_func(5, 10) # Can still override
+
+# Can use NULL as default
+my_func2 <- function(x, y = NULL) {
+  if (is.null(y)) {
+    y <- x  # Default to same as x
+  }
+  x + y
+}
+
+my_func2(5)
+my_func2(5, 3)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Check Arguments**
+
+```{r}
+my_func <- function(x, y) {
+  # Check if arguments provided
+  if (missing(x)) {
+    stop("Argument 'x' is required")
+  }
+  if (missing(y)) {
+    message("Argument 'y' not provided, using default of 0")
+    y <- 0
+  }
+  
+  x + y
+}
+
+my_func(5)    # Warning but works
+my_func(5, 3)
+```
+
+```{r error=TRUE}
+my_func()     # Clear error about x
+```
+</div>
+
+## Error #3: `unused argument` {#unused-argument}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-args">📋 ARGS</span>
+
+### The Error
+
+```{r error=TRUE}
+my_func <- function(x, y) {
+  x + y
+}
+
+my_func(5, 10, 15)  # Too many arguments!
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in my_func(5, 10, 15) : unused argument (15)
+```
+</div>
+
+### What It Means
+
+You're passing more arguments than the function accepts.
+
+### Common Causes
+
+#### Cause 1: Extra Arguments
+
+```{r error=TRUE}
+mean(c(1, 2, NA), na.rm = TRUE, extra = "oops")
+```
+
+#### Cause 2: Wrong Argument Name
+
+```{r error=TRUE}
+mean(c(1, 2, NA), remove_na = TRUE)  # It's na.rm not remove_na
+```
+
+#### Cause 3: Positional Confusion
+
+```{r error=TRUE}
+# substr expects (x, start, stop)
+substr("hello", 1, 3, "extra")
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Remove Extra Arguments**
+
+```{r}
+# Check function signature
+args(mean)
+
+# Provide correct arguments only
+mean(c(1, 2, NA), na.rm = TRUE)
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Use ... to Accept Extra Arguments**
+
+```{r}
+# Allow any number of additional arguments
+my_func <- function(x, y, ...) {
+  result <- x + y
+  
+  # Can pass ... to other functions
+  extra_args <- list(...)
+  if (length(extra_args) > 0) {
+    message("Ignoring extra arguments: ", 
+            paste(names(extra_args), collapse = ", "))
+  }
+  
+  result
+}
+
+my_func(5, 10)              # Works
+my_func(5, 10, z = 15)      # Works, ignores z
+my_func(5, 10, 15, 20)      # Works, ignores unnamed extras
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Validate Arguments**
+
+```{r}
+my_func <- function(x, y) {
+  # Capture call
+  call <- match.call()
+  
+  # Check for unexpected arguments
+  valid_args <- c("x", "y")
+  provided_args <- names(call)[-1]  # Remove function name
+  
+  invalid <- setdiff(provided_args, valid_args)
+  if (length(invalid) > 0) {
+    stop("Unexpected arguments: ", paste(invalid, collapse = ", "),
+         "\nValid arguments are: ", paste(valid_args, collapse = ", "))
+  }
+  
+  x + y
+}
+
+my_func(5, 10)
+```
+
+```{r error=TRUE}
+my_func(5, 10, z = 15)  # Helpful error
+```
+</div>
+
+## Return Values
+
+<div class="insight-box">
+💡 **Key Insight: Return Values**
+
+```{r}
+# Implicit return (last expression)
+func1 <- function(x) {
+  x * 2
+}
+func1(5)  # Returns 10
+
+# Explicit return
+func2 <- function(x) {
+  return(x * 2)
+}
+func2(5)  # Returns 10
+
+# Early return
+func3 <- function(x) {
+  if (x < 0) {
+    return(0)  # Exit early
+  }
+  x * 2
+}
+func3(-5)  # Returns 0
+func3(5)   # Returns 10
+
+# No return (returns NULL)
+func4 <- function(x) {
+  result <- x * 2
+  # Forgot to return or print result
+}
+func4(5)  # Returns NULL invisibly
+
+# Multiple values (use list)
+func5 <- function(x) {
+  list(
+    original = x,
+    doubled = x * 2,
+    squared = x^2
+  )
+}
+func5(5)
+
+# Return NULL explicitly
+func6 <- function(x) {
+  if (x < 0) {
+    return(NULL)
+  }
+  x * 2
+}
+func6(-5)  # NULL
+func6(5)   # 10
+```
+
+**Best practices:**
+- Last expression is returned automatically
+- Use `return()` for early exits
+- Use `invisible()` for functions with side effects
+- Return lists for multiple values
+</div>
+
+## Error #4: `object of type 'closure' is not subsettable` {#closure-not-subsettable}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+my_func <- function(x) x * 2
+
+# Try to subset a function
+my_func[1]
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in my_func[1] : object of type 'closure' is not subsettable
+```
+</div>
+
+### What It Means
+
+You're trying to subset a function as if it were a vector or list. "Closure" is R's internal name for functions.
+
+### Common Causes
+
+#### Cause 1: Name Collision
+
+```{r error=TRUE}
+# Accidentally named data same as function
+mean <- function(x) sum(x) / length(x)
+
+# Later, try to use mean as data
+mean[1]  # Error! mean is now a function
+```
+
+#### Cause 2: Forgot to Call Function
+
+```{r error=TRUE}
+data <- c(1, 2, 3, 4, 5)
+
+# Forgot parentheses
+result <- mean  # Assigns the function, not result
+result[1]       # Error!
+```
+
+#### Cause 3: Wrong Object
+
+```{r error=TRUE}
+my_list <- list(a = 1, b = 2)
+my_func <- function(x) x * 2
+
+# Accidentally use function instead of list
+my_func$a
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTION 1: Check Object Type**
+
+```{r}
+my_func <- function(x) x * 2
+
+# Check what it is
+is.function(my_func)
+class(my_func)
+
+# If you need to subset, make sure you're using the right object
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 2: Call Function Properly**
+
+```{r}
+# Call the function
+result <- mean(c(1, 2, 3, 4, 5))
+result
+
+# Now can use result
+result
+```
+</div>
+
+<div class="solution-box">
+✅ **SOLUTION 3: Avoid Name Collisions**
+
+```{r}
+# Don't overwrite common function names
+# Bad
+# mean <- my_data
+
+# Good
+my_mean_value <- mean(my_data)
+
+# If you accidentally overwrote
+mean <- function(x) sum(x) / length(x)
+
+# Restore
+rm(mean)  # Remove your version
+mean(c(1, 2, 3))  # Uses base::mean again
+```
+</div>
+
+## Function Arguments: ... (Dots)
+
+<div class="insight-box">
+💡 **Key Insight: The ... Argument**
+
+```{r}
+# ... captures any additional arguments
+my_plot <- function(x, y, ...) {
+  plot(x, y, ...)  # Pass ... to another function
+}
+
+# Can pass any plot arguments
+my_plot(1:10, 1:10, col = "red", pch = 16, main = "Test")
+
+# Access ... contents
+my_func <- function(...) {
+  args <- list(...)
+  cat("Received", length(args), "arguments\n")
+  args
+}
+
+my_func(a = 1, b = 2, c = 3)
+
+# Extract specific arguments from ...
+my_func2 <- function(x, ...) {
+  dots <- list(...)
+  
+  # Get specific argument
+  if ("multiplier" %in% names(dots)) {
+    mult <- dots$multiplier
+  } else {
+    mult <- 1
+  }
+  
+  x * mult
+}
+
+my_func2(5)
+my_func2(5, multiplier = 3)
+
+# Common use: wrapper functions
+my_mean <- function(..., na.rm = FALSE) {
+  # Add custom behavior
+  message("Calculating mean...")
+  
+  # Pass to base function
+  mean(..., na.rm = na.rm)
+}
+
+my_mean(c(1, 2, NA, 4), na.rm = TRUE)
+```
+
+**When to use ...:**
+- Wrapper functions (pass args to another function)
+- Flexible functions (accept varying arguments)
+- Methods (S3/S4 generics often use ...)
+
+**Caution:**
+- Arguments after ... must be named explicitly
+- Easy to make typos that go unnoticed
+</div>
+
+## Argument Matching
+
+<div class="insight-box">
+💡 **Key Insight: How R Matches Arguments**
+
+```{r}
+my_func <- function(first, second, third) {
+  cat("first:", first, "\n")
+  cat("second:", second, "\n")
+  cat("third:", third, "\n")
+}
+
+# 1. Exact name match
+my_func(first = 1, second = 2, third = 3)
+
+# 2. Partial name match (not recommended!)
+my_func(f = 1, s = 2, t = 3)
+
+# 3. Positional match
+my_func(1, 2, 3)
+
+# 4. Mixed (named don't need to be in order)
+my_func(third = 3, first = 1, second = 2)
+my_func(1, third = 3, second = 2)
+
+# Order of matching:
+# 1. Exact name matches
+# 2. Partial name matches  
+# 3. Positional matches
+```
+
+**Best practices:**
+- Use exact names for clarity
+- Avoid partial matching (can cause confusion)
+- Use names for all arguments after the first few
+- Named arguments can be in any order
+</div>
+
+## Common Function Patterns
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Function Patterns**
+
+```{r}
+# 1. Validate inputs
+safe_divide <- function(x, y) {
+  # Check types
+  if (!is.numeric(x) || !is.numeric(y)) {
+    stop("Both x and y must be numeric")
+  }
+  
+  # Check values
+  if (any(y == 0)) {
+    stop("Cannot divide by zero")
+  }
+  
+  x / y
+}
+
+safe_divide(10, 2)
+```
+
+```{r error=TRUE}
+safe_divide(10, 0)
+```
+
+```{r}
+# 2. Provide informative messages
+verbose_mean <- function(x, na.rm = FALSE, verbose = TRUE) {
+  if (verbose) {
+    message("Calculating mean of ", length(x), " values")
+    if (na.rm) {
+      message("Removing NA values")
+    }
+  }
+  
+  mean(x, na.rm = na.rm)
+}
+
+verbose_mean(c(1, 2, NA, 4), na.rm = TRUE)
+
+# 3. Handle edge cases
+robust_max <- function(x) {
+  if (length(x) == 0) {
+    return(NULL)
+  }
+  
+  if (all(is.na(x))) {
+    return(NA)
+  }
+  
+  max(x, na.rm = TRUE)
+}
+
+robust_max(numeric(0))
+robust_max(c(NA, NA))
+robust_max(c(1, 2, NA, 3))
+
+# 4. Return useful objects
+detailed_summary <- function(x) {
+  result <- list(
+    mean = mean(x, na.rm = TRUE),
+    median = median(x, na.rm = TRUE),
+    sd = sd(x, na.rm = TRUE),
+    n = length(x),
+    n_missing = sum(is.na(x))
+  )
+  
+  class(result) <- "detailed_summary"
+  result
+}
+
+summary_obj <- detailed_summary(c(1, 2, NA, 4, 5))
+summary_obj
+
+# 5. Use ... appropriately
+flexible_plot <- function(x, y, type = "p", ...) {
+  # Set defaults
+  defaults <- list(
+    pch = 16,
+    col = "blue"
+  )
+  
+  # Override with ...
+  args <- modifyList(defaults, list(...))
+  
+  # Call plot
+  do.call(plot, c(list(x = x, y = y, type = type), args))
+}
+
+flexible_plot(1:10, 1:10, col = "red", main = "Test")
+```
+</div>
+
+## Documentation
+
+<div class="bestpractice-box">
+🎯 **Best Practice: Document Your Functions**
+
+```{r}
+#' Calculate the area of a circle
+#'
+#' @param radius Numeric. The radius of the circle.
+#' @param units Character. The units of measurement (default: "cm").
+#' @return Numeric. The area of the circle.
+#' @examples
+#' circle_area(5)
+#' circle_area(10, units = "inches")
+#' @export
+circle_area <- function(radius, units = "cm") {
+  if (!is.numeric(radius) || radius < 0) {
+    stop("radius must be a non-negative number")
+  }
+  
+  area <- pi * radius^2
+  
+  structure(
+    area,
+    units = units,
+    class = c("circle_area", "numeric")
+  )
+}
+
+# In-function comments
+calculate_price <- function(base_price, tax_rate = 0.1, discount = 0) {
+  # Validate inputs
+  if (base_price < 0) stop("base_price cannot be negative")
+  if (tax_rate < 0 || tax_rate > 1) stop("tax_rate must be between 0 and 1")
+  if (discount < 0 || discount > 1) stop("discount must be between 0 and 1")
+  
+  # Apply discount
+  discounted_price <- base_price * (1 - discount)
+  
+  # Add tax
+  final_price <- discounted_price * (1 + tax_rate)
+  
+  # Return itemized result
+  list(
+    base_price = base_price,
+    discount = discount,
+    discounted_price = discounted_price,
+    tax = discounted_price * tax_rate,
+    final_price = final_price
+  )
+}
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **Functions are objects** - Can be assigned, passed, returned
+2. **could not find function** - Check spelling, loading, scope
+3. **Provide required arguments** - Or add defaults
+4. **Don't pass extra arguments** - Unless function uses ...
+5. **Last expression is returned** - Or use return() explicitly
+6. **closure not subsettable** - You're trying to subset a function
+7. **Use ... for flexibility** - Pass extra args to other functions
+8. **Validate inputs** - Check types and values
+
+**Quick Reference:**
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| could not find function | Typo, not loaded, not defined | Check spelling, load package |
+| argument missing | Required arg not provided | Provide arg or add default |
+| unused argument | Too many args | Remove extra or use ... |
+| closure not subsettable | Subsetting a function | Call function or use right object |
+
+**Function Creation:**
+
+```{r eval=FALSE}
+# Basic function
+my_func <- function(x, y) {
+  x + y
+}
+
+# With defaults
+my_func <- function(x, y = 0) {
+  x + y
+}
+
+# With ...
+my_func <- function(x, ...) {
+  # Do something
+  other_func(x, ...)
+}
+
+# With validation
+my_func <- function(x) {
+  if (!is.numeric(x)) stop("x must be numeric")
+  x * 2
+}
+
+# Return values
+my_func <- function(x) {
+  list(result = x * 2, original = x)
+}
+```
+
+**Best Practices:**
+
+```{r eval=FALSE}
+# ✅ Good
+function(x, y = 0)              # Sensible defaults
+if (!is.numeric(x)) stop()      # Validate inputs
+return(list(a = 1, b = 2))      # Multiple values in list
+Use descriptive names            # clear_cache() not cc()
+
+# ❌ Avoid
+function(x)                     # No defaults when optional
+No input validation             # Causes cryptic errors later
+mean <- my_data                 # Overwriting function names
+function(x, y, z, a, b, c)      # Too many arguments
+```
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Safe Division Function**
+
+Write `safe_divide(x, y)` that:
+1. Checks both are numeric
+2. Handles division by zero
+3. Works with vectors
+4. Returns informative errors
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Flexible Summary**
+
+Write `my_summary(x, ...)` that:
+1. Calculates mean, median, sd
+2. Accepts ... for additional stats
+3. Handles NA values
+4. Returns named list
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Argument Validator**
+
+Write `validate_args(func, ...)` that:
+1. Checks if function exists
+2. Validates argument types
+3. Checks required args provided
+4. Returns TRUE/FALSE with messages
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 4: Function Factory**
+
+Write `make_adder(n)` that returns a function that adds n to its argument.
+
+Example:
+```{r eval=FALSE}
+add_5 <- make_adder(5)
+add_5(10)  # Should return 15
+```
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r}
+safe_divide <- function(x, y) {
+  # Check types
+  if (!is.numeric(x)) {
+    stop("x must be numeric, got ", class(x)[1])
+  }
+  if (!is.numeric(y)) {
+    stop("y must be numeric, got ", class(y)[1])
+  }
+  
+  # Check for zero
+  if (any(y == 0)) {
+    warning("Division by zero detected, returning Inf/-Inf")
+    # R handles this naturally, but we warn
+  }
+  
+  # Check lengths match or can recycle
+  if (length(x) != length(y) && length(x) != 1 && length(y) != 1) {
+    if (max(length(x), length(y)) %% min(length(x), length(y)) != 0) {
+      warning("Lengths not compatible for recycling: ",
+              length(x), " and ", length(y))
+    }
+  }
+  
+  result <- x / y
+  result
+}
+
+# Test
+safe_divide(10, 2)
+safe_divide(c(10, 20, 30), c(2, 4, 5))
+safe_divide(10, 0)  # Warning
+```
+
+```{r error=TRUE}
+safe_divide("10", 2)  # Error
+```
+
+**Exercise 2:**
+
+```{r}
+my_summary <- function(x, ..., na.rm = TRUE) {
+  # Base statistics
+  result <- list(
+    n = length(x),
+    n_missing = sum(is.na(x)),
+    mean = mean(x, na.rm = na.rm),
+    median = median(x, na.rm = na.rm),
+    sd = sd(x, na.rm = na.rm),
+    min = min(x, na.rm = na.rm),
+    max = max(x, na.rm = na.rm)
+  )
+  
+  # Additional statistics from ...
+  extra_stats <- list(...)
+  
+  for (stat_name in names(extra_stats)) {
+    stat_func <- extra_stats[[stat_name]]
+    if (is.function(stat_func)) {
+      result[[stat_name]] <- stat_func(x, na.rm = na.rm)
+    }
+  }
+  
+  class(result) <- "my_summary"
+  result
+}
+
+# Print method
+print.my_summary <- function(x, ...) {
+  cat("Summary Statistics\n")
+  cat("==================\n")
+  for (name in names(x)) {
+    cat(sprintf("%-12s: %s\n", name, 
+                format(x[[name]], digits = 3)))
+  }
+  invisible(x)
+}
+
+# Test
+data <- c(1, 2, NA, 4, 5, 6, 7, 8, 9, 10)
+my_summary(data)
+
+# With extra stats
+my_summary(data, 
+          IQR = IQR,
+          mad = mad)
+```
+
+**Exercise 3:**
+
+```{r}
+validate_args <- function(func_name, ...) {
+  # Check function exists
+  if (!exists(func_name, mode = "function")) {
+    message("✗ Function '", func_name, "' not found")
+    return(FALSE)
+  }
+  
+  func <- get(func_name, mode = "function")
+  func_args <- formals(func)
+  
+  # Get provided arguments
+  provided <- list(...)
+  
+  # Check required arguments (those without defaults)
+  required_args <- names(func_args)[sapply(func_args, 
+                                           function(x) class(x) == "name")]
+  
+  missing_required <- setdiff(required_args, names(provided))
+  
+  if (length(missing_required) > 0) {
+    message("✗ Missing required arguments: ", 
+            paste(missing_required, collapse = ", "))
+    return(FALSE)
+  }
+  
+  # Check for unexpected arguments
+  if (!"..." %in% names(func_args)) {
+    unexpected <- setdiff(names(provided), names(func_args))
+    if (length(unexpected) > 0) {
+      message("✗ Unexpected arguments: ", 
+              paste(unexpected, collapse = ", "))
+      return(FALSE)
+    }
+  }
+  
+  # Check argument types (basic)
+  for (arg_name in names(provided)) {
+    arg_value <- provided[[arg_name]]
+    # Could add more sophisticated type checking here
+  }
+  
+  message("✓ All validations passed for '", func_name, "'")
+  return(TRUE)
+}
+
+# Test
+validate_args("mean", x = c(1, 2, 3), na.rm = TRUE)
+validate_args("mean", na.rm = TRUE)  # Missing x
+validate_args("mean", x = c(1, 2, 3), invalid = TRUE)  # Extra arg
+```
+
+**Exercise 4:**
+
+```{r}
+make_adder <- function(n) {
+  # Return a function that adds n
+  function(x) {
+    x + n
+  }
+}
+
+# Test
+add_5 <- make_adder(5)
+add_5(10)
+
+add_100 <- make_adder(100)
+add_100(50)
+
+# Multiple uses
+add_5(1:10)
+
+# Each function retains its own n
+add_5(5)
+add_100(5)
+
+# More advanced: with validation
+make_adder_safe <- function(n) {
+  if (!is.numeric(n) || length(n) != 1) {
+    stop("n must be a single numeric value")
+  }
+  
+  function(x) {
+    if (!is.numeric(x)) {
+      stop("x must be numeric")
+    }
+    x + n
+  }
+}
+
+add_3 <- make_adder_safe(3)
+add_3(10)
+```
+</details>

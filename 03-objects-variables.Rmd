@@ -1,0 +1,1041 @@
+# Objects and Variables {#objects-variables}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- How R stores and finds objects
+- The most common beginner errors
+- Understanding R's case sensitivity and naming rules
+- Scoping basics that prevent errors
+
+**Key Errors Covered:** 10+ object-related errors
+
+**Difficulty:** ⭐ Beginner
+</div>
+
+## Introduction
+
+Every R session starts with creating objects. And every R learner's journey starts with `object 'x' not found`. This error is so universal that it deserves deep understanding.
+
+```{r}
+# Your first R command
+x <- 42
+x
+```
+
+Simple, right? Until it's not. Let's explore what goes wrong.
+
+## Error #1: `object 'x' not found` {#error-object-not-found}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-scope">🔗 SCOPING</span>
+
+### The Error
+
+```{r error=TRUE}
+# Try to use an object that doesn't exist
+my_number + 5
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: object 'my_number' not found
+```
+</div>
+
+### What It Means
+
+R looked for an object named `my_number` in:
+1. The current environment (`.GlobalEnv`)
+2. All loaded packages (in search path order)
+3. The base environment
+
+...and couldn't find it anywhere.
+
+### Common Causes
+
+#### Cause 1: Typo in Object Name
+
+```{r error=TRUE}
+my_variable <- 10
+my_varaible + 5  # Notice the typo: varaible vs variable
+```
+
+💡 **Key Insight:** R is case-sensitive!
+
+```{r error=TRUE}
+Temperature <- 98.6
+temperature  # Wrong case!
+```
+
+```{r}
+# These are THREE different objects:
+myVariable <- 1
+MyVariable <- 2
+myvariable <- 3
+
+ls()  # All three exist
+```
+
+#### Cause 2: Never Created the Object
+
+```{r error=TRUE}
+# Forgot to run this line:
+# result <- 100 * 2
+
+# Trying to use it:
+result / 4
+```
+
+#### Cause 3: Object Created in Different Scope
+
+```{r error=TRUE}
+my_function <- function() {
+  local_var <- 42
+  print(local_var)  # Works inside function
+}
+
+my_function()
+local_var  # Doesn't exist outside function!
+```
+
+#### Cause 4: Cleared Environment
+
+```{r}
+x <- 10
+x  # Exists
+
+rm(x)  # Removed it
+
+# Now:
+```
+
+```{r error=TRUE}
+x  # Gone!
+```
+
+#### Cause 5: Running Lines Out of Order
+
+```{r eval=FALSE}
+# If you run line 10 before line 5:
+
+# Line 5
+my_data <- read.csv("data.csv")
+
+# Line 10 (run this first by mistake)
+summary(my_data)  # Error! my_data doesn't exist yet
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Check spelling carefully:**
+```{r}
+my_variable <- 10
+my_variable + 5  # Correct spelling
+```
+
+**2. Verify object exists:**
+```{r}
+# List all objects
+ls()
+
+# Check if specific object exists
+exists("my_variable")
+
+# Search in environment
+grep("var", ls(), value = TRUE)  # Find objects with "var"
+```
+
+**3. Use RStudio's autocomplete:**
+- Type the first few letters
+- Press Tab to see available objects
+
+**4. Check your environment pane:**
+In RStudio, look at the Environment pane (top-right) to see all objects.
+
+**5. Run all necessary code:**
+Make sure you've executed all lines that create the objects you need.
+
+**6. Restart and run from top:**
+```{r eval=FALSE}
+# Clear everything and start fresh
+rm(list = ls())
+# Or: Ctrl+Shift+F10 in RStudio (restart R)
+```
+</div>
+
+<div class="bestpractice-box">
+🎯 **Best Practices**
+
+1. **Use consistent naming:** Choose a style and stick to it
+   - `snake_case` (recommended for R)
+   - `camelCase`
+   - Avoid `dot.case` (can be confusing with S3 methods)
+
+2. **Meaningful names:** `temperature_celsius` > `temp` > `t`
+
+3. **Avoid similar names:** 
+```{r eval=FALSE}
+# Confusing:
+data1 <- ...
+data2 <- ...
+data_new <- ...
+data_final <- ...
+data_final2 <- ...
+
+# Better:
+raw_data <- ...
+clean_data <- ...
+analyzed_data <- ...
+```
+
+4. **Run scripts top-to-bottom:** Your script should work when run fresh
+</div>
+
+## Error #2: `could not find function "x"` {#error-function-not-found}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-package">📦 PACKAGE</span>
+
+### The Error
+
+```{r error=TRUE}
+# Try to use a function from unloaded package
+read_csv("data.csv")
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: could not find function "read_csv"
+```
+</div>
+
+### What It Means
+
+R can't find a function with that name. Functions are searched in:
+1. The current environment
+2. All loaded packages
+3. **NOT** inside unloaded packages
+
+### Common Causes
+
+#### Cause 1: Package Not Loaded
+
+```{r eval=FALSE}
+# tidyverse not loaded
+read_csv("data.csv")  # Error!
+
+# Solution:
+library(readr)
+read_csv("data.csv")  # Works!
+```
+
+#### Cause 2: Package Not Installed
+
+```{r eval=FALSE, error=TRUE}
+library(somepackage)  # If not installed, this errors
+```
+
+```
+Error in library(somepackage) : 
+  there is no package called 'somepackage'
+```
+
+#### Cause 3: Typo in Function Name
+
+```{r error=TRUE}
+# Base R function is read.csv (dot), not read_csv (underscore)
+meen(c(1, 2, 3))  # Typo: mean
+```
+
+#### Cause 4: Object Overwrote Function
+
+```{r}
+# Created an object with same name as a function
+mean <- 42
+mean
+```
+
+```{r error=TRUE}
+# Now the function is gone!
+mean(c(1, 2, 3))  
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in mean(c(1, 2, 3)) : could not find function "mean"
+```
+
+Wait, what? We just used `mean`! But we overwrote it with the number 42.
+</div>
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Load the required package:**
+```{r eval=FALSE}
+library(readr)
+read_csv("data.csv")
+```
+
+**2. Install then load:**
+```{r eval=FALSE}
+install.packages("readr")
+library(readr)
+```
+
+**3. Use package::function notation:**
+```{r eval=FALSE}
+# Use function without loading entire package
+readr::read_csv("data.csv")
+
+# Always works, no library() needed
+dplyr::mutate(data, new_col = x + 1)
+```
+
+**4. Check function spelling:**
+```{r eval=FALSE}
+# Base R uses dots
+read.csv("data.csv")  # Note the dot
+
+# tidyverse uses underscores  
+library(readr)
+read_csv("data.csv")  # Note the underscore
+```
+
+**5. Remove conflicting object:**
+```{r}
+# If you accidentally overwrote:
+mean <- 42  # Bad!
+rm(mean)    # Remove the object
+mean(c(1, 2, 3))  # Now the function works
+```
+
+**6. Find where function lives:**
+```{r eval=FALSE}
+# Search for functions
+??read_csv
+help.search("read_csv")
+
+# Find package
+find("read_csv")
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: Overwriting Functions**
+
+Never name objects after common functions:
+
+**Avoid naming objects:**
+- `mean`, `sum`, `length`, `data`, `df`, `c`, `t`, `T`, `F`
+- `matrix`, `list`, `vector`, `table`
+- `plot`, `points`, `lines`
+- Any function you use regularly!
+
+**If you accidentally do it:**
+```{r eval=FALSE}
+# You created: sum <- 100
+sum(1:10)  # Error!
+
+# Fix:
+rm(sum)  # Remove it
+sum(1:10)  # Works now
+
+# Or restart R session: Ctrl+Shift+F10
+```
+</div>
+
+## Error #3: `unexpected symbol in "x"` {#error-unexpected-symbol}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-syntax">🔤 SYNTAX</span>
+
+### The Error
+
+```{r error=TRUE}
+my variable <- 10
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: unexpected symbol in "my variable"
+```
+</div>
+
+### What It Means
+
+R's parser encountered something it didn't expect. Usually a space or character where it shouldn't be.
+
+### Common Causes
+
+#### Cause 1: Space in Variable Name
+
+```{r error=TRUE}
+my variable <- 10  # Spaces not allowed!
+```
+
+```{r}
+# Solutions:
+my_variable <- 10  # underscore
+myVariable <- 10   # camelCase
+my.variable <- 10  # dot (less recommended)
+```
+
+#### Cause 2: Missing Operator
+
+```{r error=TRUE}
+x <- 5
+y <- 10
+result <- x y  # Missing operator!
+```
+
+```{r}
+# Fix:
+result <- x * y  # or +, -, /, etc.
+```
+
+#### Cause 3: Two Statements on One Line
+
+```{r error=TRUE}
+x <- 5 y <- 10  # Two assignments without separator
+```
+
+```{r}
+# Solutions:
+x <- 5; y <- 10  # Semicolon separator
+
+# Or on separate lines (preferred):
+x <- 5
+y <- 10
+```
+
+#### Cause 4: Incorrect String Quotes
+
+```{r error=TRUE}
+text <- "Hello world"  # Unmatched quotes
+```
+
+```{r}
+# Fix:
+text <- "Hello world"  # Matching quotes
+```
+
+#### Cause 5: Copying from Formatted Text
+
+```{r eval=FALSE}
+# Copying from Word/PDF might include smart quotes or special characters
+name <- "John"  # These aren't regular quotes!
+```
+
+```{r}
+# Should be:
+name <- "John"  # Regular ASCII quotes
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Use underscores for multi-word names:**
+```{r}
+total_sales <- 1000
+average_temperature <- 72.5
+```
+
+**2. Add missing operators:**
+```{r}
+a <- 10
+b <- 5
+c <- a + b  # Not: c <- a b
+```
+
+**3. Separate statements:**
+```{r}
+# One per line:
+x <- 1
+y <- 2
+
+# Or use semicolon:
+x <- 1; y <- 2
+```
+
+**4. Use consistent quotes:**
+```{r}
+# Choose one style and stick to it:
+text1 <- "double quotes"  # More common in R
+text2 <- 'single quotes'  # Also fine
+
+# They're equivalent:
+identical(text1, "double quotes")
+identical(text2, 'single quotes')
+```
+</div>
+
+## Error #4: `unexpected '=' in "x"` {#error-unexpected-equal}
+
+<span class="difficulty-beginner">⭐ BEGINNER</span> <span class="category-badge cat-syntax">🔤 SYNTAX</span>
+
+### The Error
+
+```{r error=TRUE}
+x = 5 = y
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error: unexpected '=' in "x = 5 ="
+```
+</div>
+
+### What It Means
+
+You used `=` where R didn't expect it.
+
+### Common Causes
+
+#### Cause 1: Chained Assignment (doesn't work like math)
+
+```{r error=TRUE}
+# Trying to set x and y to 5 (like math: x = y = 5)
+x = 5 = y  # Doesn't work!
+```
+
+```{r}
+# Solutions:
+x <- y <- 5  # This works
+# Or:
+x <- 5
+y <- 5
+```
+
+#### Cause 2: Using = Instead of ==
+
+```{r error=TRUE}
+x <- 10
+if (x = 10) {  # Assignment, not comparison!
+  print("yes")
+}
+```
+
+```{r}
+# Fix: use == for comparison
+if (x == 10) {
+  print("yes")
+}
+```
+
+#### Cause 3: Wrong Context for =
+
+```{r eval=FALSE}
+# Inside function arguments, = is fine:
+mean(x = c(1, 2, 3))  # OK
+
+# For assignment, <- is clearer:
+x <- c(1, 2, 3)  # Better style
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Use <- for assignment:**
+```{r}
+# Preferred in R
+x <- 10
+```
+
+**2. Use == for comparison:**
+```{r}
+x <- 10
+x == 10  # TRUE
+x == 5   # FALSE
+```
+
+**3. Use = only in function arguments:**
+```{r}
+# Good:
+mean(x = c(1, 2, 3), na.rm = TRUE)
+
+# Also fine, but <- preferred for assignment:
+x <- c(1, 2, 3)
+mean(x, na.rm = TRUE)
+```
+</div>
+
+<div class="insight-box">
+💡 **Key Insight: <- vs = **
+
+```{r}
+# Both work for assignment:
+x <- 10
+x = 10
+
+# But <- is preferred because:
+# 1. Clearer intent (unambiguous assignment)
+# 2. Works everywhere
+# 3. R community standard
+
+# = can be ambiguous:
+mean(x = 1:10)  # Named argument (good)
+x = 1:10        # Assignment (works, but <- preferred)
+```
+
+**Best Practice:** Use `<-` for assignment, `=` for function arguments
+</div>
+
+## Error #5: `object of type 'closure' is not subsettable` {#error-closure-not-subsettable}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-type">🔢 TYPE</span>
+
+### The Error
+
+```{r error=TRUE}
+mean[1]  # Trying to subset the mean function
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in mean[1] : object of type 'closure' is not subsettable
+```
+</div>
+
+### What It Means
+
+"Closure" = function. You're trying to use `[` on a function, which doesn't make sense.
+
+### Common Causes
+
+#### Cause 1: Forgot to Call the Function
+
+```{r error=TRUE}
+data <- c(1, 2, 3, 4, 5)
+result <- mean  # Forgot parentheses!
+result[1]  # Trying to subset the function itself
+```
+
+```{r}
+# Fix:
+result <- mean(data)  # Call the function
+result  # Now it's a number
+```
+
+#### Cause 2: Accidentally Accessed Function Instead of Object
+
+```{r error=TRUE}
+# You have an object named 'data'
+data <- data.frame(x = 1:5, y = 6:10)
+
+# But there's also a function called 'data'
+data[1, ]  # If you somehow reference the function...
+```
+
+This is rare, but shows why naming is important.
+
+#### Cause 3: Function Name Typo Leads to Another Function
+
+```{r error=TRUE}
+c <- c(1, 2, 3)  # Bad! 'c' is a function
+c[1]  # Now trying to subset the c() function
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Call the function:**
+```{r}
+# Wrong:
+data <- c(1, 2, 3)
+result <- mean
+result[1]  # Error
+
+# Right:
+result <- mean(data)  # Call it
+result  # Number, can't subset but don't need to
+```
+
+**2. Check if it's a function:**
+```{r}
+is.function(mean)  # TRUE
+is.function(c(1,2,3))  # FALSE
+```
+
+**3. Don't overwrite function names:**
+```{r eval=FALSE}
+# Bad:
+c <- c(1, 2, 3)
+t <- read.csv("data.csv")
+data <- process_data()
+
+# Good:
+my_vector <- c(1, 2, 3)
+my_data <- read.csv("data.csv")
+processed_data <- process_data()
+```
+</div>
+
+## Error #6: `cannot change value of locked binding` {#error-locked-binding}
+
+<span class="difficulty-intermediate">⭐⭐ INTERMEDIATE</span> <span class="category-badge cat-scope">🔗 SCOPING</span>
+
+### The Error
+
+```{r error=TRUE}
+T <- FALSE  # Trying to change T
+```
+
+<div class="error-box">
+🔴 **ERROR**
+
+```
+Error in T <- FALSE : cannot change value of locked binding for 'T'
+```
+</div>
+
+### What It Means
+
+You're trying to modify a protected object. Some objects are locked to prevent accidental changes.
+
+### Common Protected Objects
+
+```{r eval=FALSE}
+# These are locked:
+T  # TRUE
+F  # FALSE
+pi
+letters
+LETTERS
+month.name
+month.abb
+```
+
+### Why This Protection Exists
+
+```{r eval=FALSE}
+# Imagine if you could do this:
+T <- FALSE
+F <- TRUE
+
+# Now:
+if (T) {  # But T is FALSE!
+  print("This won't print")
+}
+
+# Chaos!
+```
+
+### Solutions
+
+<div class="solution-box">
+✅ **SOLUTIONS**
+
+**1. Use a different name:**
+```{r}
+# Don't:
+# T <- FALSE
+
+# Do:
+my_test <- FALSE
+temperature <- 72
+```
+
+**2. Use full names (better practice anyway):**
+```{r}
+# Instead of T/F:
+my_var <- TRUE   # Not T
+other_var <- FALSE  # Not F
+
+# More readable and no risk of confusion
+```
+
+**3. Never use T/F in code:**
+```{r}
+# Bad:
+if (x > 0) T else F
+
+# Good:
+if (x > 0) TRUE else FALSE
+```
+</div>
+
+<div class="pitfall-box">
+⚠️ **Common Pitfall: T and F**
+
+**Never use `T` and `F` as shortcuts for `TRUE` and `FALSE`**
+
+Why?
+- They can be overwritten (in older R)
+- Less readable
+- Can cause subtle bugs
+
+```{r eval=FALSE}
+# Dangerous:
+result <- T  # What if someone changed T?
+
+# Safe:
+result <- TRUE  # Can never be changed
+```
+</div>
+
+## Understanding Variable Scope
+
+<div class="insight-box">
+💡 **Key Insight: Where Variables Live**
+
+```{r}
+# Global environment
+x <- 10
+
+my_function <- function() {
+  # Function environment
+  y <- 20
+  
+  # Can see global x
+  print(x)
+  
+  # Can see local y
+  print(y)
+}
+
+my_function()
+
+# Global can't see local y
+```
+
+```{r error=TRUE}
+print(y)  # Error!
+```
+
+**Scoping Rules:**
+1. Look in current environment
+2. Look in parent environment
+3. Keep going up until found (or not)
+</div>
+
+## Naming Conventions
+
+<div class="bestpractice-box">
+🎯 **R Naming Best Practices**
+
+**Valid names:**
+```{r eval=FALSE}
+# Letters, numbers, dots, underscores
+my_variable
+myVariable
+my.variable
+my_variable2
+var_123
+.hidden_var  # Starts with dot (not shown by ls())
+```
+
+**Invalid names:**
+```{r eval=FALSE}
+# Can't start with number
+2var <- 10  # ERROR
+
+# Can't have spaces
+my var <- 10  # ERROR
+
+# Can't use special characters
+my-var <- 10  # ERROR (minus sign)
+my$var <- 10  # ERROR
+my@var <- 10  # ERROR
+```
+
+**Reserved words (can't use):**
+```{r eval=FALSE}
+# These are taken:
+if, else, repeat, while, function, for, in, next, break
+TRUE, FALSE, NULL, Inf, NaN, NA, NA_integer_, NA_real_, NA_complex_, NA_character_
+```
+
+**Recommended style:**
+```{r}
+# Snake case (recommended for R)
+total_sales <- 1000
+avg_temperature <- 72
+customer_age <- 35
+
+# CamelCase (also fine)
+totalSales <- 1000
+avgTemperature <- 72
+customerAge <- 35
+
+# Whatever you choose, be consistent!
+```
+</div>
+
+## Summary
+
+<div class="chapter-summary">
+**Key Takeaways:**
+
+1. **R is case-sensitive**: `X` ≠ `x`
+2. **Check spelling**: Most "object not found" errors are typos
+3. **Load packages**: Functions need `library()` or `::`
+4. **Don't overwrite functions**: Avoid naming objects after functions
+5. **Use `<-` for assignment**: Clearer than `=`
+6. **No spaces in names**: Use `_` or camelCase
+7. **Check environment**: Use `ls()` and RStudio's Environment pane
+8. **Never use T/F**: Always write TRUE/FALSE
+
+**Quick Fixes:**
+
+| Error | Likely Cause | Fix |
+|-------|--------------|-----|
+| object not found | Typo or not created | Check spelling, use `ls()` |
+| function not found | Package not loaded | `library()` or `package::function()` |
+| unexpected symbol | Space in name | Use `_` instead |
+| unexpected = | Used = instead of == | Use `==` for comparison |
+| closure not subsettable | Forgot () on function | Add parentheses |
+| locked binding | Tried to change T/F | Use different name |
+</div>
+
+## Exercises
+
+<div class="exercise-box">
+📝 **Exercise 1: Spot the Errors**
+
+What's wrong with each line?
+
+```{r eval=FALSE}
+# 1
+my result <- 100
+
+# 2
+Mean <- mean(c(1, 2, 3))
+meen(c(4, 5, 6))
+
+# 3
+x = 10
+if (x = 10) print("yes")
+
+# 4
+c <- c(1, 2, 3)
+c[1]
+
+# 5
+library(dplyr)
+select(data, column1)  # data doesn't exist
+
+# 6
+T <- FALSE
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 2: Debug This Script**
+
+Fix all errors:
+
+```{r eval=FALSE}
+# Load data
+my data <- read.csv("results.csv")
+
+# Calculate mean
+average <- Mean(my data$value)
+
+# Compare
+if (average = 50) {
+  print("Average is 50")
+}
+
+# Store result
+T <- average > 50
+```
+</div>
+
+<div class="exercise-box">
+📝 **Exercise 3: Good Names**
+
+Rename these variables following best practices:
+
+```{r eval=FALSE}
+# Current (bad) names:
+x <- data.frame(...)
+data <- read.csv("sales.csv")
+t <- TRUE
+result1 <- ...
+result2 <- ...
+finaldata <- ...
+```
+</div>
+
+## Exercise Answers
+
+<details>
+<summary>Click to see answers</summary>
+
+**Exercise 1:**
+
+```{r eval=FALSE}
+# 1 - Space in name
+my_result <- 100  # or myResult
+
+# 2 - Typo in function name
+Mean <- mean(c(1, 2, 3))  # OK (but confusing name)
+mean(c(4, 5, 6))  # Fix: mean not meen
+
+# 3 - Used = instead of ==
+x <- 10
+if (x == 10) print("yes")
+
+# 4 - Overwrote c() function
+my_vector <- c(1, 2, 3)
+my_vector[1]
+
+# 5 - Object 'data' doesn't exist (need to create first)
+# Also need to create it before this line
+
+# 6 - Can't change T
+my_test <- FALSE  # Use different name
+```
+
+**Exercise 2:**
+
+```{r eval=FALSE}
+# Load data
+my_data <- read.csv("results.csv")  # Underscore, not space
+
+# Calculate mean
+average <- mean(my_data$value)  # mean not Mean
+
+# Compare
+if (average == 50) {  # == not =
+  print("Average is 50")
+}
+
+# Store result
+is_above_50 <- average > 50  # Don't use T
+```
+
+**Exercise 3:**
+
+```{r eval=FALSE}
+# Better names:
+sales_dataframe <- data.frame(...)  # or just sales_data
+sales_data <- read.csv("sales.csv")
+is_valid <- TRUE  # or use full TRUE
+raw_results <- ...
+clean_results <- ...
+final_sales_data <- ...  # or analyzed_sales
+```
+</details>

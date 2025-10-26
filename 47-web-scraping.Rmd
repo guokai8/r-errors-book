@@ -1,0 +1,22 @@
+# Web Scraping {#web-scraping}
+
+<div class="chapter-summary">
+**What You'll Learn:**
+
+- rvest for scraping
+- httr for APIs
+- Common errors
+- Ethical scraping
+
+**Difficulty:** ⭐⭐⭐ Advanced
+</div>
+
+## Summary
+
+Web scraping and API interaction using rvest and httr.
+
+**Key Packages:**
+- `rvest` - HTML scraping
+- `httr` - HTTP requests
+- `jsonlite` - JSON parsing
+- `xml2` - XML parsing
